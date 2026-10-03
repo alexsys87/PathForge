@@ -27,6 +27,9 @@ public abstract class ModelWrapper : ObservableObject
         _changed();
     }
 
+    /// <summary>Re-reads all displayed values (changed outside the editor, or the interface language changed).</summary>
+    public void Refresh() => OnPropertyChanged(string.Empty);
+
     /// <summary>Tells the owner that the model changed outside of <see cref="Set{T}"/> (e.g. bulk updates).</summary>
     protected void NotifyOwner() => _changed();
 

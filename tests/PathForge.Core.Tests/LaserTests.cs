@@ -19,7 +19,7 @@ public class LaserTests
     {
         var project = new CamProject();
         MachineProfiles.Cnc3018Laser.ApplyTo(project.Machine);
-        var laser = ToolPresets.Cnc3018.Single(p => p.Template.Kind == ToolKind.Laser).Create(1);
+        var laser = ToolPresets.Cnc3018.First(p => p.Template.Kind == ToolKind.Laser).Create(1);
         project.Tools.Add(laser);
         project.Contours.AddRange(contours);
         return (project, laser);
@@ -201,6 +201,31 @@ public class LaserTests
         project.Operations.RemoveAll(o => o.Name != "No laser");
         project.Operations[0].ToolId = laser.Id;
         Assert.Contains(ToolpathGenerator.Generate(project).Warnings, w => w.Contains("профиль лазера"));
+    }
+
+    [Fact]
+    public void Laser_10w_profile_and_preset_produce_laser_gcode()
+    {
+        var project = new CamProject();
+        MachineProfiles.Cnc3018Laser10W.ApplyTo(project.Machine);
+        var preset = ToolPresets.Cnc3018.Single(p => p.Template.Kind == ToolKind.Laser && p.NameEn.Contains("10 W"));
+        var laser = preset.Create(1);
+        project.Tools.Add(laser);
+        project.Contours.Add(Rectangle(1, 0, 0, 20, 10));
+        project.Operations.Add(new LaserVectorOperation { ToolId = laser.Id, PowerPercent = 60, Speed = 400, ContourIds = { 1 } });
+
+        var result = ToolpathGenerator.Generate(project);
+        var lines = Lines(GcodeWriter.Write("p", result, project.Machine));
+
+        Assert.Contains(MachineProfiles.Cnc3018Laser10W, MachineProfiles.All);
+        Assert.True(project.Machine.LaserMode);
+        Assert.Equal(GcodeDialect.Grbl, project.Machine.Dialect);
+        Assert.Equal(0, project.Machine.SafeZ);
+        Assert.Equal(ToolKind.Laser, laser.Kind);
+        Assert.Empty(result.Warnings);
+        Assert.Contains("M4 S0", lines);
+        Assert.Contains(lines, l => l.StartsWith("G1") && l.Contains("S600") && l.Contains("F400"));
+        Assert.DoesNotContain(lines, l => l.Contains('Z') && !l.StartsWith('('));
     }
 
     [Fact]

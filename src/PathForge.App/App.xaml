@@ -3,37 +3,26 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
-        <SolidColorBrush x:Key="PanelBrush" Color="#F3F4F6" />
-        <SolidColorBrush x:Key="BorderBrushLight" Color="#D0D4DA" />
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#5F6670" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Colour theme: replaced at run time (see WpfAppearanceService), must stay first -->
+                <ResourceDictionary Source="Themes/Light.xaml" />
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
-        <Style TargetType="TextBlock" x:Key="FieldLabel">
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,3,8,3" />
-            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
-        </Style>
-        <Style TargetType="TextBlock" x:Key="SectionHeader">
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,8,0,4" />
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="Margin" Value="0,3" />
-            <Setter Property="Padding" Value="3,2" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style TargetType="ComboBox">
-            <Setter Property="Margin" Value="0,3" />
-        </Style>
-        <Style TargetType="CheckBox">
-            <Setter Property="Margin" Value="0,5" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="8,3" />
-            <Setter Property="Margin" Value="0,0,4,4" />
-        </Style>
-        <Style TargetType="Button" x:Key="ToolBarButton" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
-            <Setter Property="Padding" Value="8,3" />
-        </Style>
+            <Style TargetType="TextBlock" x:Key="FieldLabel">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="0,3,8,3" />
+                <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+            </Style>
+            <Style TargetType="TextBlock" x:Key="SectionHeader">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Margin" Value="0,8,0,4" />
+            </Style>
+            <Style TargetType="Button" x:Key="ToolBarButton" BasedOn="{StaticResource FlatButton}">
+                <Setter Property="Padding" Value="8,3" />
+                <Setter Property="Margin" Value="0" />
+            </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

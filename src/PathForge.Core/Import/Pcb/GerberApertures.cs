@@ -1,5 +1,6 @@
 using System.Globalization;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Import.Pcb;
 
@@ -237,7 +238,7 @@ internal sealed class ApertureMacro
                 }
 
                 default:
-                    warnings.Add($"Примитив макроса {code} в апертуре {Name} не поддерживается и пропущен.");
+                    warnings.Add(Loc.T($"Примитив макроса {code} в апертуре {Name} не поддерживается и пропущен.", $"Macro primitive {code} in aperture {Name} is not supported and was skipped."));
                     break;
             }
         }

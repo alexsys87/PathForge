@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 using PathForge.Core.Projects;
 
@@ -118,7 +119,7 @@ public static class TextBuilder
         var outline = Layout(font, item);
         if (outline.MissingCharacters.Count > 0)
         {
-            warnings.Add($"В шрифте «{font.DisplayName}» нет символов: {string.Join(" ", outline.MissingCharacters)}");
+            warnings.Add(Loc.T($"В шрифте «{font.DisplayName}» нет символов: {string.Join(" ", outline.MissingCharacters)}", $"The font “{font.DisplayName}” has no glyphs for: {string.Join(" ", outline.MissingCharacters)}"));
         }
 
         var nextId = project.NextContourId();
@@ -190,6 +191,6 @@ public static class TextBuilder
             text = text[..24] + "…";
         }
 
-        return string.Create(CultureInfo.CurrentCulture, $"«{text}» — {item.FontName}, {item.HeightMm:0.##} мм");
+        return Loc.T($"«{text}» — {item.FontName}, {item.HeightMm:0.##} мм", $"“{text}” — {item.FontName}, {item.HeightMm:0.##} mm");
     }
 }

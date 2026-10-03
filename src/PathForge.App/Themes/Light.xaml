@@ -1,0 +1,58 @@
+<!-- Light colour theme. Every key must also exist in the other theme file. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Window and content background -->
+    <SolidColorBrush x:Key="WindowBrush" Color="#FFFFFF" />
+    <!-- Side panels, status bar, tool bar -->
+    <SolidColorBrush x:Key="PanelBrush" Color="#F3F4F6" />
+    <!-- Text boxes, combo boxes, lists -->
+    <SolidColorBrush x:Key="ControlBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ButtonBrush" Color="#E9ECEF" />
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="#DCE3EA" />
+    <SolidColorBrush x:Key="ButtonPressedBrush" Color="#C9D3DE" />
+    <!-- Borders of inputs and buttons -->
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#B9C0C8" />
+    <!-- Splitters and separators -->
+    <SolidColorBrush x:Key="BorderBrushLight" Color="#D0D4DA" />
+    <!-- Focus, progress, check marks -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#2B7CD3" />
+    <!-- Selected list and menu items -->
+    <SolidColorBrush x:Key="SelectionBrush" Color="#CCE4F7" />
+    <!-- Items under the mouse -->
+    <SolidColorBrush x:Key="HoverBrush" Color="#E5F1FB" />
+    <SolidColorBrush x:Key="TextBrush" Color="#1F2328" />
+    <!-- Hints and secondary text -->
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#5F6670" />
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="#A0A6AD" />
+    <!-- Menu bar -->
+    <SolidColorBrush x:Key="MenuBrush" Color="#F5F6F8" />
+    <!-- Drop-downs, menus, tool tips -->
+    <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFF" />
+    <!-- Unselected tab headers -->
+    <SolidColorBrush x:Key="TabHeaderBrush" Color="#E9ECEF" />
+    <!-- Arrows and check marks -->
+    <SolidColorBrush x:Key="GlyphBrush" Color="#3A4048" />
+    <SolidColorBrush x:Key="ScrollTrackBrush" Color="#F0F1F3" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#C2C7CE" />
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#A4ABB4" />
+    <!-- Selected text in text boxes -->
+    <SolidColorBrush x:Key="TextSelectionBrush" Color="#3390FF" />
+
+    <!-- System colours used by the stock control templates that are not restyled -->
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#F3F4F6" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#E9ECEF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#B9C0C8" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#A0A6AD" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#CCE4F7" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#CCE4F7" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#F5F6F8" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoBrushKey}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoTextBrushKey}" Color="#1F2328" />
+</ResourceDictionary>

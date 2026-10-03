@@ -1,4 +1,5 @@
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Machining;
 
@@ -15,7 +16,7 @@ public static partial class ToolpathGenerator
             : operation.Mesh.TriangleCount > 0;
         if (!hasSource)
         {
-            context.Warnings.Add($"{context.Label}: не загружена {(operation.Source == ReliefSource.Image ? "картинка" : "модель STL")}.");
+            context.Warnings.Add(Loc.T($"{context.Label}: не загружена {(operation.Source == ReliefSource.Image ? "картинка" : "модель STL")}.", $"{context.Label}: no {(operation.Source == ReliefSource.Image ? "picture" : "STL model")} loaded."));
             return;
         }
 
@@ -24,7 +25,7 @@ public static partial class ToolpathGenerator
         var rows = Math.Max(2, (int)Math.Round(operation.HeightMm / resolution));
         if ((long)columns * rows > MaxReliefCells)
         {
-            context.Warnings.Add($"{context.Label}: слишком мелкая сетка ({columns}×{rows}); увеличьте шаг сетки.");
+            context.Warnings.Add(Loc.T($"{context.Label}: слишком мелкая сетка ({columns}×{rows}); увеличьте шаг сетки.", $"{context.Label}: the grid is too fine ({columns}×{rows}); increase the grid step."));
             return;
         }
 
@@ -35,12 +36,12 @@ public static partial class ToolpathGenerator
 
         if (tool.Kind is ToolKind.EndMill or ToolKind.Drill)
         {
-            context.Warnings.Add($"{context.Label}: для рельефа лучше сферическая фреза или гравёр — плоская оставит ступеньки.");
+            context.Warnings.Add(Loc.T($"{context.Label}: для рельефа лучше сферическая фреза или гравёр — плоская оставит ступеньки.", $"{context.Label}: a ball nose or a V-bit is better for a relief — a flat end mill leaves steps."));
         }
 
         if (!operation.Roughing && operation.Depth > tool.StepDown + 1e-9)
         {
-            context.Warnings.Add($"{context.Label}: глубина больше шага по глубине инструмента — включите черновую обработку.");
+            context.Warnings.Add(Loc.T($"{context.Label}: глубина больше шага по глубине инструмента — включите черновую обработку.", $"{context.Label}: the depth exceeds the tool step-down — enable roughing."));
         }
 
         var startZ = operation.StartZ;

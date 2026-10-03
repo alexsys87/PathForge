@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Leveling;
 
@@ -69,7 +70,7 @@ public sealed class LevelingMap
     {
         if (probeZ.Count != countX * countY)
         {
-            throw new ArgumentException("Число измерений не совпадает с сеткой.", nameof(probeZ));
+            throw new ArgumentException(Loc.T("Число измерений не совпадает с сеткой.", "The number of measurements does not match the grid."), nameof(probeZ));
         }
 
         var map = new LevelingMap

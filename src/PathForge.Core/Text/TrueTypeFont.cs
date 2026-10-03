@@ -1,4 +1,5 @@
 using System.Text;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Text;
 
@@ -34,7 +35,7 @@ public sealed class TrueTypeFont
         var isCff = version == Tag("OTTO");
         if (!isCff && version != 0x00010000 && version != Tag("true"))
         {
-            throw new FormatException("Файл не является шрифтом OpenType/TrueType.");
+            throw new FormatException(Loc.T("Файл не является шрифтом OpenType/TrueType.", "The file is not an OpenType/TrueType font."));
         }
 
         _tables = new Dictionary<string, (int, int)>(StringComparer.Ordinal);
@@ -47,7 +48,7 @@ public sealed class TrueTypeFont
             var length = (int)U32(record + 12);
             if (offset < 0 || length < 0 || (long)offset + length > data.Length)
             {
-                throw new FormatException($"Таблица шрифта «{tag}» выходит за пределы файла.");
+                throw new FormatException(Loc.T($"Таблица шрифта «{tag}» выходит за пределы файла.", $"The font table “{tag}” lies outside the file."));
             }
 
             _tables[tag] = (offset, length);
@@ -57,7 +58,7 @@ public sealed class TrueTypeFont
         {
             if (!_tables.ContainsKey(required))
             {
-                throw new FormatException($"В шрифте нет таблицы «{required}».");
+                throw new FormatException(Loc.T($"В шрифте нет таблицы «{required}».", $"The font has no “{required}” table."));
             }
         }
 
@@ -66,22 +67,22 @@ public sealed class TrueTypeFont
             if (!_tables.TryGetValue("CFF ", out var cff))
             {
                 throw new NotSupportedException(_tables.ContainsKey("CFF2")
-                    ? "Вариативные шрифты (CFF2) не поддерживаются — выберите обычный .otf или .ttf."
-                    : "В шрифте нет таблицы контуров CFF.");
+                    ? Loc.T("Вариативные шрифты (CFF2) не поддерживаются — выберите обычный .otf или .ttf.", "Variable fonts (CFF2) are not supported — choose a regular .otf or .ttf.")
+                    : Loc.T("В шрифте нет таблицы контуров CFF.", "The font has no CFF outline table."));
             }
 
             _cff = new CffOutlines(data, cff.Offset, cff.Length);
         }
         else if (!_tables.ContainsKey("glyf") || !_tables.ContainsKey("loca"))
         {
-            throw new NotSupportedException("В шрифте нет контуров (таблиц glyf/loca или CFF).");
+            throw new NotSupportedException(Loc.T("В шрифте нет контуров (таблиц glyf/loca или CFF).", "The font has no outlines (glyf/loca or CFF tables)."));
         }
 
         var head = _tables["head"].Offset;
         UnitsPerEm = U16(head + 18);
         if (UnitsPerEm == 0)
         {
-            throw new FormatException("Неверный размер em в шрифте.");
+            throw new FormatException(Loc.T("Неверный размер em в шрифте.", "Invalid em size in the font."));
         }
 
         _longLoca = I16(head + 50) != 0;
@@ -128,13 +129,13 @@ public sealed class TrueTypeFont
     {
         if (data.Length < 12)
         {
-            throw new FormatException("Файл шрифта слишком короткий.");
+            throw new FormatException(Loc.T("Файл шрифта слишком короткий.", "The font file is too short."));
         }
 
         var count = FontCount(data);
         if (fontIndex < 0 || fontIndex >= count)
         {
-            throw new ArgumentOutOfRangeException(nameof(fontIndex), $"В файле {count} шрифт(ов).");
+            throw new ArgumentOutOfRangeException(nameof(fontIndex), Loc.T($"В файле {count} шрифт(ов).", $"The file contains {count} font(s)."));
         }
 
         var directory = IsCollection(data) ? (int)ReadU32(data, 12 + fontIndex * 4) : 0;
@@ -502,7 +503,7 @@ public sealed class TrueTypeFont
 
         if (best < 0)
         {
-            throw new NotSupportedException("В шрифте нет таблицы символов Юникода.");
+            throw new NotSupportedException(Loc.T("В шрифте нет таблицы символов Юникода.", "The font has no Unicode character map."));
         }
 
         return (best, bestFormat, symbol);

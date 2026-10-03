@@ -1,4 +1,5 @@
 using PathForge.Core.Import;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 
 namespace PathForge.App.ViewModels;
@@ -17,7 +18,7 @@ public abstract class OperationViewModel : ModelWrapper
     /// <summary>Short operation type shown in the list.</summary>
     public abstract string KindLabel { get; }
 
-    public virtual string Summary => $"{KindLabel} · {Model.Depth:0.##} мм · контуров: {Model.ContourIds.Count}";
+    public virtual string Summary => Loc.T($"{KindLabel} · {Model.Depth:0.##} мм · контуров: {Model.ContourIds.Count}", $"{KindLabel} · {Model.Depth:0.##} mm · contours: {Model.ContourIds.Count}");
 
     public string Name
     {
@@ -101,7 +102,7 @@ public sealed class ProfileOperationViewModel : OperationViewModel
         _model = model;
     }
 
-    public override string KindLabel => "Контур";
+    public override string KindLabel => Loc.T("Контур", "Profile");
 
     public ProfileSide Side
     {
@@ -162,9 +163,9 @@ public sealed class VCarveOperationViewModel : OperationViewModel
         _model = model;
     }
 
-    public override string KindLabel => "V-карвинг";
+    public override string KindLabel => Loc.T("V-карвинг", "V-carving");
 
-    public override string Summary => $"{KindLabel} · до {Model.Depth:0.##} мм · контуров: {Model.ContourIds.Count}";
+    public override string Summary => Loc.T($"{KindLabel} · до {Model.Depth:0.##} мм · контуров: {Model.ContourIds.Count}", $"{KindLabel} · up to {Model.Depth:0.##} mm · contours: {Model.ContourIds.Count}");
 
     public double StepMm
     {
@@ -195,7 +196,7 @@ public sealed class PocketOperationViewModel : OperationViewModel
         _model = model;
     }
 
-    public override string KindLabel => "Карман";
+    public override string KindLabel => Loc.T("Карман", "Pocket");
 
     public CutDirection Direction
     {
@@ -220,7 +221,7 @@ public sealed class DrillOperationViewModel : OperationViewModel
         _model = model;
     }
 
-    public override string KindLabel => "Сверление";
+    public override string KindLabel => Loc.T("Сверление", "Drilling");
 
     public double PeckDepth
     {
@@ -239,7 +240,7 @@ public sealed class IsolationOperationViewModel : OperationViewModel
         _model = model;
     }
 
-    public override string KindLabel => "Изоляция";
+    public override string KindLabel => Loc.T("Изоляция", "Isolation");
 
     public int Passes
     {
@@ -270,9 +271,9 @@ public sealed class LaserVectorOperationViewModel : OperationViewModel
         _model = model;
     }
 
-    public override string KindLabel => "Лазер";
+    public override string KindLabel => Loc.T("Лазер", "Laser");
 
-    public override string Summary => $"Лазер · {_model.PowerPercent:0}% · {_model.Speed:0} мм/мин · контуров: {_model.ContourIds.Count}";
+    public override string Summary => Loc.T($"Лазер · {_model.PowerPercent:0}% · {_model.Speed:0} мм/мин · контуров: {_model.ContourIds.Count}", $"Laser · {_model.PowerPercent:0}% · {_model.Speed:0} mm/min · contours: {_model.ContourIds.Count}");
 
     public LaserVectorMode Mode
     {
@@ -329,13 +330,13 @@ public sealed class LaserRasterOperationViewModel : OperationViewModel
 
     public LaserRasterOperation RasterModel => _model;
 
-    public override string KindLabel => "Картинка";
+    public override string KindLabel => Loc.T("Картинка", "Picture");
 
-    public override string Summary => $"Картинка · {_model.WidthMm:0.#}×{_model.HeightMm:0.#} мм · {_model.PowerMaxPercent:0}%";
+    public override string Summary => Loc.T($"Картинка · {_model.WidthMm:0.#}×{_model.HeightMm:0.#} мм · {_model.PowerMaxPercent:0}%", $"Picture · {_model.WidthMm:0.#}×{_model.HeightMm:0.#} mm · {_model.PowerMaxPercent:0}%");
 
     public string ImageInfo => _model.Image.Width == 0
-        ? "картинка не загружена"
-        : $"{_model.Image.SourceName}, {_model.Image.Width}×{_model.Image.Height} пикс.";
+        ? Loc.T("картинка не загружена", "no picture loaded")
+        : Loc.T($"{_model.Image.SourceName}, {_model.Image.Width}×{_model.Image.Height} пикс.", $"{_model.Image.SourceName}, {_model.Image.Width}×{_model.Image.Height} px");
 
     public double X
     {
@@ -430,15 +431,15 @@ public sealed class ReliefOperationViewModel : OperationViewModel
 
     public ReliefOperation ReliefModel => _model;
 
-    public override string KindLabel => "Рельеф 3D";
+    public override string KindLabel => Loc.T("Рельеф 3D", "3D relief");
 
-    public override string Summary => $"Рельеф · {_model.WidthMm:0.#}×{_model.HeightMm:0.#} мм · глубина {_model.Depth:0.##}";
+    public override string Summary => Loc.T($"Рельеф · {_model.WidthMm:0.#}×{_model.HeightMm:0.#} мм · глубина {_model.Depth:0.##}", $"Relief · {_model.WidthMm:0.#}×{_model.HeightMm:0.#} mm · depth {_model.Depth:0.##}");
 
     public bool IsImage => _model.Source == ReliefSource.Image;
 
     public string SourceInfo => _model.Source == ReliefSource.Image
-        ? (_model.Image.Width == 0 ? "картинка не загружена" : $"{_model.Image.SourceName}, {_model.Image.Width}×{_model.Image.Height} пикс.")
-        : (_model.Mesh.TriangleCount == 0 ? "модель не загружена" : $"{_model.Mesh.SourceName}, треугольников: {_model.Mesh.TriangleCount}");
+        ? (_model.Image.Width == 0 ? Loc.T("картинка не загружена", "no picture loaded") : Loc.T($"{_model.Image.SourceName}, {_model.Image.Width}×{_model.Image.Height} пикс.", $"{_model.Image.SourceName}, {_model.Image.Width}×{_model.Image.Height} px"))
+        : (_model.Mesh.TriangleCount == 0 ? Loc.T("модель не загружена", "no model loaded") : Loc.T($"{_model.Mesh.SourceName}, треугольников: {_model.Mesh.TriangleCount}", $"{_model.Mesh.SourceName}, triangles: {_model.Mesh.TriangleCount}"));
 
     public double X
     {

@@ -1,4 +1,5 @@
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Machining;
 
@@ -20,7 +21,7 @@ public static partial class ToolpathGenerator
         var count = (int)Math.Ceiling(-lowest / step - 1e-9);
         if (count > MaxWaterlineLevels)
         {
-            context.Warnings.Add($"{context.Label}: слишком мелкий шаг по уровням ({count} уровней) — увеличьте шаг Z.");
+            context.Warnings.Add(Loc.T($"{context.Label}: слишком мелкий шаг по уровням ({count} уровней) — увеличьте шаг Z.", $"{context.Label}: the level step is too small ({count} levels) — increase the Z step."));
             return;
         }
 

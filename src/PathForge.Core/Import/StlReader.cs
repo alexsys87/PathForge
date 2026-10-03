@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json.Serialization;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Import;
 
@@ -116,7 +117,7 @@ public static class StlReader
             var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length < 4)
             {
-                throw new FormatException($"Неверная строка STL: {line}");
+                throw new FormatException(Loc.T($"Неверная строка STL: {line}", $"Invalid STL line: {line}"));
             }
 
             for (var k = 1; k <= 3; k++)
@@ -127,7 +128,7 @@ public static class StlReader
 
         if (vertices.Count == 0 || vertices.Count % 9 != 0)
         {
-            throw new FormatException("В файле STL не найдено треугольников.");
+            throw new FormatException(Loc.T("В файле STL не найдено треугольников.", "No triangles found in the STL file."));
         }
 
         return StlMesh.FromVertices(vertices.ToArray(), sourceName);

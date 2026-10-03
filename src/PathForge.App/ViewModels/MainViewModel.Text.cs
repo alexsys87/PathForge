@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 using PathForge.Core.Projects;
 using PathForge.Core.Text;
@@ -11,9 +12,12 @@ namespace PathForge.App.ViewModels;
 /// <summary>Texts written with TrueType fonts and V-carving.</summary>
 public sealed partial class MainViewModel
 {
-    private const string TextMessagePrefix = "Текст: ";
-
     private Task? _fontScan;
+
+    /// <summary>Recomputes <see cref="FontScanStatus"/> in the current language.</summary>
+    private Func<string> _fontScanText = () => "";
+
+    private static string TextMessagePrefix => Loc.T("Текст: ", "Text: ");
 
     /// <summary>TrueType fonts installed on this computer (filled in the background).</summary>
     public ObservableCollection<FontEntry> Fonts { get; } = new();
@@ -40,7 +44,7 @@ public sealed partial class MainViewModel
 
         async Task LoadFontsAsync()
         {
-            FontScanStatus = "Чтение списка шрифтов…";
+            SetFontScanStatus(() => Loc.T("Чтение списка шрифтов…", "Reading the font list…"));
             try
             {
                 var fonts = await Task.Run(() => FontCatalog.Scan(FontFolders().Where(f => f.Length > 0)));
@@ -49,11 +53,13 @@ public sealed partial class MainViewModel
                     Fonts.Add(font);
                 }
 
-                FontScanStatus = fonts.Count == 0 ? "Шрифты (.ttf, .otf) не найдены." : $"Шрифтов: {fonts.Count}";
+                SetFontScanStatus(() => fonts.Count == 0
+                    ? Loc.T("Шрифты (.ttf, .otf) не найдены.", "No fonts (.ttf, .otf) found.")
+                    : Loc.T($"Шрифтов: {fonts.Count}", $"Fonts: {fonts.Count}"));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                FontScanStatus = $"Не удалось прочитать шрифты: {ex.Message}";
+                SetFontScanStatus(() => Loc.T($"Не удалось прочитать шрифты: {ex.Message}", $"Could not read the fonts: {ex.Message}"));
             }
 
             foreach (var text in Texts)
@@ -63,6 +69,12 @@ public sealed partial class MainViewModel
         }
     }
 
+    private void SetFontScanStatus(Func<string> text)
+    {
+        _fontScanText = text;
+        FontScanStatus = text();
+    }
+
     [RelayCommand]
     private async Task AddText()
     {
@@ -70,7 +82,7 @@ public sealed partial class MainViewModel
         var font = Fonts.FirstOrDefault(f => f.Name == "Arial") ?? Fonts.FirstOrDefault();
         if (font is null)
         {
-            _dialogs.ShowError("Не найдено ни одного шрифта (.ttf, .otf).");
+            _dialogs.ShowError(Loc.T("Не найдено ни одного шрифта (.ttf, .otf).", "No fonts (.ttf, .otf) found."));
             return;
         }
 
@@ -78,7 +90,7 @@ public sealed partial class MainViewModel
         var bounds = _project.DrawingBounds();
         var item = new TextItem
         {
-            Text = "Текст",
+            Text = Loc.T("Текст", "Text"),
             FontPath = font.Path,
             FontIndex = font.Index,
             FontName = font.Name,
@@ -135,10 +147,12 @@ public sealed partial class MainViewModel
         var vbit = _project.Tools.Where(t => t.Kind == ToolKind.VBit).MaxBy(t => t.TipAngle);
         if (vbit is null)
         {
-            Messages.Add("Для V-карвинга нужна V-фреза: «Инструменты» → пресет «V-карвинг: V-фреза 60°» или «90°».");
+            Messages.Add(Loc.T(
+                "Для V-карвинга нужна V-фреза: «Инструменты» → пресет «V-карвинг: V-фреза 60°» или «90°».",
+                "V-carving needs a V-bit: “Tools” → preset “V-carving: V-bit 60°” or “90°”."));
         }
 
-        AddOperation(new VCarveOperation { Name = $"V-карвинг {Operations.Count + 1}", Depth = 2 }, vbit);
+        AddOperation(new VCarveOperation { Name = Loc.T("V-карвинг", "V-carving") + $" {Operations.Count + 1}", Depth = 2 }, vbit);
     }
 
     partial void OnSelectedTextChanged(TextItemViewModel? value)
@@ -162,7 +176,8 @@ public sealed partial class MainViewModel
     {
         for (var i = Messages.Count - 1; i >= 0; i--)
         {
-            if (Messages[i].StartsWith(TextMessagePrefix, StringComparison.Ordinal))
+            // Messages written before a language switch have the prefix of the other language.
+            if (Messages[i].StartsWith("Текст: ", StringComparison.Ordinal) || Messages[i].StartsWith("Text: ", StringComparison.Ordinal))
             {
                 Messages.RemoveAt(i);
             }
@@ -170,7 +185,9 @@ public sealed partial class MainViewModel
 
         if (string.IsNullOrEmpty(item.FontPath) || !File.Exists(item.FontPath))
         {
-            Messages.Add($"{TextMessagePrefix}шрифт «{item.FontName}» не найден, буквы не обновлены.");
+            Messages.Add(TextMessagePrefix + Loc.T(
+                $"шрифт «{item.FontName}» не найден, буквы не обновлены.",
+                $"the font “{item.FontName}” was not found, the letters were not updated."));
             return false;
         }
 
@@ -195,7 +212,9 @@ public sealed partial class MainViewModel
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException or NotSupportedException
                                        or IndexOutOfRangeException or ArgumentException)
         {
-            Messages.Add($"{TextMessagePrefix}не удалось прочитать шрифт «{item.FontName}»: {ex.Message}");
+            Messages.Add(TextMessagePrefix + Loc.T(
+                $"не удалось прочитать шрифт «{item.FontName}»: {ex.Message}",
+                $"could not read the font “{item.FontName}”: {ex.Message}"));
             return false;
         }
     }

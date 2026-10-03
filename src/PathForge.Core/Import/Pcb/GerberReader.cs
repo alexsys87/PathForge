@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Clipper2Lib;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 
 namespace PathForge.Core.Import.Pcb;
@@ -185,7 +186,7 @@ public static partial class GerberReader
                 var m = FormatRegex().Match(command);
                 if (!m.Success)
                 {
-                    throw new FormatException($"Не удалось разобрать формат координат: {command}");
+                    throw new FormatException(Loc.T($"Не удалось разобрать формат координат: {command}", $"Could not parse the coordinate format: {command}"));
                 }
 
                 _trailingZerosOmitted = m.Groups[1].Value == "T";
@@ -194,7 +195,7 @@ public static partial class GerberReader
                 _decimalDigits = int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture);
                 if (_incremental)
                 {
-                    Warn("Инкрементные координаты (FSI) устарели; результат может быть неверным.");
+                    Warn(Loc.T("Инкрементные координаты (FSI) устарели; результат может быть неверным.", "Incremental coordinates (FSI) are deprecated; the result may be wrong."));
                 }
             }
             else if (command.StartsWith("MO", StringComparison.Ordinal))
@@ -221,16 +222,16 @@ public static partial class GerberReader
             {
                 if (command != "SR" && command != "SRX1Y1I0J0" && command != "SRX1Y1I0.0J0.0")
                 {
-                    Warn("Повтор блока (%SR) не поддерживается: размножьте плату в программе проектирования.");
+                    Warn(Loc.T("Повтор блока (%SR) не поддерживается: размножьте плату в программе проектирования.", "Step and repeat (%SR) is not supported: panelize the board in your PCB design program."));
                 }
             }
             else if (command.StartsWith("IPNEG", StringComparison.Ordinal))
             {
-                Warn("Негативное изображение (%IPNEG) не поддерживается.");
+                Warn(Loc.T("Негативное изображение (%IPNEG) не поддерживается.", "Negative image (%IPNEG) is not supported."));
             }
             else if (command.StartsWith("MI", StringComparison.Ordinal) && command.Contains('1'))
             {
-                Warn("Зеркалирование в файле (%MI) не поддерживается; используйте «Зеркалить по X».");
+                Warn(Loc.T("Зеркалирование в файле (%MI) не поддерживается; используйте «Зеркалить по X».", "Mirroring in the file (%MI) is not supported; use “Mirror X”."));
             }
 
             // TF/TA/TO/TD (X2 attributes), IN, LN, OF, SF, AS, IR: no influence on 2D geometry here.
@@ -373,7 +374,7 @@ public static partial class GerberReader
             var m = ApertureRegex().Match(command);
             if (!m.Success)
             {
-                Warn($"Не удалось разобрать апертуру: {command}");
+                Warn(Loc.T($"Не удалось разобрать апертуру: {command}", $"Could not parse the aperture: {command}"));
                 return;
             }
 
@@ -393,7 +394,7 @@ public static partial class GerberReader
             }
             else
             {
-                Warn($"Апертура D{number} ссылается на неизвестный макрос {template}.");
+                Warn(Loc.T($"Апертура D{number} ссылается на неизвестный макрос {template}.", $"Aperture D{number} refers to an unknown macro {template}."));
             }
         }
 
@@ -533,7 +534,7 @@ public static partial class GerberReader
             {
                 if (!shape.IsCircle)
                 {
-                    Warn("Линии прямоугольной апертурой приближены скруглёнными (медь чуть шире).");
+                    Warn(Loc.T("Линии прямоугольной апертурой приближены скруглёнными (медь чуть шире).", "Lines drawn with a rectangular aperture are approximated by rounded ones (copper slightly wider)."));
                 }
 
                 Add(ClipperBridge.Stroke(_stroke, shape.StrokeWidth / 2));
@@ -559,7 +560,7 @@ public static partial class GerberReader
                 return true;
             }
 
-            Warn(_aperture is null ? "Рисование без выбранной апертуры пропущено." : $"Апертура D{_aperture} не определена.");
+            Warn(_aperture is null ? Loc.T("Рисование без выбранной апертуры пропущено.", "Drawing without a selected aperture was skipped.") : Loc.T($"Апертура D{_aperture} не определена.", $"Aperture D{_aperture} is not defined."));
             shape = null!;
             return false;
         }

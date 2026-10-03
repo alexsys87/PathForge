@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 
 namespace PathForge.App.Services;
@@ -8,7 +9,9 @@ namespace PathForge.App.Services;
 /// <summary>Loads PNG/JPG/BMP/GIF/TIFF pictures as grey-scale images for laser engraving.</summary>
 public static class ImageLoader
 {
-    public const string Filter = "Картинки (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|Все файлы (*.*)|*.*";
+    public static string Filter =>
+        Loc.T("Картинки", "Pictures") + " (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|" +
+        Loc.T("Все файлы", "All files") + " (*.*)|*.*";
 
     /// <summary>Longest side kept in the project; larger pictures are scaled down (enough for 0.05 mm lines on 100 mm).</summary>
     private const int MaxSide = 2000;

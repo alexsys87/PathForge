@@ -1,4 +1,5 @@
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Simulation;
 
@@ -12,7 +13,7 @@ public sealed class HeightField
     {
         if (width <= 0 || height <= 0 || cellSize <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(width), "Пустая область заготовки.");
+            throw new ArgumentOutOfRangeException(nameof(width), Loc.T("Пустая область заготовки.", "The stock area is empty."));
         }
 
         Origin = origin;

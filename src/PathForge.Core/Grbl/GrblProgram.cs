@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Grbl;
 
@@ -49,12 +50,12 @@ public static class GrblProgram
 
             if (text.Length > MaxLineLength)
             {
-                problems.Add($"Строка {i + 1}: длиннее {MaxLineLength + 1} символов — GRBL её не примет.");
+                problems.Add(Loc.T($"Строка {i + 1}: длиннее {MaxLineLength + 1} символов — GRBL её не примет.", $"Line {i + 1}: longer than {MaxLineLength + 1} characters — GRBL will not accept it."));
             }
 
             if (text.StartsWith('$'))
             {
-                problems.Add($"Строка {i + 1}: команда «{text}» в программе — GRBL выполняет её только в состоянии Idle.");
+                problems.Add(Loc.T($"Строка {i + 1}: команда «{text}» в программе — GRBL выполняет её только в состоянии Idle.", $"Line {i + 1}: command “{text}” in the program — GRBL runs it only in the Idle state."));
             }
 
             lines.Add(new GrblLine(text, comment, stop, i + 1));

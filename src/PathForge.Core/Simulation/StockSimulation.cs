@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 using PathForge.Core.Projects;
 
@@ -296,7 +297,7 @@ public sealed class StockSimulation
             // Reported once per move.
             _lastRapidHit = _moveIndex;
             RapidHits++;
-            AddIssue($"{Name(move)}: холостой ход (G0) врезается в материал около X{p.X:0.#} Y{p.Y:0.#} Z{p.Z:0.##}.");
+            AddIssue(Loc.T($"{Name(move)}: холостой ход (G0) врезается в материал около X{p.X:0.#} Y{p.Y:0.#} Z{p.Z:0.##}.", $"{Name(move)}: a rapid move (G0) cuts into the material near X{p.X:0.#} Y{p.Y:0.#} Z{p.Z:0.##}."));
         }
 
         if (p.Z < Field.Bottom - 0.01)
@@ -316,7 +317,7 @@ public sealed class StockSimulation
         var next = _moveIndex + 1 < Moves.Count ? Moves[_moveIndex + 1].Toolpath.Operation : null;
         if (next != operation && _deepestBelowBottom.TryGetValue(operation, out var depth) && _reportedBelowBottom.Add(operation))
         {
-            AddIssue($"{Name(move)}: фреза выходит ниже заготовки на {depth:0.##} мм (в жертвенный стол).");
+            AddIssue(Loc.T($"{Name(move)}: фреза выходит ниже заготовки на {depth:0.##} мм (в жертвенный стол).", $"{Name(move)}: the tool goes {depth:0.##} mm below the stock (into the spoilboard)."));
         }
     }
 
@@ -329,7 +330,7 @@ public sealed class StockSimulation
     }
 
     private static string Name(SimulationMove move) =>
-        string.IsNullOrWhiteSpace(move.Toolpath.Operation.Name) ? "Операция" : move.Toolpath.Operation.Name;
+        string.IsNullOrWhiteSpace(move.Toolpath.Operation.Name) ? Loc.T("Операция", "Operation") : move.Toolpath.Operation.Name;
 
     private ToolStamp StampFor(Tool tool)
     {

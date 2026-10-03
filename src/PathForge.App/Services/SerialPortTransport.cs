@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.Ports;
 using System.Text;
 using PathForge.Core.Grbl;
+using PathForge.Core.Localization;
 
 namespace PathForge.App.Services;
 
@@ -76,7 +77,7 @@ public sealed class SerialPortTransport : IGrblTransport
     {
         if (!_port.IsOpen)
         {
-            throw new IOException("Порт закрыт.");
+            throw new IOException(Loc.T("Порт закрыт.", "The port is closed."));
         }
     }
 

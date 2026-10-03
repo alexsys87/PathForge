@@ -1,4 +1,5 @@
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 using PathForge.Core.Projects;
 
 namespace PathForge.Core.Machining;
@@ -27,11 +28,11 @@ public static partial class ToolpathGenerator
                 continue;
             }
 
-            var label = string.IsNullOrWhiteSpace(operation.Name) ? "Операция" : operation.Name;
+            var label = string.IsNullOrWhiteSpace(operation.Name) ? Loc.T("Операция", "Operation") : operation.Name;
             var tool = project.Tools.FirstOrDefault(t => t.Id == operation.ToolId);
             if (tool is null)
             {
-                result.Warnings.Add($"{label}: инструмент не выбран.");
+                result.Warnings.Add(Loc.T($"{label}: инструмент не выбран.", $"{label}: no tool selected."));
                 continue;
             }
 
@@ -47,13 +48,13 @@ public static partial class ToolpathGenerator
 
             if (tool.Diameter <= 0 || tool.StepDown <= 0)
             {
-                result.Warnings.Add($"{label}: у инструмента «{tool.Name}» должны быть положительные диаметр и шаг по глубине.");
+                result.Warnings.Add(Loc.T($"{label}: у инструмента «{tool.Name}» должны быть положительные диаметр и шаг по глубине.", $"{label}: the tool “{tool.Name}” must have a positive diameter and step-down."));
                 continue;
             }
 
             if (operation.Depth <= 0)
             {
-                result.Warnings.Add($"{label}: глубина должна быть больше нуля.");
+                result.Warnings.Add(Loc.T($"{label}: глубина должна быть больше нуля.", $"{label}: the depth must be greater than zero."));
                 continue;
             }
 
@@ -82,7 +83,7 @@ public static partial class ToolpathGenerator
 
             if (selected.Count == 0)
             {
-                result.Warnings.Add($"{label}: не выбраны контуры.");
+                result.Warnings.Add(Loc.T($"{label}: не выбраны контуры.", $"{label}: no contours selected."));
                 continue;
             }
 
@@ -167,7 +168,7 @@ public static partial class ToolpathGenerator
             {
                 if (operation.Side != ProfileSide.OnLine)
                 {
-                    context.Warnings.Add($"{context.Label}: контур №{contour.Id} не замкнут и обработан по линии.");
+                    context.Warnings.Add(Loc.T($"{context.Label}: контур №{contour.Id} не замкнут и обработан по линии.", $"{context.Label}: contour #{contour.Id} is open and was cut on the line."));
                 }
 
                 CutOpenPath(points, passes, context);
@@ -194,7 +195,7 @@ public static partial class ToolpathGenerator
                         continue;
                     }
 
-                    context.Warnings.Add($"{context.Label}: контур №{contour.Id}: подвод по дуге не помещается, врезание без подвода.");
+                    context.Warnings.Add(Loc.T($"{context.Label}: контур №{contour.Id}: подвод по дуге не помещается, врезание без подвода.", $"{context.Label}: contour #{contour.Id}: the arc lead-in does not fit, entering without a lead-in."));
                     CutClosedLoop(ring, passes, tabs, tabTop, context);
                 }
                 else
@@ -241,7 +242,7 @@ public static partial class ToolpathGenerator
         var closed = contours.Where(c => c.IsClosed).ToList();
         if (closed.Count < contours.Count)
         {
-            context.Warnings.Add($"{context.Label}: незамкнутые контуры пропущены ({contours.Count - closed.Count} шт.).");
+            context.Warnings.Add(Loc.T($"{context.Label}: незамкнутые контуры пропущены ({contours.Count - closed.Count} шт.).", $"{context.Label}: open contours skipped ({contours.Count - closed.Count})."));
         }
 
         if (closed.Count == 0)
@@ -253,7 +254,7 @@ public static partial class ToolpathGenerator
         var stepOver = tool.StepOver;
         if (stepOver <= 0 || stepOver > tool.Diameter)
         {
-            context.Warnings.Add($"{context.Label}: перекрытие должно быть от 1 до 100 % диаметра.");
+            context.Warnings.Add(Loc.T($"{context.Label}: перекрытие должно быть от 1 до 100 % диаметра.", $"{context.Label}: the step-over must be 1 to 100 % of the diameter."));
             return;
         }
 
@@ -278,7 +279,7 @@ public static partial class ToolpathGenerator
 
         if (levels.Count == 0)
         {
-            context.Warnings.Add($"{context.Label}: фреза не помещается в карман.");
+            context.Warnings.Add(Loc.T($"{context.Label}: фреза не помещается в карман.", $"{context.Label}: the tool does not fit into the pocket."));
             return;
         }
 
@@ -320,7 +321,7 @@ public static partial class ToolpathGenerator
         var closed = contours.Where(c => c.IsClosed).ToList();
         if (closed.Count == 0)
         {
-            context.Warnings.Add($"{context.Label}: выберите контуры меди (замкнутые).");
+            context.Warnings.Add(Loc.T($"{context.Label}: выберите контуры меди (замкнутые).", $"{context.Label}: select copper contours (closed)."));
             return;
         }
 
@@ -347,8 +348,11 @@ public static partial class ToolpathGenerator
         var firstOuter = levels[0].Count(r => Polyline.IsCounterClockwise(r) == (operation.Direction != CutDirection.Climb));
         if (firstOuter < islands)
         {
-            context.Warnings.Add($"{context.Label}: некоторые дорожки ближе друг к другу, чем ширина реза {width:0.###} мм — " +
-                                 "между ними гравёр не пройдёт и они останутся соединены. Уменьшите глубину или возьмите гравёр острее.");
+            context.Warnings.Add(Loc.T(
+                $"{context.Label}: некоторые дорожки ближе друг к другу, чем ширина реза {width:0.###} мм — " +
+                "между ними гравёр не пройдёт и они останутся соединены. Уменьшите глубину или возьмите гравёр острее.",
+                $"{context.Label}: some tracks are closer to each other than the cut width {width:0.###} mm — " +
+                "the engraver cannot pass between them and they stay connected. Reduce the depth or use a sharper engraver."));
         }
 
         var writer = context.Writer;
@@ -376,13 +380,13 @@ public static partial class ToolpathGenerator
         {
             if (!contour.TryGetCircle(out var center, out var radius))
             {
-                context.Warnings.Add($"{context.Label}: контур №{contour.Id} не окружность и пропущен.");
+                context.Warnings.Add(Loc.T($"{context.Label}: контур №{contour.Id} не окружность и пропущен.", $"{context.Label}: contour #{contour.Id} is not a circle and was skipped."));
                 continue;
             }
 
             if (radius * 2 > context.Tool.Diameter + 0.1)
             {
-                context.Warnings.Add($"{context.Label}: окружность №{contour.Id} (Ø{radius * 2:0.##}) больше инструмента, сверлится только центр.");
+                context.Warnings.Add(Loc.T($"{context.Label}: окружность №{contour.Id} (Ø{radius * 2:0.##}) больше инструмента, сверлится только центр.", $"{context.Label}: circle #{contour.Id} (Ø{radius * 2:0.##}) is larger than the tool, only the centre is drilled."));
             }
 
             centers.Add(center);
@@ -550,7 +554,7 @@ public static partial class ToolpathGenerator
         var width = operation.TabWidth + tool.Diameter;
         if (width * operation.TabCount >= length * 0.8)
         {
-            context.Warnings.Add($"{context.Label}: контур №{contourId} слишком короткий для {operation.TabCount} перемычек.");
+            context.Warnings.Add(Loc.T($"{context.Label}: контур №{contourId} слишком короткий для {operation.TabCount} перемычек.", $"{context.Label}: contour #{contourId} is too short for {operation.TabCount} tabs."));
             return tabs;
         }
 
