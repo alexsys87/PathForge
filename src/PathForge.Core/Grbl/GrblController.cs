@@ -86,6 +86,9 @@ public sealed class GrblController : IDisposable
 
     public event Action<GrblLogEntry>? Log;
 
+    /// <summary>The probe touched; position in machine coordinates.</summary>
+    public event Action<Vec3>? ProbeTouched;
+
     /// <summary>The program finished, was stopped or aborted by an alarm.</summary>
     public event Action<GrblJobResult>? JobFinished;
 
@@ -121,6 +124,18 @@ public sealed class GrblController : IDisposable
 
     /// <summary>Work position of the last successful probe touch.</summary>
     public Vec3? LastProbe { get; private set; }
+
+    /// <summary>Commands are queued or waiting for their answer.</summary>
+    public bool IsBusy
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _manual.Count > 0 || _pending.Count > 0;
+            }
+        }
+    }
 
     /// <summary>The operator may jog, zero and send commands.</summary>
     public bool CanSendCommands => IsConnected && Job is GrblJobState.None or GrblJobState.ProgramStop;
@@ -575,6 +590,7 @@ public sealed class GrblController : IDisposable
         {
             var wco = Status.WorkOffset;
             LastProbe = new Vec3(x - wco.X, y - wco.Y, z - wco.Z);
+            ProbeTouched?.Invoke(new Vec3(x, y, z));
             Write(GrblLogKind.Info, FormattableString.Invariant($"Касание щупа: Z = {z:0.000} (машинные координаты)."));
         }
         else

@@ -15,6 +15,9 @@
         <KeyBinding Key="I" Modifiers="Control" Command="{Binding ImportDrawingCommand}" />
         <KeyBinding Key="E" Modifiers="Control" Command="{Binding ExportGcodeCommand}" />
         <KeyBinding Key="A" Modifiers="Control" Command="{Binding SelectAllCommand}" />
+        <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}" />
+        <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoCommand}" />
+        <KeyBinding Key="Z" Modifiers="Control+Shift" Command="{Binding RedoCommand}" />
         <KeyBinding Key="Escape" Command="{Binding ClearSelectionCommand}" />
         <KeyBinding Key="Home" Command="{Binding ZoomToFitCommand}" />
     </Window.InputBindings>
@@ -214,7 +217,10 @@
                 <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding LetterSpacing}" />
                 <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Между строками, ×" />
                 <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding LineSpacing}" />
-                <CheckBox Grid.Row="9" Grid.Column="1" Content="Зеркально (низ платы, штамп)" IsChecked="{Binding Mirrored}" />
+                <StackPanel Grid.Row="9" Grid.Column="1">
+                    <CheckBox Content="Кернинг (пары вроде «AV» ближе)" IsChecked="{Binding Kerning}" />
+                    <CheckBox Content="Зеркально (низ платы, штамп)" IsChecked="{Binding Mirrored}" />
+                </StackPanel>
                 <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="Слой" />
                 <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding Layer}" />
             </Grid>
@@ -437,6 +443,9 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Название" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
@@ -475,6 +484,15 @@
                         <CheckBox Content="Черновая, припуск" IsChecked="{Binding Roughing}" />
                         <TextBox Width="60" Margin="6,0,0,0" Text="{Binding RoughAllowance}" IsEnabled="{Binding Roughing}" />
                     </StackPanel>
+                    <TextBlock Grid.Row="15" Style="{StaticResource FieldLabel}" Text="Чистовая" />
+                    <ComboBox Grid.Row="15" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ReliefFinishings}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Finishing}"
+                              ToolTip="Строки хороши на пологих местах, уровни — на крутых стенках" />
+                    <TextBlock Grid.Row="16" Style="{StaticResource FieldLabel}" Text="Шаг уровней Z, мм" />
+                    <TextBox Grid.Row="16" Grid.Column="1" Text="{Binding WaterlineStepZ}" ToolTip="Расстояние между уровнями waterline" />
+                    <TextBlock Grid.Row="17" Style="{StaticResource FieldLabel}" Text="Фрезерование уровней" />
+                    <ComboBox Grid.Row="17" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
                            Text="Расчёт учитывает форму фрезы (сферическая, гравёр, концевая), поэтому она не врезается в соседние склоны. Черновые проходы идут по уровням шага по глубине инструмента." />
@@ -554,6 +572,10 @@
                 <Separator />
                 <MenuItem Header="_Выход" Click="OnExitClick" />
             </MenuItem>
+            <MenuItem Header="_Правка">
+                <MenuItem Header="_Отменить" InputGestureText="Ctrl+Z" Command="{Binding UndoCommand}" />
+                <MenuItem Header="_Повторить" InputGestureText="Ctrl+Y" Command="{Binding RedoCommand}" />
+            </MenuItem>
             <MenuItem Header="_Выделение">
                 <MenuItem Header="Выделить всё" InputGestureText="Ctrl+A" Command="{Binding SelectAllCommand}" />
                 <MenuItem Header="Выделить окружности" Command="{Binding SelectCirclesCommand}" />
@@ -571,6 +593,8 @@
                 <Button Style="{StaticResource ToolBarButton}" Content="STL" ToolTip="Импорт 3D-модели STL как рельефа" Command="{Binding ImportStlCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="Открыть" Command="{Binding OpenProjectCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="Сохранить" Command="{Binding SaveProjectCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="↶" FontSize="15" ToolTip="Отменить (Ctrl+Z)" Command="{Binding UndoCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="↷" FontSize="15" ToolTip="Повторить (Ctrl+Y)" Command="{Binding RedoCommand}" />
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}" Content="+ Контур" Command="{Binding AddProfileCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="+ Карман" Command="{Binding AddPocketCommand}" />
@@ -837,6 +861,44 @@
                                 <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="Найти Z щупом"
                                         ToolTip="G38.2: опускание до касания пластины, затем Z0 на поверхности заготовки" Command="{Binding ProbeZCommand}" />
                             </Grid>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Карта высот (платы)" />
+                            <Grid IsEnabled="{Binding IsConnected}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="X от / до" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LevelMinX}" />
+                                <TextBox Grid.Row="0" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelMaxX}" />
+                                <Button Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="4,0,0,0" Content="Из программы"
+                                        ToolTip="Область всех резов проекта + 1 мм" Command="{Binding LevelAreaFromProgramCommand}" />
+                                <TextBlock Grid.Row="1" Text="Y от / до" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LevelMinY}" />
+                                <TextBox Grid.Row="1" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelMaxY}" />
+                                <TextBlock Grid.Row="2" Text="Шаг / подача" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LevelStep}" ToolTip="Расстояние между точками, мм (5–15)" />
+                                <TextBox Grid.Row="2" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelFeed}" ToolTip="Скорость щупа, мм/мин" />
+                                <TextBlock Grid.Row="3" Text="Подъём / глубина" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding LevelClearance}" ToolTip="Высота переездов между точками, мм" />
+                                <TextBox Grid.Row="3" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelDepth}" ToolTip="Насколько ниже Z0 искать поверхность, мм" />
+                            </Grid>
+                            <WrapPanel Margin="0,4,0,0">
+                                <Button Content="Снять карту" Command="{Binding ProbeMapCommand}" IsEnabled="{Binding CanControl}" />
+                                <Button Content="Удалить карту" Command="{Binding ClearMapCommand}" IsEnabled="{Binding HasLevelingMap}" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding LevelingText}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                            <TextBlock Text="{Binding LevelingTable}" FontFamily="Consolas" FontSize="11" Margin="0,2" />
+                            <CheckBox Content="Учитывать карту высот при запуске" IsChecked="{Binding UseLeveling}" IsEnabled="{Binding HasLevelingMap}"
+                                      ToolTip="Каждая линия делится на отрезки по 1 мм, к Z добавляется высота платы в этой точке" />
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="Программа" />
                             <DockPanel>

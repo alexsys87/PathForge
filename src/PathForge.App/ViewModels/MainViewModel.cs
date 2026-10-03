@@ -23,6 +23,7 @@ public sealed partial class MainViewModel : ObservableObject
     private const string GcodeFilter = "G-code (*.nc)|*.nc|G-code (*.gcode)|*.gcode|Текст (*.txt)|*.txt";
 
     private readonly IDialogService _dialogs;
+    private readonly UndoHistory _history = new();
     private readonly DispatcherTimer _regenerateTimer;
     private CamProject _project = CamProject.CreateDefault();
     private GenerationResult _generation = new();
@@ -31,7 +32,14 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(IDialogService dialogs)
     {
         _dialogs = dialogs;
-        Control = new MachineControlViewModel(dialogs, CurrentMachineProgram, () => _project.Machine.SafeZ);
+        Control = new MachineControlViewModel(dialogs, CurrentMachineProgram, () => _project.Machine.SafeZ,
+            () => _project.LevelingMap,
+            map =>
+            {
+                _project.LevelingMap = map;
+                OnProjectChanged();
+            },
+            ProgramCutBounds);
         Control.JobFinished += message => Messages.Add("Станок: " + message);
         Simulation = new SimulationViewModel(() => (_project, _generation));
         _regenerateTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -127,6 +135,10 @@ public sealed partial class MainViewModel : ObservableObject
             null => false,
         };
     }
+
+    /// <summary>XY area of all cutting moves in program coordinates (for the height map).</summary>
+    private Bounds2 ProgramCutBounds() =>
+        Bounds2.Of(_generation.Toolpaths.SelectMany(t => t.Moves).Where(m => m.Kind != MoveKind.Rapid).Select(m => m.Target.XY));
 
     /// <summary>G-code of the current project for the machine panel; null when there is nothing to cut.</summary>
     private MachineProgram? CurrentMachineProgram()
@@ -868,6 +880,21 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void LoadProject(CamProject project, string? path)
     {
+        ApplyProject(project);
+        Messages.Clear();
+        ProjectPath = path;
+        IsDirty = false;
+        _history.Reset(ProjectSerializer.Serialize(_project));
+        NotifyHistoryChanged();
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(SelectionText));
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Shows another project (or another state of this one) in all panels.</summary>
+    private void ApplyProject(CamProject project)
+    {
         _suppressChanges = true;
         try
         {
@@ -891,20 +918,96 @@ public sealed partial class MainViewModel : ObservableObject
             SelectedOperation = null;
             LoadTexts();
             SelectedContourIds.Clear();
-            Messages.Clear();
             RefreshLayers();
-            ProjectPath = path;
-            IsDirty = false;
         }
         finally
         {
             _suppressChanges = false;
         }
+    }
 
+    // ---- Undo / redo -------------------------------------------------------------------------
+
+    private bool CanUndo() => _history.CanUndo || _regenerateTimer.IsEnabled;
+
+    private bool CanRedo() => _history.CanRedo;
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        if (_regenerateTimer.IsEnabled)
+        {
+            // An edit is still waiting to be recorded: record it first so that it is the step undone.
+            Regenerate();
+        }
+
+        if (_history.Undo() is { } state)
+        {
+            RestoreState(state, "Отменено.");
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo()
+    {
+        if (_history.Redo() is { } state)
+        {
+            RestoreState(state, "Повторено.");
+        }
+    }
+
+    /// <summary>Puts the project back into a recorded state, keeping the selections where possible.</summary>
+    private void RestoreState(string state, string message)
+    {
+        var operationId = SelectedOperation?.Model.Id;
+        var toolId = SelectedTool?.Model.Id;
+        var textId = SelectedText?.Model.Id;
+        var contours = SelectedContourIds.ToList();
+        ApplyProject(ProjectSerializer.Deserialize(state));
+
+        SelectedTool = Tools.FirstOrDefault(t => t.Model.Id == toolId) ?? Tools.FirstOrDefault();
+        SelectedText = Texts.FirstOrDefault(t => t.Model.Id == textId);
+        SelectedOperation = Operations.FirstOrDefault(o => o.Model.Id == operationId);
+        if (SelectedOperation is null)
+        {
+            var existing = _project.Contours.Select(c => c.Id).ToHashSet();
+            SelectedContourIds.UnionWith(contours.Where(existing.Contains));
+        }
+
+        IsDirty = true;
+        StatusMessage(message);
         OnPropertyChanged(nameof(Title));
-        OnPropertyChanged(nameof(SelectionText));
+        OnSelectionChanged();
+        // The restored project is the current state, whatever small formatting differences a new save may have.
+        _history.ReplaceCurrent(ProjectSerializer.Serialize(_project));
         Regenerate();
-        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+        NotifyHistoryChanged();
+    }
+
+    /// <summary>Records the project state for undo when it differs from the last recorded one.</summary>
+    private void CommitHistory()
+    {
+        if (_history.Commit(ProjectSerializer.Serialize(_project)))
+        {
+            NotifyHistoryChanged();
+        }
+    }
+
+    private void NotifyHistoryChanged()
+    {
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Short message that replaces the previous one of the same kind.</summary>
+    private void StatusMessage(string text)
+    {
+        if (Messages.Count > 0 && Messages[^1] is "Отменено." or "Повторено.")
+        {
+            Messages.RemoveAt(Messages.Count - 1);
+        }
+
+        Messages.Add(text);
     }
 
     private void OnProjectChanged()
@@ -918,6 +1021,7 @@ public sealed partial class MainViewModel : ObservableObject
         // Coalesce bursts of edits (typing) into one regeneration.
         _regenerateTimer.Stop();
         _regenerateTimer.Start();
+        UndoCommand.NotifyCanExecuteChanged();
     }
 
     private void Regenerate()
@@ -955,6 +1059,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         UpdateScene();
         Simulation.MarkStale();
+        Control.RefreshLeveling();
+        CommitHistory();
     }
 
     private void UpdateScene()

@@ -2,7 +2,7 @@ using PathForge.Core.Geometry;
 
 namespace PathForge.Core.Machining;
 
-/// <summary>3D relief: height map, drop-cutter tool compensation, roughing levels and parallel finishing.</summary>
+/// <summary>3D relief: height map, drop-cutter tool compensation, roughing levels, parallel and waterline finishing.</summary>
 public static partial class ToolpathGenerator
 {
     private const int MaxReliefCells = 4_000_000;
@@ -64,8 +64,16 @@ public static partial class ToolpathGenerator
             }
         }
 
-        var finish = RasterPass(operation, toolTip, Math.Max(resolution, operation.StepOverMm), cell => startZ + cell);
-        CutRaster(finish, operation, context);
+        if (operation.Finishing != ReliefFinishing.Waterline)
+        {
+            var finish = RasterPass(operation, toolTip, Math.Max(resolution, operation.StepOverMm), cell => startZ + cell);
+            CutRaster(finish, operation, context);
+        }
+
+        if (operation.Finishing != ReliefFinishing.Parallel)
+        {
+            CutWaterlines(operation, toolTip, context);
+        }
     }
 
     private static double ToolRadius(Tool tool) => Math.Max(tool.Diameter, tool.TipDiameter) / 2;

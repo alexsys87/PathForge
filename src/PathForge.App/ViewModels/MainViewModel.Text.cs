@@ -49,7 +49,7 @@ public sealed partial class MainViewModel
                     Fonts.Add(font);
                 }
 
-                FontScanStatus = fonts.Count == 0 ? "Шрифты TrueType (.ttf) не найдены." : $"Шрифтов: {fonts.Count}";
+                FontScanStatus = fonts.Count == 0 ? "Шрифты (.ttf, .otf) не найдены." : $"Шрифтов: {fonts.Count}";
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -70,7 +70,7 @@ public sealed partial class MainViewModel
         var font = Fonts.FirstOrDefault(f => f.Name == "Arial") ?? Fonts.FirstOrDefault();
         if (font is null)
         {
-            _dialogs.ShowError("Не найдено ни одного шрифта TrueType (.ttf).");
+            _dialogs.ShowError("Не найдено ни одного шрифта (.ttf, .otf).");
             return;
         }
 

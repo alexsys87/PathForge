@@ -496,6 +496,24 @@ public sealed class ReliefOperationViewModel : OperationViewModel
         set => Set(_model.RoughAllowance, Math.Max(0, value), v => _model.RoughAllowance = v);
     }
 
+    public ReliefFinishing Finishing
+    {
+        get => _model.Finishing;
+        set => Set(_model.Finishing, value, v => _model.Finishing = v, nameof(Finishing));
+    }
+
+    public double WaterlineStepZ
+    {
+        get => _model.WaterlineStepZ;
+        set => Set(_model.WaterlineStepZ, Math.Clamp(value, 0.02, 10), v => _model.WaterlineStepZ = v);
+    }
+
+    public CutDirection Direction
+    {
+        get => _model.Direction;
+        set => Set(_model.Direction, value, v => _model.Direction = v);
+    }
+
     public void ReplaceImage(GrayImage image)
     {
         Set(_model.Image, image, v => _model.Image = v, nameof(SourceInfo));

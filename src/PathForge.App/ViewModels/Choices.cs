@@ -86,6 +86,13 @@ public static class Choices
         new Choice<RasterMode>(RasterMode.Threshold, "Чёрно-белое (порог)"),
     };
 
+    public static IReadOnlyList<Choice<ReliefFinishing>> ReliefFinishings { get; } = new[]
+    {
+        new Choice<ReliefFinishing>(ReliefFinishing.Parallel, "Строками"),
+        new Choice<ReliefFinishing>(ReliefFinishing.Waterline, "По уровням (waterline)"),
+        new Choice<ReliefFinishing>(ReliefFinishing.ParallelAndWaterline, "Строками + по уровням"),
+    };
+
     public static IReadOnlyList<Choice<RasterAxis>> RasterAxes { get; } = new[]
     {
         new Choice<RasterAxis>(RasterAxis.X, "Вдоль X"),

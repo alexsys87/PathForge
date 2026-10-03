@@ -6,13 +6,13 @@ public sealed record FontEntry(string Path, int Index, string Name)
     public override string ToString() => Name;
 }
 
-/// <summary>Finds TrueType fonts in folders and caches loaded fonts.</summary>
+/// <summary>Finds OpenType fonts (TrueType and CFF outlines) in folders and caches loaded fonts.</summary>
 public static class FontCatalog
 {
     private static readonly Dictionary<(string Path, int Index), (DateTime Stamp, TrueTypeFont Font)> Cache = new();
     private static readonly object CacheLock = new();
 
-    /// <summary>Fonts with TrueType outlines in the given folders, sorted by name. Unreadable files are skipped.</summary>
+    /// <summary>Fonts in the given folders, sorted by name. Unreadable and unsupported files are skipped.</summary>
     public static List<FontEntry> Scan(IEnumerable<string> folders)
     {
         var entries = new List<FontEntry>();
@@ -28,7 +28,7 @@ public static class FontCatalog
             try
             {
                 files = Directory.EnumerateFiles(folder)
-                    .Where(f => Path.GetExtension(f).ToLowerInvariant() is ".ttf" or ".ttc")
+                    .Where(f => Path.GetExtension(f).ToLowerInvariant() is ".ttf" or ".ttc" or ".otf" or ".otc")
                     .ToList();
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

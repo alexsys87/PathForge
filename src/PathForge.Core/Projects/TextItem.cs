@@ -42,6 +42,9 @@ public sealed class TextItem
     /// <summary>Distance between lines as a multiple of the font's line height.</summary>
     public double LineSpacing { get; set; } = 1;
 
+    /// <summary>Use the font's pair kerning (e.g. "AV", "To" closer together).</summary>
+    public bool Kerning { get; set; } = true;
+
     /// <summary>Mirrored left-right around X (e.g. for the bottom side of a board).</summary>
     public bool Mirrored { get; set; }
 

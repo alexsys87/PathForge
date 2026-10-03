@@ -6,9 +6,9 @@ namespace PathForge.Core.Text;
 public readonly record struct GlyphPoint(double X, double Y, bool OnCurve);
 
 /// <summary>
-/// Minimal reader for fonts with TrueType outlines (.ttf, .ttc), written from the OpenType specification:
-/// character map, metrics and quadratic glyph outlines including composite glyphs. Hinting, kerning
-/// and CFF outlines (.otf with 'OTTO') are not supported.
+/// Reader for OpenType fonts (.ttf, .ttc, .otf), written from the OpenType specification: character map,
+/// metrics, TrueType outlines (including composite glyphs), CFF outlines (see <see cref="CffOutlines"/>)
+/// and pair kerning (GPOS or the older kern table). Hinting and variable fonts are not supported.
 /// </summary>
 public sealed class TrueTypeFont
 {
@@ -22,19 +22,19 @@ public sealed class TrueTypeFont
     private readonly int _cmapOffset;
     private readonly int _cmapFormat;
     private readonly bool _symbolCmap;
+    private readonly CffOutlines? _cff;
+    private readonly Dictionary<(int Left, int Right), int> _kerningCache = new();
+    private Dictionary<(int Left, int Right), int>? _legacyKerning;
+    private List<List<int>>? _kernLookups;
 
     private TrueTypeFont(byte[] data, int directoryOffset)
     {
         _data = data;
         var version = U32(directoryOffset);
-        if (version == Tag("OTTO"))
+        var isCff = version == Tag("OTTO");
+        if (!isCff && version != 0x00010000 && version != Tag("true"))
         {
-            throw new NotSupportedException("Шрифт с контурами CFF (OpenType .otf) не поддерживается — выберите шрифт TrueType (.ttf).");
-        }
-
-        if (version != 0x00010000 && version != Tag("true"))
-        {
-            throw new FormatException("Файл не является шрифтом TrueType.");
+            throw new FormatException("Файл не является шрифтом OpenType/TrueType.");
         }
 
         _tables = new Dictionary<string, (int, int)>(StringComparer.Ordinal);
@@ -61,9 +61,20 @@ public sealed class TrueTypeFont
             }
         }
 
-        if (!_tables.ContainsKey("glyf") || !_tables.ContainsKey("loca"))
+        if (isCff)
         {
-            throw new NotSupportedException("В шрифте нет контуров TrueType (таблиц glyf/loca).");
+            if (!_tables.TryGetValue("CFF ", out var cff))
+            {
+                throw new NotSupportedException(_tables.ContainsKey("CFF2")
+                    ? "Вариативные шрифты (CFF2) не поддерживаются — выберите обычный .otf или .ttf."
+                    : "В шрифте нет таблицы контуров CFF.");
+            }
+
+            _cff = new CffOutlines(data, cff.Offset, cff.Length);
+        }
+        else if (!_tables.ContainsKey("glyf") || !_tables.ContainsKey("loca"))
+        {
+            throw new NotSupportedException("В шрифте нет контуров (таблиц glyf/loca или CFF).");
         }
 
         var head = _tables["head"].Offset;
@@ -157,7 +168,57 @@ public sealed class TrueTypeFont
         return offset + 2 <= hmtx.Offset + hmtx.Length ? U16(offset) : 0;
     }
 
-    /// <summary>Closed outline contours of a glyph in font units (Y up). Empty for blank glyphs such as space.</summary>
+    /// <summary>The font has PostScript (CFF) outlines instead of TrueType ones.</summary>
+    public bool HasCffOutlines => _cff is not null;
+
+    /// <summary>Closed outline paths of a glyph in font units (Y up). Empty for blank glyphs such as space.</summary>
+    public List<GlyphPath> GetPaths(int glyph)
+    {
+        if (_cff is not null)
+        {
+            return _cff.GetPaths(glyph);
+        }
+
+        return GetOutline(glyph)
+            .Select(c => GlyphPath.FromQuadraticPoints(c.Select(p => (new Geometry.Vec2(p.X, p.Y), p.OnCurve)).ToList()))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Horizontal kerning between two glyphs (font units, usually negative): from the GPOS 'kern' feature
+    /// (pairs and classes), otherwise from the older kern table.
+    /// </summary>
+    public int Kerning(int left, int right)
+    {
+        if (left == 0 || right == 0)
+        {
+            return 0;
+        }
+
+        lock (_kerningCache)
+        {
+            if (_kerningCache.TryGetValue((left, right), out var cached))
+            {
+                return cached;
+            }
+
+            int value;
+            try
+            {
+                value = GposKerning(left, right) ?? LegacyKerning(left, right);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                // Damaged table: no kerning rather than no text.
+                value = 0;
+            }
+
+            _kerningCache[(left, right)] = value;
+            return value;
+        }
+    }
+
+    /// <summary>TrueType contours (quadratic points) of a glyph; empty for CFF fonts, use <see cref="GetPaths"/>.</summary>
     public List<List<GlyphPoint>> GetOutline(int glyph)
     {
         var contours = new List<List<GlyphPoint>>();
@@ -167,7 +228,7 @@ public sealed class TrueTypeFont
 
     private void AppendOutline(int glyph, List<List<GlyphPoint>> contours, int depth)
     {
-        if (glyph < 0 || glyph >= _numGlyphs || depth > MaxCompositeDepth)
+        if (_cff is not null || glyph < 0 || glyph >= _numGlyphs || depth > MaxCompositeDepth)
         {
             return;
         }
@@ -535,7 +596,15 @@ public sealed class TrueTypeFont
 
         // Older fonts: measure the letter H.
         var h = GlyphIndex('H');
-        if (h != 0)
+        if (h != 0 && _cff is not null)
+        {
+            var top = _cff.GetPaths(h).SelectMany(p => p.Segments.Select(s => s.End.Y).Append(p.Start.Y)).DefaultIfEmpty(0).Max();
+            if (top > 0)
+            {
+                return (int)Math.Round(top);
+            }
+        }
+        else if (h != 0)
         {
             var (offset, length) = GlyphLocation(h);
             if (length >= 10)
@@ -549,6 +618,278 @@ public sealed class TrueTypeFont
         }
 
         return (int)Math.Round(UnitsPerEm * 0.7);
+    }
+
+    // ---- Kerning ------------------------------------------------------------------------------
+
+    /// <summary>Sum of the pair adjustments of the GPOS 'kern' lookups; null when the font has no such lookups.</summary>
+    private int? GposKerning(int left, int right)
+    {
+        _kernLookups ??= FindKernLookups();
+        if (_kernLookups.Count == 0)
+        {
+            return null;
+        }
+
+        var total = 0;
+        foreach (var subtables in _kernLookups)
+        {
+            // Within one lookup the first subtable that covers the pair applies.
+            foreach (var subtable in subtables)
+            {
+                if (PairAdjustment(subtable, left, right) is { } value)
+                {
+                    total += value;
+                    break;
+                }
+            }
+        }
+
+        return total;
+    }
+
+    /// <summary>PairPos subtable offsets of every lookup used by a 'kern' feature (of any script).</summary>
+    private List<List<int>> FindKernLookups()
+    {
+        var result = new List<List<int>>();
+        if (!_tables.TryGetValue("GPOS", out var gpos) || gpos.Length < 10)
+        {
+            return result;
+        }
+
+        var featureList = gpos.Offset + U16(gpos.Offset + 6);
+        var lookupList = gpos.Offset + U16(gpos.Offset + 8);
+        var lookups = new SortedSet<int>();
+        var featureCount = U16(featureList);
+        for (var i = 0; i < featureCount; i++)
+        {
+            var record = featureList + 2 + i * 6;
+            if (Encoding.ASCII.GetString(_data, record, 4) != "kern")
+            {
+                continue;
+            }
+
+            var feature = featureList + U16(record + 4);
+            var count = U16(feature + 2);
+            for (var k = 0; k < count; k++)
+            {
+                lookups.Add(U16(feature + 4 + k * 2));
+            }
+        }
+
+        var lookupCount = U16(lookupList);
+        foreach (var index in lookups.Where(l => l < lookupCount))
+        {
+            var lookup = lookupList + U16(lookupList + 2 + index * 2);
+            var type = U16(lookup);
+            var subtableCount = U16(lookup + 4);
+            var subtables = new List<int>();
+            for (var k = 0; k < subtableCount; k++)
+            {
+                var subtable = lookup + U16(lookup + 6 + k * 2);
+                var subtableType = type;
+                if (type == 9)
+                {
+                    // Extension: the real subtable is further away (32-bit offset).
+                    subtableType = U16(subtable + 2);
+                    subtable += (int)U32(subtable + 4);
+                }
+
+                if (subtableType == 2)
+                {
+                    subtables.Add(subtable);
+                }
+            }
+
+            if (subtables.Count > 0)
+            {
+                result.Add(subtables);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>XAdvance of the first glyph from a PairPos subtable, or null when the pair is not covered.</summary>
+    private int? PairAdjustment(int subtable, int left, int right)
+    {
+        var format = U16(subtable);
+        var coverage = CoverageIndex(subtable + U16(subtable + 2), left);
+        if (coverage < 0)
+        {
+            return null;
+        }
+
+        var valueFormat1 = U16(subtable + 4);
+        var valueFormat2 = U16(subtable + 6);
+        var size1 = 2 * BitCount(valueFormat1);
+        var size2 = 2 * BitCount(valueFormat2);
+        int XAdvance(int record) => (valueFormat1 & 0x0004) == 0 ? 0 : I16(record + 2 * BitCount(valueFormat1 & 0x0003));
+
+        if (format == 1)
+        {
+            var pairSetCount = U16(subtable + 8);
+            if (coverage >= pairSetCount)
+            {
+                return null;
+            }
+
+            var pairSet = subtable + U16(subtable + 10 + coverage * 2);
+            var count = U16(pairSet);
+            var recordSize = 2 + size1 + size2;
+            int lo = 0, hi = count - 1;
+            while (lo <= hi)
+            {
+                var mid = (lo + hi) / 2;
+                var record = pairSet + 2 + mid * recordSize;
+                var second = U16(record);
+                if (second == right)
+                {
+                    return XAdvance(record + 2);
+                }
+
+                if (second < right)
+                {
+                    lo = mid + 1;
+                }
+                else
+                {
+                    hi = mid - 1;
+                }
+            }
+
+            return null;
+        }
+
+        if (format == 2)
+        {
+            var class1 = ClassOf(subtable + U16(subtable + 8), left);
+            var class2 = ClassOf(subtable + U16(subtable + 10), right);
+            var class1Count = U16(subtable + 12);
+            var class2Count = U16(subtable + 14);
+            if (class1 >= class1Count || class2 >= class2Count)
+            {
+                return null;
+            }
+
+            var record = subtable + 16 + (class1 * class2Count + class2) * (size1 + size2);
+            return XAdvance(record);
+        }
+
+        return null;
+    }
+
+    private int CoverageIndex(int coverage, int glyph)
+    {
+        var format = U16(coverage);
+        var count = U16(coverage + 2);
+        if (format == 1)
+        {
+            int lo = 0, hi = count - 1;
+            while (lo <= hi)
+            {
+                var mid = (lo + hi) / 2;
+                var value = U16(coverage + 4 + mid * 2);
+                if (value == glyph)
+                {
+                    return mid;
+                }
+
+                if (value < glyph)
+                {
+                    lo = mid + 1;
+                }
+                else
+                {
+                    hi = mid - 1;
+                }
+            }
+
+            return -1;
+        }
+
+        if (format == 2)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var range = coverage + 4 + i * 6;
+                var start = U16(range);
+                if (glyph >= start && glyph <= U16(range + 2))
+                {
+                    return U16(range + 4) + glyph - start;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    private int ClassOf(int classDef, int glyph)
+    {
+        var format = U16(classDef);
+        if (format == 1)
+        {
+            var start = U16(classDef + 2);
+            var count = U16(classDef + 4);
+            return glyph >= start && glyph < start + count ? U16(classDef + 6 + (glyph - start) * 2) : 0;
+        }
+
+        if (format == 2)
+        {
+            var count = U16(classDef + 2);
+            for (var i = 0; i < count; i++)
+            {
+                var range = classDef + 4 + i * 6;
+                if (glyph >= U16(range) && glyph <= U16(range + 2))
+                {
+                    return U16(range + 4);
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    private static int BitCount(int value) => System.Numerics.BitOperations.PopCount((uint)value);
+
+    /// <summary>The 'kern' table of older TrueType fonts (version 0, format 0 horizontal pairs).</summary>
+    private int LegacyKerning(int left, int right)
+    {
+        if (_legacyKerning is null)
+        {
+            _legacyKerning = new Dictionary<(int, int), int>();
+            if (_tables.TryGetValue("kern", out var kern) && kern.Length >= 4 && U16(kern.Offset) == 0)
+            {
+                var count = U16(kern.Offset + 2);
+                var position = kern.Offset + 4;
+                for (var t = 0; t < count && position + 6 <= kern.Offset + kern.Length; t++)
+                {
+                    var length = U16(position + 2);
+                    var coverage = U16(position + 4);
+                    var horizontal = (coverage & 0x1) != 0;
+                    var minimumOrCrossStream = (coverage & 0x6) != 0;
+                    if (coverage >> 8 == 0 && horizontal && !minimumOrCrossStream)
+                    {
+                        var pairs = U16(position + 6);
+                        for (var k = 0; k < pairs; k++)
+                        {
+                            var record = position + 14 + k * 6;
+                            if (record + 6 > kern.Offset + kern.Length)
+                            {
+                                break;
+                            }
+
+                            var key = (U16(record), U16(record + 2));
+                            _legacyKerning[key] = _legacyKerning.GetValueOrDefault(key) + I16(record + 4);
+                        }
+                    }
+
+                    position += Math.Max(6, (int)length);
+                }
+            }
+        }
+
+        return _legacyKerning.GetValueOrDefault((left, right));
     }
 
     private string? ReadName(int nameId)

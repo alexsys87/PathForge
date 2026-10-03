@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using PathForge.App.Services;
 using PathForge.Core.Geometry;
 using PathForge.Core.Grbl;
+using PathForge.Core.Leveling;
 
 namespace PathForge.App.ViewModels;
 
@@ -27,13 +28,21 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private GrblController? _controller;
     private int _refreshQueued;
     private DateTime? _jobStarted;
+    private readonly Func<LevelingMap?> _getMap;
+    private readonly Action<LevelingMap?> _setMap;
+    private readonly Func<Bounds2> _programBounds;
     private MachineProgram? _fileProgram;
+    private LevelingProbe? _probe;
 
-    public MachineControlViewModel(IDialogService dialogs, Func<MachineProgram?> projectProgram, Func<double> safeZ)
+    public MachineControlViewModel(IDialogService dialogs, Func<MachineProgram?> projectProgram, Func<double> safeZ,
+        Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds)
     {
         _dialogs = dialogs;
         _projectProgram = projectProgram;
         _safeZ = safeZ;
+        _getMap = getMap;
+        _setMap = setMap;
+        _programBounds = programBounds;
         _dispatcher = Dispatcher.CurrentDispatcher;
         _pollTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(200) };
         _pollTimer.Tick += (_, _) =>
@@ -154,6 +163,170 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
     public bool IsDisconnected => !IsConnected;
 
+    // ---- Height map (auto-levelling) ---------------------------------------------------------
+
+    [ObservableProperty]
+    private double levelMinX;
+
+    [ObservableProperty]
+    private double levelMinY;
+
+    [ObservableProperty]
+    private double levelMaxX = 50;
+
+    [ObservableProperty]
+    private double levelMaxY = 30;
+
+    [ObservableProperty]
+    private double levelStep = 10;
+
+    [ObservableProperty]
+    private double levelClearance = 1;
+
+    [ObservableProperty]
+    private double levelDepth = 1.5;
+
+    [ObservableProperty]
+    private double levelFeed = 30;
+
+    /// <summary>Apply the height map to programs started from this panel.</summary>
+    [ObservableProperty]
+    private bool useLeveling = true;
+
+    [ObservableProperty]
+    private bool hasLevelingMap;
+
+    [ObservableProperty]
+    private string levelingText = "Карта высот не снята.";
+
+    [ObservableProperty]
+    private string levelingTable = "";
+
+    [ObservableProperty]
+    private bool isProbing;
+
+    /// <summary>Shows the map stored in the project (after loading, undo or measuring).</summary>
+    public void RefreshLeveling()
+    {
+        var map = _getMap();
+        HasLevelingMap = map is { IsValid: true };
+        if (map is not { IsValid: true })
+        {
+            LevelingText = "Карта высот не снята.";
+            LevelingTable = "";
+            return;
+        }
+
+        LevelingText = string.Create(CultureInfo.CurrentCulture,
+            $"Карта {map.CountX}×{map.CountY} точек, X {map.X0:0.#}…{map.X1:0.#}, Y {map.Y0:0.#}…{map.Y1:0.#} мм, " +
+            $"перепад {map.Max - map.Min:0.000} мм, снята {map.Measured:g}. Z0 — в первой точке (X{map.X0:0.#} Y{map.Y0:0.#}).");
+        if (map.CountX <= 12)
+        {
+            var rows = new List<string>();
+            for (var j = map.CountY - 1; j >= 0; j--)
+            {
+                rows.Add(string.Join(" ", Enumerable.Range(0, map.CountX).Select(i => map[i, j].ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture))));
+            }
+
+            LevelingTable = string.Join("\n", rows);
+        }
+        else
+        {
+            LevelingTable = "";
+        }
+    }
+
+    [RelayCommand]
+    private void LevelAreaFromProgram()
+    {
+        var bounds = _programBounds();
+        if (bounds.IsEmpty)
+        {
+            _dialogs.ShowError("В проекте нет траекторий.");
+            return;
+        }
+
+        // A little beyond the cuts so that no move lies outside the map.
+        LevelMinX = Math.Round(bounds.MinX - 1, 1);
+        LevelMinY = Math.Round(bounds.MinY - 1, 1);
+        LevelMaxX = Math.Round(bounds.MaxX + 1, 1);
+        LevelMaxY = Math.Round(bounds.MaxY + 1, 1);
+    }
+
+    [RelayCommand]
+    private void ProbeMap()
+    {
+        if (_controller is null)
+        {
+            _dialogs.ShowError("Сначала подключитесь к станку.");
+            return;
+        }
+
+        LevelingProbe probe;
+        try
+        {
+            probe = new LevelingProbe(new Bounds2(LevelMinX, LevelMinY, LevelMaxX, LevelMaxY), LevelStep, LevelClearance, LevelDepth, feed: LevelFeed);
+        }
+        catch (ArgumentException ex)
+        {
+            _dialogs.ShowError(ex.Message);
+            return;
+        }
+
+        if (!_dialogs.Confirm($"Снять карту высот: {probe.Points.Count} точек ({probe.CountX}×{probe.CountY}), шаг {LevelStep:0.#} мм.\n\n" +
+                              "• Зажим щупа — на гравёре, второй провод — на медь платы (или пластина под фрезой).\n" +
+                              $"• Фреза — на 2–5 мм над платой: станок сначала поедет в X{LevelMinX:0.#} Y{LevelMinY:0.#} на текущей высоте.\n" +
+                              "• В первой точке будет установлен Z0, остальные высоты считаются от неё.\n\nНачать?"))
+        {
+            return;
+        }
+
+        _probe = probe;
+        IsProbing = true;
+        if (Run(c => probe.Commands().ForEach(c.SendCommand)))
+        {
+            AddLog(new GrblLogEntry(GrblLogKind.Info, $"Съёмка карты высот: {probe.Points.Count} точек."));
+        }
+        else
+        {
+            _probe = null;
+            IsProbing = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearMap()
+    {
+        if (_getMap() is not null && _dialogs.Confirm("Удалить карту высот из проекта?"))
+        {
+            _setMap(null);
+            RefreshLeveling();
+        }
+    }
+
+    private void OnProbeTouched(Vec3 machine)
+    {
+        if (_probe is not { } probe)
+        {
+            return;
+        }
+
+        if (probe.AddTouch(machine))
+        {
+            var map = probe.ToMap(DateTime.Now);
+            _probe = null;
+            IsProbing = false;
+            _setMap(map);
+            RefreshLeveling();
+            AddLog(new GrblLogEntry(GrblLogKind.Info, string.Create(CultureInfo.CurrentCulture, $"Карта высот снята: перепад {map.Max - map.Min:0.000} мм.")));
+            JobFinished?.Invoke(LevelingText);
+        }
+        else
+        {
+            ProgressText = $"Карта высот: точка {probe.Measured} из {probe.Points.Count}";
+        }
+    }
+
     // ---- Connection ---------------------------------------------------------------------------
 
     [RelayCommand]
@@ -186,6 +359,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             _controller.Changed += QueueRefresh;
             _controller.Log += entry => _dispatcher.BeginInvoke(() => AddLog(entry));
             _controller.JobFinished += result => _dispatcher.BeginInvoke(() => OnJobFinished(result));
+            _controller.ProbeTouched += p => _dispatcher.BeginInvoke(() => OnProbeTouched(p));
             IsConnected = true;
             AddLog(new GrblLogEntry(GrblLogKind.Info, $"Подключено: {SelectedPort}, {BaudRate} бод. Ожидание ответа GRBL…"));
             _pollTimer.Start();
@@ -347,7 +521,23 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             return;
         }
 
-        var prepared = GrblProgram.Prepare(program.Gcode);
+        var gcode = program.Gcode;
+        var levelingNote = "";
+        if (UseLeveling && _getMap() is { IsValid: true } map)
+        {
+            var leveled = LevelingCompensator.Apply(gcode, map);
+            if (leveled.Warnings.Count > 0 &&
+                !_dialogs.Confirm("Поправка по карте высот:\n" + string.Join("\n", leveled.Warnings) + "\n\nПродолжить?"))
+            {
+                return;
+            }
+
+            gcode = leveled.Gcode;
+            levelingNote = string.Create(CultureInfo.CurrentCulture,
+                $"\n\nС поправкой по карте высот (перепад {map.Max - map.Min:0.000} мм): Z0 должен быть выставлен в X{map.X0:0.#} Y{map.Y0:0.#}.");
+        }
+
+        var prepared = GrblProgram.Prepare(gcode);
         if (prepared.CommandCount == 0)
         {
             _dialogs.ShowError("В программе нет команд.");
@@ -363,7 +553,8 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         var stops = prepared.Lines.Count(l => l.StopAfter);
         var message = $"Запустить «{program.Name}» ({prepared.CommandCount} строк)?\n\n" +
                       "Проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза, руки и инструмент убраны." +
-                      (stops > 0 ? $"\n\nОстановок для смены инструмента: {stops}. На них программа ждёт, пока вы не нажмёте «Продолжить»." : "");
+                      (stops > 0 ? $"\n\nОстановок для смены инструмента: {stops}. На них программа ждёт, пока вы не нажмёте «Продолжить»." : "") +
+                      levelingNote;
         if (!_dialogs.Confirm(message))
         {
             return;
@@ -459,9 +650,18 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             WorkX = WorkY = WorkZ = "—";
             MachineText = FeedText = OverridesText = "";
             IsAlarm = CanControl = IsJobActive = CanStartJob = CanPause = CanResume = false;
+            _probe = null;
+            IsProbing = false;
             JobMessage = "";
             ToolPosition = null;
             return;
+        }
+
+        if (_probe is not null && !controller.IsBusy && !_probe.IsComplete)
+        {
+            _probe = null;
+            IsProbing = false;
+            AddLog(new GrblLogEntry(GrblLogKind.Error, "Съёмка карты высот прервана (щуп не коснулся, авария или ошибка). Карта не изменена."));
         }
 
         var status = controller.Status;

@@ -28,6 +28,10 @@ public sealed class CamProject
 
     public StockSettings Stock { get; set; } = new();
 
+    /// <summary>Measured board surface for auto-levelling (null when not measured).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Leveling.LevelingMap? LevelingMap { get; set; }
+
     /// <summary>Layers hidden in the view (their contours cannot be selected).</summary>
     public List<string> HiddenLayers { get; set; } = new();
 

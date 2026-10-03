@@ -296,6 +296,19 @@ public enum ReliefSource
     Mesh,
 }
 
+/// <summary>Finishing strategy of a relief.</summary>
+public enum ReliefFinishing
+{
+    /// <summary>Parallel lines (good on flat and gently sloped areas).</summary>
+    Parallel,
+
+    /// <summary>Contours at constant Z levels (good on steep walls).</summary>
+    Waterline,
+
+    /// <summary>Parallel lines, then waterlines.</summary>
+    ParallelAndWaterline,
+}
+
 public enum RasterAxis
 {
     /// <summary>Lines run along X.</summary>
@@ -340,6 +353,14 @@ public sealed class ReliefOperation : Operation
 
     /// <summary>Material left by roughing for the finishing pass (mm).</summary>
     public double RoughAllowance { get; set; } = 0.3;
+
+    public ReliefFinishing Finishing { get; set; } = ReliefFinishing.Parallel;
+
+    /// <summary>Distance between waterline levels (mm).</summary>
+    public double WaterlineStepZ { get; set; } = 0.2;
+
+    /// <summary>Cutting direction of the waterline contours.</summary>
+    public CutDirection Direction { get; set; } = CutDirection.Climb;
 
     [JsonIgnore]
     public double HeightMm

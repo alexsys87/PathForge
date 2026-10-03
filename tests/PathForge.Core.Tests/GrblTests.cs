@@ -47,7 +47,11 @@ internal sealed class FakeGrbl : IGrblTransport
     {
         var line = _buffer.Dequeue();
         BufferBytes -= line.Length + 1;
-        Send(Responder?.Invoke(line) ?? "ok");
+        // A response may hold several lines (e.g. a probe report followed by "ok").
+        foreach (var response in (Responder?.Invoke(line) ?? "ok").Split('\n'))
+        {
+            Send(response);
+        }
     }
 
     public void ProcessAll()

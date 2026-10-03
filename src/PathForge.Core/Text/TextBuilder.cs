@@ -15,8 +15,6 @@ public static class TextBuilder
     /// <summary>Chord tolerance for the curved parts of the letters (mm).</summary>
     public const double DefaultTolerance = 0.01;
 
-    private const int MaxCurveSegments = 64;
-
     /// <summary>
     /// Closed outline rings of the text. Overlapping glyph parts and letters are merged (non-zero rule),
     /// so the rings are clean outer borders and holes that work with the even-odd rule of the operations.
@@ -43,7 +41,14 @@ public static class TextBuilder
         {
             var runes = lines[lineIndex].EnumerateRunes().Where(r => !Rune.IsControl(r)).ToList();
             var glyphs = runes.Select(r => font.GlyphIndex(r.Value)).ToList();
-            var width = glyphs.Sum(g => font.AdvanceWidth(g) * scale) + item.LetterSpacing * Math.Max(0, glyphs.Count - 1);
+            // Pair kerning: how much closer (negative) each letter moves to the previous one.
+            var kerning = new double[glyphs.Count];
+            for (var i = 1; i < glyphs.Count && item.Kerning; i++)
+            {
+                kerning[i] = font.Kerning(glyphs[i - 1], glyphs[i]) * scale;
+            }
+
+            var width = glyphs.Sum(g => font.AdvanceWidth(g) * scale) + kerning.Sum() + item.LetterSpacing * Math.Max(0, glyphs.Count - 1);
             var penX = item.Alignment switch
             {
                 TextAlignment.Center => item.X - width / 2,
@@ -63,10 +68,11 @@ public static class TextBuilder
                     }
                 }
 
+                penX += kerning[i];
                 var originX = penX;
-                foreach (var contour in font.GetOutline(glyphs[i]))
+                foreach (var path in font.GetPaths(glyphs[i]))
                 {
-                    var ring = FlattenGlyphContour(contour, p => new Vec2(originX + p.X * scale, baseline + p.Y * scale), tolerance);
+                    var ring = path.Flatten(p => new Vec2(originX + p.X * scale, baseline + p.Y * scale), tolerance);
                     if (ring.Count >= 3)
                     {
                         polygons.Add(ring);
@@ -171,88 +177,9 @@ public static class TextBuilder
         item.Mirrored = !item.Mirrored;
     }
 
-    /// <summary>
-    /// Polyline of one glyph contour. Consecutive off-curve points have an implied on-curve point
-    /// half-way between them; each quadratic piece is split so that its chord error stays within the tolerance.
-    /// </summary>
-    internal static List<Vec2> FlattenGlyphContour(List<GlyphPoint> points, Func<GlyphPoint, Vec2> map, double tolerance)
-    {
-        var sequence = new List<(Vec2 P, bool On)>(points.Count + 2);
-        var first = points.FindIndex(p => p.OnCurve);
-        if (first < 0)
-        {
-            var a = map(points[^1]);
-            var b = map(points[0]);
-            sequence.Add(((a + b) / 2, true));
-            sequence.AddRange(points.Select(p => (map(p), false)));
-        }
-        else
-        {
-            for (var i = 0; i < points.Count; i++)
-            {
-                var p = points[(first + i) % points.Count];
-                sequence.Add((map(p), p.OnCurve));
-            }
-        }
-
-        sequence.Add(sequence[0]);
-
-        var result = new List<Vec2> { sequence[0].P };
-        var current = sequence[0].P;
-        var index = 1;
-        while (index < sequence.Count)
-        {
-            if (sequence[index].On)
-            {
-                current = sequence[index].P;
-                result.Add(current);
-                index++;
-                continue;
-            }
-
-            var control = sequence[index].P;
-            var next = sequence[index + 1];
-            Vec2 end;
-            if (next.On)
-            {
-                end = next.P;
-                index += 2;
-            }
-            else
-            {
-                end = (control + next.P) / 2;
-                index++;
-            }
-
-            var curvature = (current - 2 * control + end).Length;
-            var count = Math.Clamp((int)Math.Ceiling(Math.Sqrt(curvature / (4 * Math.Max(tolerance, 1e-4)))), 1, MaxCurveSegments);
-            for (var k = 1; k <= count; k++)
-            {
-                var t = (double)k / count;
-                var u = 1 - t;
-                result.Add(u * u * current + 2 * u * t * control + t * t * end);
-            }
-
-            current = end;
-        }
-
-        // Drop the closing point and repeated points.
-        var clean = new List<Vec2>(result.Count);
-        foreach (var p in result)
-        {
-            if (clean.Count == 0 || !clean[^1].IsNear(p, 1e-9))
-            {
-                clean.Add(p);
-            }
-        }
-
-        if (clean.Count > 1 && clean[^1].IsNear(clean[0], 1e-9))
-        {
-            clean.RemoveAt(clean.Count - 1);
-        }
-
-        return clean;
-    }
+    /// <summary>Polyline of one TrueType glyph contour (quadratic points) after mapping its points.</summary>
+    internal static List<Vec2> FlattenGlyphContour(List<GlyphPoint> points, Func<GlyphPoint, Vec2> map, double tolerance) =>
+        GlyphPath.FromQuadraticPoints(points.Select(p => (map(p), p.OnCurve)).ToList()).Flatten(p => p, tolerance);
 
     /// <summary>Short description of a text for lists.</summary>
     public static string Describe(TextItem item)

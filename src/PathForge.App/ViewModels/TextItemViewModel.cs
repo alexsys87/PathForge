@@ -87,6 +87,12 @@ public sealed class TextItemViewModel : ModelWrapper
         set => Set(Model.LineSpacing, Math.Clamp(value, 0.3, 10), v => Model.LineSpacing = v);
     }
 
+    public bool Kerning
+    {
+        get => Model.Kerning;
+        set => Set(Model.Kerning, value, v => Model.Kerning = v);
+    }
+
     public bool Mirrored
     {
         get => Model.Mirrored;
