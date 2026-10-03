@@ -95,6 +95,37 @@ public class SampleTests
     }
 
     [Fact]
+    public void Altium_style_demo_board_matches_the_kicad_one()
+    {
+        // Same board as pcb-demo, written the way Altium Designer exports it: inch 2:5, macros, G74 arcs, NC drill .TXT.
+        var folder = Path.Combine(AppContext.BaseDirectory, "samples", "pcb-altium");
+        var copper = GerberReader.ReadFile(Path.Combine(folder, "demo.GTL"), GerberMode.Copper);
+        var outline = GerberReader.ReadFile(Path.Combine(folder, "demo.GKO"), GerberMode.Outline);
+        var holes = ExcellonReader.ReadFile(Path.Combine(folder, "demo-RoundHoles.TXT"));
+        var slots = ExcellonReader.ReadFile(Path.Combine(folder, "demo-SlotHoles.TXT"));
+
+        Assert.Empty(copper.Warnings);
+        Assert.Empty(outline.Warnings);
+        Assert.Empty(holes.Warnings);
+        Assert.Empty(slots.Warnings);
+        Assert.Equal(2, copper.Contours.Count(c => Polyline.IsCounterClockwise(c.Flatten())));
+
+        var board = Assert.Single(outline.Contours);
+        Assert.True(board.IsClosed);
+        Assert.Equal(30, board.GetBounds().Width, 2);
+        Assert.Equal(20, board.GetBounds().Height, 2);
+        // Rounded corners of radius 2 mm: 600 - (4 - pi) * 4.
+        Assert.Equal(600 - (4 - Math.PI) * 4, Math.Abs(Polyline.SignedArea(board.Flatten(0.005))), 0.1);
+
+        Assert.Equal(new[] { 0.8, 0.8, 1.0 }, holes.Holes.Select(h => Math.Round(h.Diameter, 2)));
+        Assert.True(holes.Holes[0].Center.IsNear(new Vec2(5, 10), 0.001));
+        Assert.True(holes.Holes[2].Center.IsNear(new Vec2(15, 15), 0.001));
+        var slot = Assert.Single(slots.Slots);
+        Assert.Equal(24, slot.Path[0].X, 2);
+        Assert.Equal(27, slot.Path[1].X, 2);
+    }
+
+    [Fact]
     public void Demo_sign_svg_has_three_layers()
     {
         var import = SvgReader.ReadFile(Path.Combine(AppContext.BaseDirectory, "samples", "demo-sign.svg"));

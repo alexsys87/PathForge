@@ -195,6 +195,106 @@ public class PcbTests
     }
 
     [Fact]
+    public void Excellon_altium_file_format_comment_sets_the_digits()
+    {
+        // Altium Designer writes the format as a comment; inch 2:5 differs from the usual 2:4 by a factor of ten.
+        const string drill = "M48\n;Layer_Color=9474304\n;FILE_FORMAT=2:5\nINCH,TZ\n;TYPE=PLATED\nT1F00S00C0.03150\n%\nT01\nX12500Y-5000\nM30\n";
+
+        var result = ExcellonReader.Read(drill);
+
+        Assert.Empty(result.Warnings);
+        var hole = Assert.Single(result.Holes);
+        Assert.Equal(3.175, hole.Center.X, 6);
+        Assert.Equal(-1.27, hole.Center.Y, 6);
+        Assert.Equal(0.8001, hole.Diameter, 4);
+    }
+
+    [Fact]
+    public void Excellon_drilled_slot_becomes_an_oblong_contour()
+    {
+        const string drill = "M48\nMETRIC\nT1C1.000\n%\nT1\nX10.0Y5.0G85X14.0Y5.0\nX20.0Y5.0\nM30\n";
+
+        var result = ExcellonReader.Read(drill);
+
+        Assert.Empty(result.Warnings);
+        var slot = Assert.Single(result.Slots);
+        Assert.Equal(new[] { new Vec2(10, 5), new Vec2(14, 5) }, slot.Path);
+        Assert.Equal(new Vec2(20, 5), Assert.Single(result.Holes).Center);
+
+        var contours = result.ToContours();
+        var outline = Assert.Single(contours, c => !c.TryGetCircle(out _, out _));
+        Assert.True(outline.IsClosed);
+        var bounds = outline.GetBounds();
+        Assert.Equal(9.5, bounds.MinX, 6);
+        Assert.Equal(14.5, bounds.MaxX, 6);
+        Assert.Equal(1, bounds.Height, 6);
+        // 4 x 1 mm rectangle plus two half circles of radius 0.5.
+        Assert.Equal(4 + Math.PI / 4, Math.Abs(Polyline.SignedArea(outline.Flatten(0.001))), 0.01);
+    }
+
+    [Fact]
+    public void Excellon_routed_slots_follow_the_tool_path()
+    {
+        // KiCad oval holes and Altium routed slots: G00 to the start, M15 tool down, G01 cuts, M16 tool up.
+        const string drill = """
+            M48
+            METRIC
+            T1C1.000
+            %
+            G90
+            G05
+            T1
+            G00X10.0Y5.0
+            M15
+            G01X14.0Y5.0
+            M16
+            G05
+            G00X0.0Y0.0
+            M15
+            G01X5.0Y0.0
+            G01X5.0Y5.0
+            M16
+            G05
+            M30
+            """;
+
+        var result = ExcellonReader.Read(drill);
+
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Holes);
+        Assert.Equal(2, result.Slots.Count);
+        Assert.Equal(3, result.Slots[1].Path.Count);
+        var contours = result.ToContours();
+        Assert.Equal(2, contours.Count);
+        Assert.All(contours, c => Assert.True(c.IsClosed));
+        var corner = contours[1].GetBounds();
+        Assert.Equal(-0.5, corner.MinX, 0.01);
+        Assert.Equal(5.5, corner.MaxX, 0.01);
+        Assert.Equal(5.5, corner.MaxY, 0.01);
+    }
+
+    [Theory]
+    [InlineData("Copper,L2,Bot", GerberMode.Copper, "Нижний слой меди")]
+    [InlineData("Profile,NP", GerberMode.Copper, "контур платы")]
+    [InlineData("Copper,L1,Top", GerberMode.Outline, "слой меди")]
+    public void Gerber_x2_file_function_warns_about_the_wrong_import(string function, GerberMode mode, string expected)
+    {
+        var gerber = $"%FSLAX46Y46*%\n%MOMM*%\n%TF.FileFunction,{function}*%\n%ADD10C,1*%\nD10*\nX0Y0D02*\nX1000000Y0D01*\nM02*\n";
+
+        var warning = Assert.Single(GerberReader.Read(gerber, mode).Warnings);
+
+        Assert.Contains(expected, warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Gerber_x2_top_copper_needs_no_warning()
+    {
+        var gerber = "%FSLAX46Y46*%\n%MOMM*%\n%TF.FileFunction,Copper,L1,Top,Signal*%\n%ADD10C,1*%\nD10*\nX0Y0D03*\nM02*\n";
+
+        Assert.Empty(GerberReader.Read(gerber, GerberMode.Copper).Warnings);
+    }
+
+    [Fact]
     public void Vbit_cutting_width_grows_with_depth()
     {
         var tool = new Tool { Kind = ToolKind.VBit, TipDiameter = 0.1, TipAngle = 20 };
