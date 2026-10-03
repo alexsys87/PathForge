@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PathForge.Core.Localization;
 
 namespace PathForge.App.ViewModels;
 
@@ -20,7 +21,7 @@ public sealed class LayerViewModel : ObservableObject
 
     public int Count { get; }
 
-    public string Display => $"{(string.IsNullOrEmpty(Name) ? "(без имени)" : Name)} — {Count}";
+    public string Display => $"{(string.IsNullOrEmpty(Name) ? Loc.T("(без имени)", "(unnamed)") : Name)} — {Count}";
 
     public bool IsVisible
     {

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Import;
 
@@ -44,7 +45,7 @@ public static partial class SvgReader
 
     private static DxfImportResult Read(XDocument document)
     {
-        var root = document.Root ?? throw new FormatException("Пустой SVG.");
+        var root = document.Root ?? throw new FormatException(Loc.T("Пустой SVG.", "Empty SVG."));
         var result = new DxfImportResult();
         var context = new Context(result, document);
         context.Root = DocumentTransform(root, result);
@@ -55,7 +56,7 @@ public static partial class SvgReader
 
         foreach (var (name, count) in context.Ignored)
         {
-            result.Warnings.Add($"Пропущено элементов <{name}>: {count}.");
+            result.Warnings.Add(Loc.T($"Пропущено элементов <{name}>: {count}.", $"Skipped <{name}> elements: {count}."));
         }
 
         return result;
@@ -95,7 +96,7 @@ public static partial class SvgReader
 
             if (Math.Abs(scaleX - scaleY) > 1e-9 * Math.Max(scaleX, scaleY))
             {
-                result.Warnings.Add("Пропорции viewBox и размеров документа различаются: использован масштаб по ширине.");
+                result.Warnings.Add(Loc.T("Пропорции viewBox и размеров документа различаются: использован масштаб по ширине.", "The viewBox and document size have different proportions: the width scale is used."));
                 scaleY = scaleX;
             }
         }
@@ -414,7 +415,7 @@ public static partial class SvgReader
                     current = start;
                     break;
                 default:
-                    throw new FormatException($"Неизвестная команда пути SVG '{command}'.");
+                    throw new FormatException(Loc.T($"Неизвестная команда пути SVG '{command}'.", $"Unknown SVG path command '{command}'."));
             }
 
             if (upper is not ('C' or 'S' or 'Q' or 'T'))
@@ -707,7 +708,7 @@ public static partial class SvgReader
 
             if (command == ' ' || char.ToUpperInvariant(command) == 'Z')
             {
-                throw new FormatException("Путь SVG должен начинаться с команды M.");
+                throw new FormatException(Loc.T("Путь SVG должен начинаться с команды M.", "An SVG path must start with an M command."));
             }
 
             return true;
@@ -747,7 +748,7 @@ public static partial class SvgReader
 
             if (_pos == start)
             {
-                throw new FormatException($"В пути SVG ожидалось число (позиция {start}).");
+                throw new FormatException(Loc.T($"В пути SVG ожидалось число (позиция {start}).", $"A number was expected in the SVG path (position {start})."));
             }
 
             return double.Parse(_text.AsSpan(start, _pos - start), NumberStyles.Float, CultureInfo.InvariantCulture);
@@ -759,7 +760,7 @@ public static partial class SvgReader
             SkipSeparators();
             if (_pos >= _text.Length || (_text[_pos] != '0' && _text[_pos] != '1'))
             {
-                throw new FormatException("В дуге SVG ожидался флаг 0 или 1.");
+                throw new FormatException(Loc.T("В дуге SVG ожидался флаг 0 или 1.", "A flag 0 or 1 was expected in the SVG arc."));
             }
 
             return _text[_pos++] == '1';

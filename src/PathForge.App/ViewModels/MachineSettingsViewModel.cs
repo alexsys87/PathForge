@@ -1,3 +1,4 @@
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 
 namespace PathForge.App.ViewModels;
@@ -14,7 +15,10 @@ public sealed class MachineSettingsViewModel : ModelWrapper
 
     public IReadOnlyList<MachineProfile> Profiles => MachineProfiles.All;
 
-    public string ProfileName => string.IsNullOrEmpty(Model.ProfileName) ? "свой" : Model.ProfileName;
+    /// <summary>Name of the applied profile in the current language (projects store it in the language of the moment).</summary>
+    public string ProfileName => string.IsNullOrEmpty(Model.ProfileName)
+        ? Loc.T("свой", "custom")
+        : MachineProfiles.Find(Model.ProfileName)?.Name ?? Model.ProfileName;
 
     /// <summary>Copies a ready-made profile into the settings (custom header/footer lines are kept).</summary>
     public void ApplyProfile(MachineProfile profile)

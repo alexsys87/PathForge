@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PathForge.App.Controls;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 using PathForge.Core.Projects;
 using PathForge.Core.Simulation;
@@ -44,18 +45,18 @@ public sealed partial class SimulationViewModel : ObservableObject
 
     public IReadOnlyList<Choice<double>> Speeds { get; } = new[]
     {
-        new Choice<double>(1, "×1 (реальное время)"),
-        new Choice<double>(5, "×5"),
-        new Choice<double>(20, "×20"),
-        new Choice<double>(100, "×100"),
-        new Choice<double>(1000, "×1000"),
+        new Choice<double>(1, "×1 (реальное время)", "×1 (real time)"),
+        new Choice<double>(5, "×5", "×5"),
+        new Choice<double>(20, "×20", "×20"),
+        new Choice<double>(100, "×100", "×100"),
+        new Choice<double>(1000, "×1000", "×1000"),
     };
 
     public IReadOnlyList<Choice<int>> Qualities { get; } = new[]
     {
-        new Choice<int>(400_000, "Быстро"),
-        new Choice<int>(StockSimulation.DefaultMaxCells, "Обычно"),
-        new Choice<int>(4_000_000, "Точно (медленнее)"),
+        new Choice<int>(400_000, "Быстро", "Fast"),
+        new Choice<int>(StockSimulation.DefaultMaxCells, "Обычно", "Normal"),
+        new Choice<int>(4_000_000, "Точно (медленнее)", "Fine (slower)"),
     };
 
     public ObservableCollection<string> Issues { get; } = new();
@@ -86,7 +87,23 @@ public sealed partial class SimulationViewModel : ObservableObject
     [ObservableProperty]
     private string statsText = "";
 
-    public string PlayLabel => IsPlaying ? "❚❚ Пауза" : "▶ Пуск";
+    public string PlayLabel => IsPlaying ? Loc.T("❚❚ Пауза", "❚❚ Pause") : Loc.T("▶ Пуск", "▶ Play");
+
+    /// <summary>Texts that are not recomputed by <see cref="MarkStale"/> follow the new language.</summary>
+    public void RefreshLanguage()
+    {
+        OnPropertyChanged(nameof(PlayLabel));
+        if (_simulation is not null)
+        {
+            UpdateTexts(_simulation);
+        }
+        else if (StatsText.Length > 0)
+        {
+            StatsText = NoToolpathsText;
+        }
+    }
+
+    private static string NoToolpathsText => Loc.T("Нет траекторий: добавьте операции и выберите контуры.", "No toolpaths: add operations and select contours.");
 
     /// <summary>The 3D tab is visible: only then the simulation is computed.</summary>
     public bool IsActive
@@ -133,7 +150,7 @@ public sealed partial class SimulationViewModel : ObservableObject
             Frame = null;
             TimeText = "";
             OperationText = "";
-            StatsText = "Нет траекторий: добавьте операции и выберите контуры.";
+            StatsText = NoToolpathsText;
             return;
         }
 
@@ -258,8 +275,9 @@ public sealed partial class SimulationViewModel : ObservableObject
         var toolpath = simulation.CurrentToolpath;
         OperationText = toolpath is null ? "" : $"{toolpath.Operation.Name} · {toolpath.Tool.Name}";
         var field = simulation.Field;
-        StatsText = string.Create(CultureInfo.CurrentCulture,
-            $"Снято {field.RemovedVolume() / 1000:0.0} см³ · сетка {field.Width}×{field.Height}, ячейка {field.CellSize:0.###} мм");
+        StatsText = Loc.T(
+            $"Снято {field.RemovedVolume() / 1000:0.0} см³ · сетка {field.Width}×{field.Height}, ячейка {field.CellSize:0.###} мм",
+            $"Removed {field.RemovedVolume() / 1000:0.0} cm³ · grid {field.Width}×{field.Height}, cell {field.CellSize:0.###} mm");
 
         if (Issues.Count != simulation.Issues.Count)
         {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Leveling;
 
@@ -19,7 +20,7 @@ public static class LevelingCompensator
     {
         if (!map.IsValid)
         {
-            throw new ArgumentException("Карта высот пуста.", nameof(map));
+            throw new ArgumentException(Loc.T("Карта высот пуста.", "The height map is empty."), nameof(map));
         }
 
         maxSegment = Math.Max(0.05, maxSegment);
@@ -98,7 +99,7 @@ public static class LevelingCompensator
             {
                 if (hasAxes && (!absolute || inches) && !relativeWarned)
                 {
-                    warnings.Add($"Строка {lineNumber}: относительные координаты или дюймы — такие строки не корректируются.");
+                    warnings.Add(Loc.T($"Строка {lineNumber}: относительные координаты или дюймы — такие строки не корректируются.", $"Line {lineNumber}: relative coordinates or inches — such lines are not corrected."));
                     relativeWarned = true;
                 }
 
@@ -166,8 +167,9 @@ public static class LevelingCompensator
 
         if (maxOutside > Math.Max(map.StepX, map.StepY) / 2)
         {
-            warnings.Add(string.Create(CultureInfo.CurrentCulture,
-                $"Программа выходит за карту высот на {maxOutside:0.#} мм — там берётся высота ближайшего края. Снимите карту по всей плате."));
+            warnings.Add(Loc.T(
+                $"Программа выходит за карту высот на {maxOutside:0.#} мм — там берётся высота ближайшего края. Снимите карту по всей плате.",
+                $"The program goes {maxOutside:0.#} mm beyond the height map — the height of the nearest edge is used there. Probe the whole board."));
         }
 
         // Keep the original ending (no extra line break).

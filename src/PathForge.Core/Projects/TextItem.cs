@@ -1,3 +1,5 @@
+using PathForge.Core.Localization;
+
 namespace PathForge.Core.Projects;
 
 public enum TextAlignment
@@ -15,7 +17,7 @@ public sealed class TextItem
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
-    public string Text { get; set; } = "Текст";
+    public string Text { get; set; } = Loc.T("Текст", "Text");
 
     /// <summary>Full path of the .ttf / .ttc file.</summary>
     public string FontPath { get; set; } = "";
@@ -48,5 +50,5 @@ public sealed class TextItem
     /// <summary>Mirrored left-right around X (e.g. for the bottom side of a board).</summary>
     public bool Mirrored { get; set; }
 
-    public string Layer { get; set; } = "Текст";
+    public string Layer { get; set; } = Loc.T("Текст", "Text");
 }

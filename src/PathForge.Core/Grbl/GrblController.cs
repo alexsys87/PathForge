@@ -1,5 +1,6 @@
 using System.Globalization;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Grbl;
 
@@ -175,12 +176,12 @@ public sealed class GrblController : IDisposable
 
             if (!CanSendCommands)
             {
-                throw new InvalidOperationException("Идёт выполнение программы — команды можно отправлять после её завершения или на остановке.");
+                throw new InvalidOperationException(Loc.T("Идёт выполнение программы — команды можно отправлять после её завершения или на остановке.", "A program is running — commands can be sent after it finishes or while it is stopped."));
             }
 
             if (command.Length > GrblProgram.MaxLineLength)
             {
-                throw new InvalidOperationException($"Команда длиннее {GrblProgram.MaxLineLength} символов.");
+                throw new InvalidOperationException(Loc.T($"Команда длиннее {GrblProgram.MaxLineLength} символов.", $"The command is longer than {GrblProgram.MaxLineLength} characters."));
             }
 
             _manual.Enqueue(command);
@@ -277,17 +278,17 @@ public sealed class GrblController : IDisposable
             EnsureConnected();
             if (Job != GrblJobState.None)
             {
-                throw new InvalidOperationException("Программа уже выполняется.");
+                throw new InvalidOperationException(Loc.T("Программа уже выполняется.", "A program is already running."));
             }
 
             if (Status.State != GrblState.Idle)
             {
-                throw new InvalidOperationException($"Станок должен быть в состоянии «Готов», сейчас: {GrblMessages.StateName(Status.State)}.");
+                throw new InvalidOperationException(Loc.T($"Станок должен быть в состоянии «Готов», сейчас: {GrblMessages.StateName(Status.State)}.", $"The machine must be Idle, now: {GrblMessages.StateName(Status.State)}."));
             }
 
             if (_pending.Count > 0 || _manual.Count > 0)
             {
-                throw new InvalidOperationException("Подождите, пока выполнятся отправленные команды.");
+                throw new InvalidOperationException(Loc.T("Подождите, пока выполнятся отправленные команды.", "Wait until the sent commands are done."));
             }
 
             _program = program.ToList();
@@ -300,7 +301,7 @@ public sealed class GrblController : IDisposable
             AcknowledgedCommands = 0;
             JobMessage = "";
             Job = GrblJobState.Running;
-            Write(GrblLogKind.Info, $"Старт программы: {TotalCommands} строк.");
+            Write(GrblLogKind.Info, Loc.T($"Старт программы: {TotalCommands} строк.", $"Program start: {TotalCommands} lines."));
             Pump();
             Changed?.Invoke();
         }
@@ -337,7 +338,7 @@ public sealed class GrblController : IDisposable
                 case GrblJobState.ProgramStop:
                     if (_manual.Count > 0 || _pending.Count > 0)
                     {
-                        throw new InvalidOperationException("Подождите, пока выполнятся отправленные команды.");
+                        throw new InvalidOperationException(Loc.T("Подождите, пока выполнятся отправленные команды.", "Wait until the sent commands are done."));
                     }
 
                     if (_manualDuringStop)
@@ -350,7 +351,7 @@ public sealed class GrblController : IDisposable
                     _drainAndWait = false;
                     JobMessage = "";
                     Job = GrblJobState.Running;
-                    Write(GrblLogKind.Info, "Продолжение программы.");
+                    Write(GrblLogKind.Info, Loc.T("Продолжение программы.", "Program resumed."));
                     Pump();
                     break;
                 default:
@@ -394,7 +395,7 @@ public sealed class GrblController : IDisposable
             }
             else
             {
-                ResetController("Программа остановлена.");
+                ResetController(Loc.T("Программа остановлена.", "Program stopped."));
             }
         }
     }
@@ -406,7 +407,7 @@ public sealed class GrblController : IDisposable
         {
             if (IsConnected)
             {
-                ResetController("Сброс контроллера.");
+                ResetController(Loc.T("Сброс контроллера.", "Controller reset."));
             }
         }
     }
@@ -484,7 +485,7 @@ public sealed class GrblController : IDisposable
         Status = status;
         if (_stopRequested && (status.IsHoldComplete || status.State == GrblState.Idle))
         {
-            ResetController("Программа остановлена.");
+            ResetController(Loc.T("Программа остановлена.", "Program stopped."));
         }
         else if (Job == GrblJobState.Running && _drainAndWait && _pending.Count == 0)
         {
@@ -494,13 +495,13 @@ public sealed class GrblController : IDisposable
             {
                 if (_atEnd)
                 {
-                    FinishJob(true, $"Программа выполнена: {AcknowledgedCommands} строк.");
+                    FinishJob(true, Loc.T($"Программа выполнена: {AcknowledgedCommands} строк.", $"Program finished: {AcknowledgedCommands} lines."));
                 }
                 else
                 {
                     Job = GrblJobState.ProgramStop;
                     _manualDuringStop = false;
-                    Write(GrblLogKind.Info, "Остановка программы: " + (JobMessage.Length > 0 ? JobMessage : "M0"));
+                    Write(GrblLogKind.Info, Loc.T("Остановка программы: ", "Program stop: ") + (JobMessage.Length > 0 ? JobMessage : "M0"));
                 }
             }
         }
@@ -523,14 +524,17 @@ public sealed class GrblController : IDisposable
             AcknowledgedCommands++;
             if (error is { } code)
             {
-                Write(GrblLogKind.Error, $"Строка {line.SourceLine} «{line.Text}»: {GrblMessages.Error(code)}");
+                Write(GrblLogKind.Error, Loc.T($"Строка {line.SourceLine} «{line.Text}»: {GrblMessages.Error(code)}", $"Line {line.SourceLine} “{line.Text}”: {GrblMessages.Error(code)}"));
                 if (Job is GrblJobState.Running or GrblJobState.Paused)
                 {
                     // Lines already in GRBL's buffer keep running: hold the machine and let the operator decide.
                     Realtime(FeedHold);
                     Job = GrblJobState.Error;
-                    JobMessage = $"Строка {line.SourceLine} «{line.Text}» не выполнена. {GrblMessages.Error(code)}. " +
-                                 "«Продолжить» — пропустить строку, «Стоп» — прервать программу.";
+                    JobMessage = Loc.T(
+                        $"Строка {line.SourceLine} «{line.Text}» не выполнена. {GrblMessages.Error(code)}. " +
+                        "«Продолжить» — пропустить строку, «Стоп» — прервать программу.",
+                        $"Line {line.SourceLine} “{line.Text}” failed. {GrblMessages.Error(code)}. " +
+                        "“Resume” skips the line, “Stop” aborts the program.");
                 }
             }
         }
@@ -559,7 +563,7 @@ public sealed class GrblController : IDisposable
         _stopRequested = false;
         if (Job != GrblJobState.None)
         {
-            FinishJob(false, "Программа прервана. " + message);
+            FinishJob(false, Loc.T("Программа прервана. ", "Program aborted. ") + message);
         }
     }
 
@@ -573,7 +577,7 @@ public sealed class GrblController : IDisposable
         _stopRequested = false;
         if (Job != GrblJobState.None)
         {
-            FinishJob(false, "Контроллер перезапустился — программа прервана.");
+            FinishJob(false, Loc.T("Контроллер перезапустился — программа прервана.", "The controller restarted — program aborted."));
         }
     }
 
@@ -591,11 +595,13 @@ public sealed class GrblController : IDisposable
             var wco = Status.WorkOffset;
             LastProbe = new Vec3(x - wco.X, y - wco.Y, z - wco.Z);
             ProbeTouched?.Invoke(new Vec3(x, y, z));
-            Write(GrblLogKind.Info, FormattableString.Invariant($"Касание щупа: Z = {z:0.000} (машинные координаты)."));
+            Write(GrblLogKind.Info, Loc.T(
+                FormattableString.Invariant($"Касание щупа: Z = {z:0.000} (машинные координаты)."),
+                FormattableString.Invariant($"Probe touch: Z = {z:0.000} (machine coordinates).")));
         }
         else
         {
-            Write(GrblLogKind.Error, "Щуп не сработал: " + line);
+            Write(GrblLogKind.Error, Loc.T("Щуп не сработал: ", "Probe failed: ") + line);
         }
     }
 
@@ -609,13 +615,13 @@ public sealed class GrblController : IDisposable
             }
 
             IsConnected = false;
-            Write(GrblLogKind.Error, "Связь со станком потеряна: " + error.Message);
+            Write(GrblLogKind.Error, Loc.T("Связь со станком потеряна: ", "Connection to the machine lost: ") + error.Message);
             _pending.Clear();
             _bufferUsed = 0;
             _manual.Clear();
             if (Job != GrblJobState.None)
             {
-                FinishJob(false, "Связь со станком потеряна — программа прервана. Станок может продолжать движение до конца буфера!");
+                FinishJob(false, Loc.T("Связь со станком потеряна — программа прервана. Станок может продолжать движение до конца буфера!", "Connection to the machine lost — program aborted. The machine may keep moving until its buffer is empty!"));
             }
 
             Changed?.Invoke();
@@ -652,7 +658,7 @@ public sealed class GrblController : IDisposable
                 _next++;
                 if (line.StopAfter)
                 {
-                    JobMessage = line.Comment.Length > 0 ? line.Comment : "Остановка программы (M0)";
+                    JobMessage = line.Comment.Length > 0 ? line.Comment : Loc.T("Остановка программы (M0)", "Program stop (M0)");
                     _drainAndWait = true;
                     _idleReports = 0;
                     break;
@@ -779,7 +785,7 @@ public sealed class GrblController : IDisposable
     {
         if (!IsConnected)
         {
-            throw new InvalidOperationException("Нет связи со станком.");
+            throw new InvalidOperationException(Loc.T("Нет связи со станком.", "Not connected to the machine."));
         }
     }
 

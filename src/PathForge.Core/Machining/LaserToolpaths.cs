@@ -1,4 +1,5 @@
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Machining;
 
@@ -11,13 +12,13 @@ public static partial class ToolpathGenerator
     {
         if (tool.Kind != ToolKind.Laser)
         {
-            result.Warnings.Add($"{label}: для лазерной операции выберите инструмент «Лазер».");
+            result.Warnings.Add(Loc.T($"{label}: для лазерной операции выберите инструмент «Лазер».", $"{label}: choose a “Laser” tool for a laser operation."));
             return null;
         }
 
         if (operation is not (LaserVectorOperation or LaserRasterOperation))
         {
-            result.Warnings.Add($"{label}: лазер нельзя использовать во фрезерной операции — добавьте лазерную операцию.");
+            result.Warnings.Add(Loc.T($"{label}: лазер нельзя использовать во фрезерной операции — добавьте лазерную операцию.", $"{label}: a laser cannot be used in a milling operation — add a laser operation."));
             return null;
         }
 
@@ -30,7 +31,7 @@ public static partial class ToolpathGenerator
                 var selected = vector.ContourIds.Where(contours.ContainsKey).Select(id => contours[id]).ToList();
                 if (selected.Count == 0)
                 {
-                    result.Warnings.Add($"{label}: не выбраны контуры.");
+                    result.Warnings.Add(Loc.T($"{label}: не выбраны контуры.", $"{label}: no contours selected."));
                     return null;
                 }
 
@@ -115,7 +116,7 @@ public static partial class ToolpathGenerator
         var result = new List<(Vec2, Vec2)>();
         if (closed.Count == 0)
         {
-            warnings.Add($"{label}: заливка возможна только внутри замкнутых контуров.");
+            warnings.Add(Loc.T($"{label}: заливка возможна только внутри замкнутых контуров.", $"{label}: fill is only possible inside closed contours."));
             return result;
         }
 
@@ -130,7 +131,7 @@ public static partial class ToolpathGenerator
         var rowCount = (int)Math.Floor(bounds.Height / spacing);
         if (rowCount > 200000)
         {
-            warnings.Add($"{label}: слишком мелкий шаг заливки для такой площади.");
+            warnings.Add(Loc.T($"{label}: слишком мелкий шаг заливки для такой площади.", $"{label}: the fill spacing is too small for such an area."));
             return result;
         }
 
@@ -168,7 +169,7 @@ public static partial class ToolpathGenerator
         var image = operation.Image;
         if (image.Width == 0 || image.Height == 0 || image.Pixels.Length < image.Width * image.Height)
         {
-            warnings.Add($"{label}: картинка не загружена.");
+            warnings.Add(Loc.T($"{label}: картинка не загружена.", $"{label}: no picture loaded."));
             return;
         }
 
@@ -177,7 +178,7 @@ public static partial class ToolpathGenerator
         var rows = Math.Max(1, (int)Math.Round(operation.HeightMm / interval));
         if ((long)columns * rows > 25_000_000)
         {
-            warnings.Add($"{label}: слишком большое разрешение ({columns}×{rows}); увеличьте шаг строк.");
+            warnings.Add(Loc.T($"{label}: слишком большое разрешение ({columns}×{rows}); увеличьте шаг строк.", $"{label}: resolution too high ({columns}×{rows}); increase the line interval."));
             return;
         }
 
@@ -241,7 +242,7 @@ public static partial class ToolpathGenerator
 
         if (burnedRows == 0)
         {
-            warnings.Add($"{label}: в картинке нечего выжигать (всё светлое).");
+            warnings.Add(Loc.T($"{label}: в картинке нечего выжигать (всё светлое).", $"{label}: nothing to burn in the picture (all light)."));
         }
     }
 

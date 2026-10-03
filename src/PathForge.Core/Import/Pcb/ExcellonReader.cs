@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Import.Pcb;
 
@@ -16,7 +17,7 @@ public sealed class ExcellonResult
     public List<Contour> ToContours()
     {
         return Holes.Select(h => new Contour(0, new Segment[] { new ArcSegment(h.Center, h.Diameter / 2, 0, 2 * Math.PI) },
-                string.Create(CultureInfo.InvariantCulture, $"Сверловка Ø{h.Diameter:0.###}")))
+                Loc.T("Сверловка", "Drills") + string.Create(CultureInfo.InvariantCulture, $" Ø{h.Diameter:0.###}")))
             .ToList();
     }
 }
@@ -115,7 +116,7 @@ public static partial class ExcellonReader
             {
                 if (!slotWarned)
                 {
-                    result.Warnings.Add("Пазы (G85) пока не поддерживаются: сверлятся только их концы.");
+                    result.Warnings.Add(Loc.T("Пазы (G85) пока не поддерживаются: сверлятся только их концы.", "Slots (G85) are not supported yet: only their ends are drilled."));
                     slotWarned = true;
                 }
             }
@@ -142,7 +143,7 @@ public static partial class ExcellonReader
                 }
                 else
                 {
-                    result.Warnings.Add($"Отверстие {position} без известного сверла пропущено.");
+                    result.Warnings.Add(Loc.T($"Отверстие {position} без известного сверла пропущено.", $"Hole {position} without a known drill was skipped."));
                 }
             }
         }
@@ -173,7 +174,7 @@ public static partial class ExcellonReader
     {
         if (result.Holes.Count == 0)
         {
-            result.Warnings.Add("В файле не найдено отверстий.");
+            result.Warnings.Add(Loc.T("В файле не найдено отверстий.", "No holes found in the file."));
         }
 
         return result;

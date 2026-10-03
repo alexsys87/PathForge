@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using PathForge.App.ViewModels;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 
 namespace PathForge.App.Controls;
@@ -202,7 +203,7 @@ public sealed class CamViewport : FrameworkElement
     {
         var mouse = e.GetPosition(this);
         var world = ToWorld(mouse);
-        CursorText = string.Format(CultureInfo.CurrentCulture, "X {0:0.00}  Y {1:0.00} мм", world.X, world.Y);
+        CursorText = string.Format(CultureInfo.CurrentCulture, Loc.T("X {0:0.00}  Y {1:0.00} мм", "X {0:0.00}  Y {1:0.00} mm"), world.X, world.Y);
 
         if (_pressPoint is { } press && IsMouseCaptured)
         {

@@ -8,6 +8,7 @@ using PathForge.App.Services;
 using PathForge.Core.Geometry;
 using PathForge.Core.Grbl;
 using PathForge.Core.Leveling;
+using PathForge.Core.Localization;
 
 namespace PathForge.App.ViewModels;
 
@@ -18,7 +19,15 @@ public sealed record MachineProgram(string Name, string Gcode, bool IsGrblDialec
 public sealed partial class MachineControlViewModel : ObservableObject, IDisposable
 {
     private const int MaxLogLines = 500;
-    private const string GcodeFileFilter = "G-code (*.nc;*.gcode;*.ngc;*.tap;*.txt)|*.nc;*.gcode;*.ngc;*.tap;*.txt|Все файлы (*.*)|*.*";
+
+    private static string GcodeFileFilter =>
+        "G-code (*.nc;*.gcode;*.ngc;*.tap;*.txt)|*.nc;*.gcode;*.ngc;*.tap;*.txt|" + Loc.T("Все файлы", "All files") + " (*.*)|*.*";
+
+    private static string NotConnectedText => Loc.T("Нет связи", "Not connected");
+
+    private static string NoMapText => Loc.T("Карта высот не снята.", "No height map measured.");
+
+    private static string CurrentProjectText => Loc.T("Текущий проект", "Current project");
 
     private readonly IDialogService _dialogs;
     private readonly Func<MachineProgram?> _projectProgram;
@@ -80,7 +89,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private bool isConnected;
 
     [ObservableProperty]
-    private string stateText = "Нет связи";
+    private string stateText = NotConnectedText;
 
     [ObservableProperty]
     private string versionText = "";
@@ -133,7 +142,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private string jobMessage = "";
 
     [ObservableProperty]
-    private string programSource = "Текущий проект";
+    private string programSource = CurrentProjectText;
 
     [ObservableProperty]
     private double jogStep = 1;
@@ -197,13 +206,25 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private bool hasLevelingMap;
 
     [ObservableProperty]
-    private string levelingText = "Карта высот не снята.";
+    private string levelingText = NoMapText;
 
     [ObservableProperty]
     private string levelingTable = "";
 
     [ObservableProperty]
     private bool isProbing;
+
+    /// <summary>Shows the texts of the panel in the current interface language.</summary>
+    public void RefreshLanguage()
+    {
+        if (_fileProgram is null)
+        {
+            ProgramSource = CurrentProjectText;
+        }
+
+        RefreshLeveling();
+        Refresh();
+    }
 
     /// <summary>Shows the map stored in the project (after loading, undo or measuring).</summary>
     public void RefreshLeveling()
@@ -212,14 +233,16 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         HasLevelingMap = map is { IsValid: true };
         if (map is not { IsValid: true })
         {
-            LevelingText = "Карта высот не снята.";
+            LevelingText = NoMapText;
             LevelingTable = "";
             return;
         }
 
-        LevelingText = string.Create(CultureInfo.CurrentCulture,
+        LevelingText = Loc.T(
             $"Карта {map.CountX}×{map.CountY} точек, X {map.X0:0.#}…{map.X1:0.#}, Y {map.Y0:0.#}…{map.Y1:0.#} мм, " +
-            $"перепад {map.Max - map.Min:0.000} мм, снята {map.Measured:g}. Z0 — в первой точке (X{map.X0:0.#} Y{map.Y0:0.#}).");
+            $"перепад {map.Max - map.Min:0.000} мм, снята {map.Measured:g}. Z0 — в первой точке (X{map.X0:0.#} Y{map.Y0:0.#}).",
+            $"Map of {map.CountX}×{map.CountY} points, X {map.X0:0.#}…{map.X1:0.#}, Y {map.Y0:0.#}…{map.Y1:0.#} mm, " +
+            $"range {map.Max - map.Min:0.000} mm, measured {map.Measured:g}. Z0 is at the first point (X{map.X0:0.#} Y{map.Y0:0.#}).");
         if (map.CountX <= 12)
         {
             var rows = new List<string>();
@@ -242,7 +265,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         var bounds = _programBounds();
         if (bounds.IsEmpty)
         {
-            _dialogs.ShowError("В проекте нет траекторий.");
+            _dialogs.ShowError(Loc.T("В проекте нет траекторий.", "The project has no toolpaths."));
             return;
         }
 
@@ -258,7 +281,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     {
         if (_controller is null)
         {
-            _dialogs.ShowError("Сначала подключитесь к станку.");
+            _dialogs.ShowError(Loc.T("Сначала подключитесь к станку.", "Connect to the machine first."));
             return;
         }
 
@@ -273,10 +296,15 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             return;
         }
 
-        if (!_dialogs.Confirm($"Снять карту высот: {probe.Points.Count} точек ({probe.CountX}×{probe.CountY}), шаг {LevelStep:0.#} мм.\n\n" +
-                              "• Зажим щупа — на гравёре, второй провод — на медь платы (или пластина под фрезой).\n" +
-                              $"• Фреза — на 2–5 мм над платой: станок сначала поедет в X{LevelMinX:0.#} Y{LevelMinY:0.#} на текущей высоте.\n" +
-                              "• В первой точке будет установлен Z0, остальные высоты считаются от неё.\n\nНачать?"))
+        if (!_dialogs.Confirm(Loc.T(
+                $"Снять карту высот: {probe.Points.Count} точек ({probe.CountX}×{probe.CountY}), шаг {LevelStep:0.#} мм.\n\n" +
+                "• Зажим щупа — на гравёре, второй провод — на медь платы (или пластина под фрезой).\n" +
+                $"• Фреза — на 2–5 мм над платой: станок сначала поедет в X{LevelMinX:0.#} Y{LevelMinY:0.#} на текущей высоте.\n" +
+                "• В первой точке будет установлен Z0, остальные высоты считаются от неё.\n\nНачать?",
+                $"Probe the height map: {probe.Points.Count} points ({probe.CountX}×{probe.CountY}), step {LevelStep:0.#} mm.\n\n" +
+                "• Probe clip on the engraver, the second wire on the board copper (or a plate under the tool).\n" +
+                $"• Tool 2–5 mm above the board: the machine first moves to X{LevelMinX:0.#} Y{LevelMinY:0.#} at the current height.\n" +
+                "• Z0 is set at the first point, the other heights are measured from it.\n\nStart?")))
         {
             return;
         }
@@ -285,7 +313,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         IsProbing = true;
         if (Run(c => probe.Commands().ForEach(c.SendCommand)))
         {
-            AddLog(new GrblLogEntry(GrblLogKind.Info, $"Съёмка карты высот: {probe.Points.Count} точек."));
+            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T($"Съёмка карты высот: {probe.Points.Count} точек.", $"Probing the height map: {probe.Points.Count} points.")));
         }
         else
         {
@@ -297,7 +325,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void ClearMap()
     {
-        if (_getMap() is not null && _dialogs.Confirm("Удалить карту высот из проекта?"))
+        if (_getMap() is not null && _dialogs.Confirm(Loc.T("Удалить карту высот из проекта?", "Delete the height map from the project?")))
         {
             _setMap(null);
             RefreshLeveling();
@@ -318,12 +346,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             IsProbing = false;
             _setMap(map);
             RefreshLeveling();
-            AddLog(new GrblLogEntry(GrblLogKind.Info, string.Create(CultureInfo.CurrentCulture, $"Карта высот снята: перепад {map.Max - map.Min:0.000} мм.")));
+            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
+                $"Карта высот снята: перепад {map.Max - map.Min:0.000} мм.",
+                $"Height map measured: range {map.Max - map.Min:0.000} mm.")));
             JobFinished?.Invoke(LevelingText);
         }
         else
         {
-            ProgressText = $"Карта высот: точка {probe.Measured} из {probe.Points.Count}";
+            ProgressText = Loc.T($"Карта высот: точка {probe.Measured} из {probe.Points.Count}", $"Height map: point {probe.Measured} of {probe.Points.Count}");
         }
     }
 
@@ -361,26 +391,26 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             _controller.JobFinished += result => _dispatcher.BeginInvoke(() => OnJobFinished(result));
             _controller.ProbeTouched += p => _dispatcher.BeginInvoke(() => OnProbeTouched(p));
             IsConnected = true;
-            AddLog(new GrblLogEntry(GrblLogKind.Info, $"Подключено: {SelectedPort}, {BaudRate} бод. Ожидание ответа GRBL…"));
+            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T($"Подключено: {SelectedPort}, {BaudRate} бод. Ожидание ответа GRBL…", $"Connected: {SelectedPort}, {BaudRate} baud. Waiting for GRBL…")));
             _pollTimer.Start();
             Refresh();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
         {
-            _dialogs.ShowError($"Не удалось открыть {SelectedPort}:\n{ex.Message}\n\nПорт может быть занят другой программой (Candle, Arduino IDE).");
+            _dialogs.ShowError(Loc.T($"Не удалось открыть {SelectedPort}:\n{ex.Message}\n\nПорт может быть занят другой программой (Candle, Arduino IDE).", $"Could not open {SelectedPort}:\n{ex.Message}\n\nThe port may be used by another program (Candle, Arduino IDE)."));
         }
     }
 
     [RelayCommand]
     private void Disconnect()
     {
-        if (IsJobActive && !_dialogs.Confirm("Программа ещё выполняется. Отключиться? Станок остановится только после конца буфера команд."))
+        if (IsJobActive && !_dialogs.Confirm(Loc.T("Программа ещё выполняется. Отключиться? Станок остановится только после конца буфера команд.", "The program is still running. Disconnect? The machine stops only after its command buffer is empty.")))
         {
             return;
         }
 
         CloseConnection();
-        AddLog(new GrblLogEntry(GrblLogKind.Info, "Отключено."));
+        AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T("Отключено.", "Disconnected.")));
     }
 
     private void CloseConnection()
@@ -438,9 +468,13 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void ProbeZ()
     {
-        if (!_dialogs.Confirm($"Пластина щупа лежит на заготовке под фрезой, зажим щупа на фрезе?\n" +
-                              $"Фреза опустится максимум на {ProbeTravel:0.#} мм со скоростью {ProbeFeed:0} мм/мин, " +
-                              $"затем Z0 будет установлен на поверхности (толщина пластины {ProbePlate:0.###} мм)."))
+        if (!_dialogs.Confirm(Loc.T(
+                "Пластина щупа лежит на заготовке под фрезой, зажим щупа на фрезе?\n" +
+                $"Фреза опустится максимум на {ProbeTravel:0.#} мм со скоростью {ProbeFeed:0} мм/мин, " +
+                $"затем Z0 будет установлен на поверхности (толщина пластины {ProbePlate:0.###} мм).",
+                "Is the probe plate on the stock under the tool and the probe clip on the tool?\n" +
+                $"The tool goes down at most {ProbeTravel:0.#} mm at {ProbeFeed:0} mm/min, " +
+                $"then Z0 is set on the surface (plate thickness {ProbePlate:0.###} mm).")))
         {
             return;
         }
@@ -476,13 +510,13 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private void UseProject()
     {
         _fileProgram = null;
-        ProgramSource = "Текущий проект";
+        ProgramSource = CurrentProjectText;
     }
 
     [RelayCommand]
     private void LoadFile()
     {
-        var path = _dialogs.OpenFile("Программа для станка", GcodeFileFilter);
+        var path = _dialogs.OpenFile(Loc.T("Программа для станка", "Program for the machine"), GcodeFileFilter);
         if (path is null)
         {
             return;
@@ -495,7 +529,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _dialogs.ShowError($"Не удалось прочитать файл:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось прочитать файл:\n{ex.Message}", $"Could not read the file:\n{ex.Message}"));
         }
     }
 
@@ -510,13 +544,16 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         var program = _fileProgram ?? _projectProgram();
         if (program is null)
         {
-            _dialogs.ShowError("В проекте нет траекторий: добавьте операции и выберите контуры.");
+            _dialogs.ShowError(Loc.T("В проекте нет траекторий: добавьте операции и выберите контуры.", "The project has no toolpaths: add operations and select contours."));
             return;
         }
 
         if (!program.IsGrblDialect &&
-            !_dialogs.Confirm("Программа записана в общем формате G-code (смена инструмента T M6), а не для GRBL.\n" +
-                              "Выберите формат GRBL на вкладке «Станок». Всё равно запустить?"))
+            !_dialogs.Confirm(Loc.T(
+                "Программа записана в общем формате G-code (смена инструмента T M6), а не для GRBL.\n" +
+                "Выберите формат GRBL на вкладке «Станок». Всё равно запустить?",
+                "The program is written in generic G-code (tool change T M6), not for GRBL.\n" +
+                "Choose the GRBL format on the “Machine” tab. Run anyway?")))
         {
             return;
         }
@@ -527,33 +564,43 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         {
             var leveled = LevelingCompensator.Apply(gcode, map);
             if (leveled.Warnings.Count > 0 &&
-                !_dialogs.Confirm("Поправка по карте высот:\n" + string.Join("\n", leveled.Warnings) + "\n\nПродолжить?"))
+                !_dialogs.Confirm(Loc.T("Поправка по карте высот:\n", "Height map correction:\n") + string.Join("\n", leveled.Warnings) +
+                                  Loc.T("\n\nПродолжить?", "\n\nContinue?")))
             {
                 return;
             }
 
             gcode = leveled.Gcode;
-            levelingNote = string.Create(CultureInfo.CurrentCulture,
-                $"\n\nС поправкой по карте высот (перепад {map.Max - map.Min:0.000} мм): Z0 должен быть выставлен в X{map.X0:0.#} Y{map.Y0:0.#}.");
+            levelingNote = Loc.T(
+                $"\n\nС поправкой по карте высот (перепад {map.Max - map.Min:0.000} мм): Z0 должен быть выставлен в X{map.X0:0.#} Y{map.Y0:0.#}.",
+                $"\n\nWith height map correction (range {map.Max - map.Min:0.000} mm): Z0 must be set at X{map.X0:0.#} Y{map.Y0:0.#}.");
         }
 
         var prepared = GrblProgram.Prepare(gcode);
         if (prepared.CommandCount == 0)
         {
-            _dialogs.ShowError("В программе нет команд.");
+            _dialogs.ShowError(Loc.T("В программе нет команд.", "The program has no commands."));
             return;
         }
 
         if (prepared.Problems.Count > 0)
         {
-            _dialogs.ShowError("Программу нельзя отправить в GRBL:\n" + string.Join("\n", prepared.Problems.Take(10)));
+            _dialogs.ShowError(Loc.T("Программу нельзя отправить в GRBL:\n", "The program cannot be sent to GRBL:\n") +
+                               string.Join("\n", prepared.Problems.Take(10)));
             return;
         }
 
         var stops = prepared.Lines.Count(l => l.StopAfter);
-        var message = $"Запустить «{program.Name}» ({prepared.CommandCount} строк)?\n\n" +
-                      "Проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза, руки и инструмент убраны." +
-                      (stops > 0 ? $"\n\nОстановок для смены инструмента: {stops}. На них программа ждёт, пока вы не нажмёте «Продолжить»." : "") +
+        var message = Loc.T(
+                          $"Запустить «{program.Name}» ({prepared.CommandCount} строк)?\n\n" +
+                          "Проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза, руки и инструмент убраны.",
+                          $"Run “{program.Name}” ({prepared.CommandCount} lines)?\n\n" +
+                          "Check: the stock is clamped, X/Y/Z zero is set, the right tool is in the spindle, hands and tools are clear.") +
+                      (stops > 0
+                          ? Loc.T(
+                              $"\n\nОстановок для смены инструмента: {stops}. На них программа ждёт, пока вы не нажмёте «Продолжить».",
+                              $"\n\nTool change stops: {stops}. At each the program waits until you press “Resume”.")
+                          : "") +
                       levelingNote;
         if (!_dialogs.Confirm(message))
         {
@@ -579,7 +626,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// <summary>Asks before closing the window while the machine is working. Returns false to keep the window open.</summary>
     public bool ConfirmClose()
     {
-        if (IsJobActive && !_dialogs.Confirm("На станке выполняется программа. Остановить её и закрыть PathForge?"))
+        if (IsJobActive && !_dialogs.Confirm(Loc.T("На станке выполняется программа. Остановить её и закрыть PathForge?", "A program is running on the machine. Stop it and close PathForge?")))
         {
             return false;
         }
@@ -600,7 +647,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     {
         if (_controller is null)
         {
-            _dialogs.ShowError("Сначала подключитесь к станку.");
+            _dialogs.ShowError(Loc.T("Сначала подключитесь к станку.", "Connect to the machine first."));
             return false;
         }
 
@@ -645,7 +692,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
         if (controller is null)
         {
-            StateText = "Нет связи";
+            StateText = NotConnectedText;
             VersionText = "";
             WorkX = WorkY = WorkZ = "—";
             MachineText = FeedText = OverridesText = "";
@@ -661,16 +708,16 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         {
             _probe = null;
             IsProbing = false;
-            AddLog(new GrblLogEntry(GrblLogKind.Error, "Съёмка карты высот прервана (щуп не коснулся, авария или ошибка). Карта не изменена."));
+            AddLog(new GrblLogEntry(GrblLogKind.Error, Loc.T("Съёмка карты высот прервана (щуп не коснулся, авария или ошибка). Карта не изменена.", "Height map probing aborted (no probe contact, alarm or error). The map was not changed.")));
         }
 
         var status = controller.Status;
         var job = controller.Job;
         StateText = job switch
         {
-            GrblJobState.ProgramStop => "Остановка программы — ждёт оператора",
-            GrblJobState.Error => "Ошибка в программе — пауза",
-            GrblJobState.Stopping => "Остановка…",
+            GrblJobState.ProgramStop => Loc.T("Остановка программы — ждёт оператора", "Program stop — waiting for the operator"),
+            GrblJobState.Error => Loc.T("Ошибка в программе — пауза", "Program error — paused"),
+            GrblJobState.Stopping => Loc.T("Остановка…", "Stopping…"),
             _ => GrblMessages.StateName(status.State),
         };
         VersionText = controller.Version;
@@ -679,10 +726,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         WorkY = known ? Format(status.WorkPosition.Y) : "—";
         WorkZ = known ? Format(status.WorkPosition.Z) : "—";
         MachineText = known
-            ? $"Машинные: X {Format(status.MachinePosition.X)}  Y {Format(status.MachinePosition.Y)}  Z {Format(status.MachinePosition.Z)}"
+            ? Loc.T("Машинные", "Machine") + $": X {Format(status.MachinePosition.X)}  Y {Format(status.MachinePosition.Y)}  Z {Format(status.MachinePosition.Z)}"
             : "";
-        FeedText = known ? $"Подача {status.Feed:0} мм/мин · шпиндель {status.Spindle:0}" : "";
-        OverridesText = $"Подача {status.FeedOverride} % · шпиндель {status.SpindleOverride} %";
+        FeedText = known
+            ? Loc.T($"Подача {status.Feed:0} мм/мин · шпиндель {status.Spindle:0}", $"Feed {status.Feed:0} mm/min · spindle {status.Spindle:0}")
+            : "";
+        OverridesText = Loc.T(
+            $"Подача {status.FeedOverride} % · шпиндель {status.SpindleOverride} %",
+            $"Feed {status.FeedOverride} % · spindle {status.SpindleOverride} %");
         IsAlarm = status.State == GrblState.Alarm;
         CanControl = controller.CanSendCommands && status.State is GrblState.Idle or GrblState.Jog or GrblState.Alarm;
         IsJobActive = job != GrblJobState.None;
@@ -690,7 +741,9 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         CanPause = job == GrblJobState.Running;
         CanResume = job is GrblJobState.Paused or GrblJobState.Error or GrblJobState.ProgramStop;
         JobMessage = job is GrblJobState.ProgramStop
-            ? controller.JobMessage + ". Смените инструмент, выставьте Z0 (кнопки или щуп) и нажмите «Продолжить»."
+            ? controller.JobMessage + Loc.T(
+                ". Смените инструмент, выставьте Z0 (кнопки или щуп) и нажмите «Продолжить».",
+                ". Change the tool, set Z0 (buttons or probe) and press “Resume”.")
             : controller.JobMessage;
         ToolPosition = known ? status.WorkPosition.XY : null;
 
@@ -698,8 +751,9 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         {
             Progress = 100.0 * controller.AcknowledgedCommands / controller.TotalCommands;
             var elapsed = _jobStarted is { } start ? DateTime.Now - start : TimeSpan.Zero;
-            ProgressText = string.Create(CultureInfo.CurrentCulture,
-                $"{controller.AcknowledgedCommands} из {controller.TotalCommands} строк · {Progress:0} % · {elapsed:hh\\:mm\\:ss}");
+            ProgressText = Loc.T(
+                $"{controller.AcknowledgedCommands} из {controller.TotalCommands} строк · {Progress:0} % · {elapsed:hh\\:mm\\:ss}",
+                $"{controller.AcknowledgedCommands} of {controller.TotalCommands} lines · {Progress:0} % · {elapsed:hh\\:mm\\:ss}");
         }
     }
 
@@ -712,7 +766,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             Progress = 100;
         }
 
-        ProgressText = string.Create(CultureInfo.CurrentCulture, $"{result.Message} Время: {elapsed:hh\\:mm\\:ss}");
+        ProgressText = result.Message + Loc.T(" Время: ", " Time: ") + elapsed.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
         JobFinished?.Invoke(ProgressText);
         Refresh();
     }

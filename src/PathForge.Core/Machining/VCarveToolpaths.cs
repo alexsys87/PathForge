@@ -1,5 +1,6 @@
 using Clipper2Lib;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Machining;
 
@@ -22,14 +23,14 @@ public static partial class ToolpathGenerator
         var tool = context.Tool;
         if (tool.Kind != ToolKind.VBit)
         {
-            context.Warnings.Add($"{context.Label}: V-карвинг выполняется V-фрезой (гравёром) — выберите инструмент типа «V-фреза».");
+            context.Warnings.Add(Loc.T($"{context.Label}: V-карвинг выполняется V-фрезой (гравёром) — выберите инструмент типа «V-фреза».", $"{context.Label}: V-carving needs a V-bit (engraver) — choose a tool of the “V-bit” type."));
             return;
         }
 
         var closed = contours.Where(c => c.IsClosed).ToList();
         if (closed.Count < contours.Count)
         {
-            context.Warnings.Add($"{context.Label}: незамкнутые контуры пропущены ({contours.Count - closed.Count} шт.).");
+            context.Warnings.Add(Loc.T($"{context.Label}: незамкнутые контуры пропущены ({contours.Count - closed.Count} шт.).", $"{context.Label}: open contours skipped ({contours.Count - closed.Count})."));
         }
 
         if (closed.Count == 0)
@@ -69,7 +70,7 @@ public static partial class ToolpathGenerator
 
         if (rings.Count == 0)
         {
-            context.Warnings.Add($"{context.Label}: контуры слишком узкие для этой V-фрезы.");
+            context.Warnings.Add(Loc.T($"{context.Label}: контуры слишком узкие для этой V-фрезы.", $"{context.Label}: the contours are too narrow for this V-bit."));
             return;
         }
 
@@ -78,8 +79,11 @@ public static partial class ToolpathGenerator
             var flatCount = rings.Count(r => r.Offset > limitOffset + 1e-9);
             if (flatCount > 20)
             {
-                context.Warnings.Add($"{context.Label}: широкие места выбираются V-фрезой на плоское дно ({flatCount} проходов) — " +
-                                     "это долго; уменьшите глубину или выберите их сначала концевой фрезой.");
+                context.Warnings.Add(Loc.T(
+                    $"{context.Label}: широкие места выбираются V-фрезой на плоское дно ({flatCount} проходов) — " +
+                    "это долго; уменьшите глубину или выберите их сначала концевой фрезой.",
+                    $"{context.Label}: wide areas are cleared to a flat bottom with the V-bit ({flatCount} passes) — " +
+                    "this is slow; reduce the depth or clear them first with an end mill."));
             }
         }
 

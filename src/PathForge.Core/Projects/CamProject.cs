@@ -1,4 +1,5 @@
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 
 namespace PathForge.Core.Projects;
@@ -10,7 +11,7 @@ public sealed class CamProject
 
     public int FormatVersion { get; set; } = CurrentFormatVersion;
 
-    public string Name { get; set; } = "Новый проект";
+    public string Name { get; set; } = Loc.T("Новый проект", "New project");
 
     /// <summary>Drawing the contours were imported from (informational).</summary>
     public string? SourceFile { get; set; }
@@ -45,14 +46,14 @@ public sealed class CamProject
     /// <summary>New project set up for a CNC 3018 with the stock spindle and a few typical tools.</summary>
     public static CamProject CreateDefault()
     {
-        var project = new CamProject();
+        var project = new CamProject { Name = Loc.T("Новый проект", "New project") };
         MachineProfiles.Cnc3018Stock.ApplyTo(project.Machine);
         project.Stock.Origin = OriginAnchor.LowerLeft;
 
         var presets = ToolPresets.Cnc3018;
-        project.Tools.Add(presets.First(p => p.Name.StartsWith("Фреза 1-заходная Ø3,175", StringComparison.Ordinal)).Create(1));
-        project.Tools.Add(presets.First(p => p.Name.StartsWith("Кукуруза Ø1,0", StringComparison.Ordinal)).Create(2));
-        project.Tools.Add(presets.First(p => p.Name == "Сверло Ø3").Create(3));
+        project.Tools.Add(presets.First(p => p.NameRu.StartsWith("Фреза 1-заходная Ø3,175", StringComparison.Ordinal)).Create(1));
+        project.Tools.Add(presets.First(p => p.NameRu.StartsWith("Кукуруза Ø1,0", StringComparison.Ordinal)).Create(2));
+        project.Tools.Add(presets.First(p => p.NameRu == "Сверло Ø3").Create(3));
         return project;
     }
 }

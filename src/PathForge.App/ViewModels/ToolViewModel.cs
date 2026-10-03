@@ -1,3 +1,4 @@
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 
 namespace PathForge.App.ViewModels;
@@ -87,7 +88,7 @@ public sealed class ToolViewModel : ModelWrapper
 
     /// <summary>Hint for V-bits: cut width at 0.1 mm depth.</summary>
     public string CutWidthHint => IsVBit
-        ? $"Ширина реза: {Model.CuttingDiameter(0.05):0.###} мм на глубине 0,05; {Model.CuttingDiameter(0.1):0.###} мм на 0,1"
+        ? Loc.T($"Ширина реза: {Model.CuttingDiameter(0.05):0.###} мм на глубине 0,05; {Model.CuttingDiameter(0.1):0.###} мм на 0,1", $"Cut width: {Model.CuttingDiameter(0.05):0.###} mm at 0.05 depth; {Model.CuttingDiameter(0.1):0.###} mm at 0.1")
         : "";
 
     protected override void OnModelChanged()

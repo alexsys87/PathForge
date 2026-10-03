@@ -8,6 +8,7 @@ using PathForge.Core.GCode;
 using PathForge.Core.Geometry;
 using PathForge.Core.Import;
 using PathForge.Core.Import.Pcb;
+using PathForge.Core.Localization;
 using PathForge.Core.Machining;
 using PathForge.Core.Projects;
 
@@ -15,23 +16,18 @@ namespace PathForge.App.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private const string DrawingFilter = "Чертежи (*.dxf;*.svg)|*.dxf;*.svg|DXF (*.dxf)|*.dxf|SVG (*.svg)|*.svg|Все файлы (*.*)|*.*";
-    private const string StlFilter = "3D-модели STL (*.stl)|*.stl|Все файлы (*.*)|*.*";
-    private const string ProjectFilter = "Проекты PathForge (*.pfproj)|*.pfproj";
-    private const string GerberFilter = "Gerber (*.gbr;*.gtl;*.gbl;*.gko;*.gm1;*.ger)|*.gbr;*.gtl;*.gbl;*.gko;*.gm1;*.gml;*.ger;*.pho|Все файлы (*.*)|*.*";
-    private const string DrillFilter = "Сверловка Excellon (*.drl;*.xln;*.txt)|*.drl;*.xln;*.txt;*.exc;*.drd|Все файлы (*.*)|*.*";
-    private const string GcodeFilter = "G-code (*.nc)|*.nc|G-code (*.gcode)|*.gcode|Текст (*.txt)|*.txt";
-
     private readonly IDialogService _dialogs;
+    private readonly IAppearanceService _appearance;
     private readonly UndoHistory _history = new();
     private readonly DispatcherTimer _regenerateTimer;
     private CamProject _project = CamProject.CreateDefault();
     private GenerationResult _generation = new();
     private bool _suppressChanges;
 
-    public MainViewModel(IDialogService dialogs)
+    public MainViewModel(IDialogService dialogs, IAppearanceService appearance)
     {
         _dialogs = dialogs;
+        _appearance = appearance;
         Control = new MachineControlViewModel(dialogs, CurrentMachineProgram, () => _project.Machine.SafeZ,
             () => _project.LevelingMap,
             map =>
@@ -40,7 +36,7 @@ public sealed partial class MainViewModel : ObservableObject
                 OnProjectChanged();
             },
             ProgramCutBounds);
-        Control.JobFinished += message => Messages.Add("Станок: " + message);
+        Control.JobFinished += message => Messages.Add(Loc.T("Станок: ", "Machine: ") + message);
         Simulation = new SimulationViewModel(() => (_project, _generation));
         _regenerateTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _regenerateTimer.Tick += (_, _) =>
@@ -50,7 +46,31 @@ public sealed partial class MainViewModel : ObservableObject
         };
 
         LoadProject(_project, null);
+        // The main view model lives as long as the application.
+        Loc.LanguageChanged += OnLanguageChanged;
     }
+
+    private static string AllFiles => "|" + Loc.T("Все файлы", "All files") + " (*.*)|*.*";
+
+    private static string DrawingFilter =>
+        Loc.T("Чертежи", "Drawings") + " (*.dxf;*.svg)|*.dxf;*.svg|DXF (*.dxf)|*.dxf|SVG (*.svg)|*.svg" + AllFiles;
+
+    private static string StlFilter => Loc.T("3D-модели STL", "STL 3D models") + " (*.stl)|*.stl" + AllFiles;
+
+    private static string ProjectFilter => Loc.T("Проекты PathForge", "PathForge projects") + " (*.pfproj)|*.pfproj";
+
+    private static string GerberFilter =>
+        "Gerber (*.gbr;*.gtl;*.gbl;*.gko;*.gm1;*.ger)|*.gbr;*.gtl;*.gbl;*.gko;*.gm1;*.gml;*.ger;*.pho" + AllFiles;
+
+    private static string DrillFilter =>
+        Loc.T("Сверловка Excellon", "Excellon drill files") + " (*.drl;*.xln;*.txt)|*.drl;*.xln;*.txt;*.exc;*.drd" + AllFiles;
+
+    private static string GcodeFilter =>
+        "G-code (*.nc)|*.nc|G-code (*.gcode)|*.gcode|" + Loc.T("Текст", "Text") + " (*.txt)|*.txt";
+
+    private static string UndoneText => Loc.T("Отменено.", "Undone.");
+
+    private static string RedoneText => Loc.T("Повторено.", "Redone.");
 
     /// <summary>Raised when the view should zoom to show the whole drawing.</summary>
     public event EventHandler? ZoomToFitRequested;
@@ -90,7 +110,67 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private ToolPreset? selectedToolPreset;
 
-    public IReadOnlyList<ToolPreset> ToolPresetList => ToolPresets.Cnc3018;
+    /// <summary>Tool presets with names in the current language.</summary>
+    public IReadOnlyList<Choice<ToolPreset>> ToolPresetOptions { get; } =
+        ToolPresets.Cnc3018.Select(p => new Choice<ToolPreset>(p, () => p.Display)).ToList();
+
+    /// <summary>Machine profiles with names in the current language.</summary>
+    public IReadOnlyList<Choice<MachineProfile>> ProfileOptions { get; } =
+        MachineProfiles.All.Select(p => new Choice<MachineProfile>(p, () => p.Name)).ToList();
+
+    // ---- Language and theme ------------------------------------------------------------------
+
+    public bool IsRussian => _appearance.Language == AppLanguage.Russian;
+
+    public bool IsEnglish => _appearance.Language == AppLanguage.English;
+
+    public bool IsLightTheme => _appearance.Theme == AppTheme.Light;
+
+    public bool IsDarkTheme => _appearance.Theme == AppTheme.Dark;
+
+    [RelayCommand]
+    private void SetLanguage(string? code) =>
+        _appearance.Language = code == "en" ? AppLanguage.English : AppLanguage.Russian;
+
+    [RelayCommand]
+    private void SetTheme(string? theme)
+    {
+        _appearance.Theme = theme == nameof(AppTheme.Dark) ? AppTheme.Dark : AppTheme.Light;
+        OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(IsDarkTheme));
+    }
+
+    /// <summary>Texts computed by the view models follow the new language (XAML texts update by themselves).</summary>
+    private void OnLanguageChanged()
+    {
+        OnPropertyChanged(nameof(IsRussian));
+        OnPropertyChanged(nameof(IsEnglish));
+        OnPropertyChanged(nameof(SelectionText));
+        // The description under the profile list.
+        OnPropertyChanged(nameof(SelectedProfile));
+        Machine.Refresh();
+        foreach (var tool in Tools)
+        {
+            tool.Refresh();
+        }
+
+        foreach (var operation in Operations)
+        {
+            operation.Refresh();
+        }
+
+        foreach (var text in Texts)
+        {
+            text.Refresh();
+        }
+
+        FontScanStatus = _fontScanText();
+        RefreshLayers();
+        Control.RefreshLanguage();
+        Simulation.RefreshLanguage();
+        // Warnings, statistics and operation summaries are produced again in the new language.
+        Regenerate();
+    }
 
     [ObservableProperty]
     private ViewScene scene = ViewScene.Empty;
@@ -116,8 +196,9 @@ public sealed partial class MainViewModel : ObservableObject
         $"{(ProjectPath is null ? _project.Name : Path.GetFileNameWithoutExtension(ProjectPath))}{(IsDirty ? " *" : "")} — PathForge";
 
     public string SelectionText => SelectedContourIds.Count == 0
-        ? $"Контуров: {_project.Contours.Count}"
-        : $"Выделено контуров: {SelectedContourIds.Count} из {_project.Contours.Count}";
+        ? Loc.T($"Контуров: {_project.Contours.Count}", $"Contours: {_project.Contours.Count}")
+        : Loc.T($"Выделено контуров: {SelectedContourIds.Count} из {_project.Contours.Count}",
+            $"Selected contours: {SelectedContourIds.Count} of {_project.Contours.Count}");
 
     /// <summary>Asks to save unsaved changes. Returns false when the user cancels.</summary>
     public bool ConfirmDiscardChanges()
@@ -127,7 +208,7 @@ public sealed partial class MainViewModel : ObservableObject
             return true;
         }
 
-        var answer = _dialogs.AskYesNoCancel("Сохранить изменения в проекте?");
+        var answer = _dialogs.AskYesNoCancel(Loc.T("Сохранить изменения в проекте?", "Save changes to the project?"));
         return answer switch
         {
             true => SaveProjectCore(ProjectPath),
@@ -173,7 +254,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var path = _dialogs.OpenFile("Открыть проект", ProjectFilter);
+        var path = _dialogs.OpenFile(Loc.T("Открыть проект", "Open project"), ProjectFilter);
         if (path is null)
         {
             return;
@@ -185,7 +266,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError($"Не удалось открыть проект:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось открыть проект:\n{ex.Message}", $"Could not open the project:\n{ex.Message}"));
         }
     }
 
@@ -197,7 +278,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private bool SaveProjectCore(string? path)
     {
-        path ??= _dialogs.SaveFile("Сохранить проект", ProjectFilter, _project.Name + ProjectSerializer.FileExtension);
+        path ??= _dialogs.SaveFile(Loc.T("Сохранить проект", "Save project"), ProjectFilter, _project.Name + ProjectSerializer.FileExtension);
         if (path is null)
         {
             return false;
@@ -212,7 +293,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError($"Не удалось сохранить проект:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось сохранить проект:\n{ex.Message}", $"Could not save the project:\n{ex.Message}"));
             return false;
         }
     }
@@ -220,7 +301,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ImportDrawing()
     {
-        var path = _dialogs.OpenFile("Импорт чертежа", DrawingFilter);
+        var path = _dialogs.OpenFile(Loc.T("Импорт чертежа", "Import drawing"), DrawingFilter);
         if (path is not null)
         {
             ImportDrawingFile(path);
@@ -249,10 +330,10 @@ public sealed partial class MainViewModel : ObservableObject
 
             SelectedContourIds.Clear();
             Messages.Clear();
-            Messages.Add($"Импортировано контуров: {contours.Count} (замкнутых: {contours.Count(c => c.IsClosed)}).");
+            Messages.Add(Loc.T($"Импортировано контуров: {contours.Count} (замкнутых: {contours.Count(c => c.IsClosed)}).", $"Contours imported: {contours.Count} (closed: {contours.Count(c => c.IsClosed)})."));
             if (Operations.Count > 0)
             {
-                Messages.Add("Контуры операций сброшены: выберите их заново на новом чертеже.");
+                Messages.Add(Loc.T("Контуры операций сброшены: выберите их заново на новом чертеже.", "The contours of the operations were reset: select them again on the new drawing."));
             }
 
             foreach (var warning in import.Warnings)
@@ -269,7 +350,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError($"Не удалось прочитать чертёж:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось прочитать чертёж:\n{ex.Message}", $"Could not read the drawing:\n{ex.Message}"));
         }
     }
 
@@ -280,7 +361,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Adds a DXF/SVG drawing to the current one (e.g. several parts or an SVG logo on a DXF plate).</summary>
     [RelayCommand]
-    private void AddDrawing() => ImportPcbFile(DrawingFilter, "Добавить чертёж", path =>
+    private void AddDrawing() => ImportPcbFile(DrawingFilter, Loc.T("Добавить чертёж", "Add drawing"), path =>
     {
         var import = ReadDrawing(path);
         return (ContourBuilder.Build(import.Paths), import.Warnings);
@@ -300,7 +381,7 @@ public sealed partial class MainViewModel : ObservableObject
         var (minX, _, minZ, maxX, _, maxZ) = mesh.Bounds();
         var relief = new ReliefOperation
         {
-            Name = $"Рельеф {Operations.Count + 1}",
+            Name = NewName("Рельеф", "Relief"),
             Source = ReliefSource.Mesh,
             Mesh = mesh,
             // STL files are usually in millimetres: keep the model size, but not deeper than the stock.
@@ -320,7 +401,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        AddOperation(new ReliefOperation { Name = $"Рельеф {Operations.Count + 1}", Image = image, WidthMm = 50, Depth = 2 }, BallNoseTool());
+        AddOperation(new ReliefOperation { Name = NewName("Рельеф", "Relief"), Image = image, WidthMm = 50, Depth = 2 }, BallNoseTool());
         ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -347,7 +428,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private StlMesh? LoadMesh()
     {
-        var path = _dialogs.OpenFile("3D-модель STL", StlFilter);
+        var path = _dialogs.OpenFile(Loc.T("3D-модель STL", "STL 3D model"), StlFilter);
         if (path is null)
         {
             return null;
@@ -359,7 +440,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError($"Не удалось прочитать STL:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось прочитать STL:\n{ex.Message}", $"Could not read the STL:\n{ex.Message}"));
             return null;
         }
     }
@@ -369,7 +450,7 @@ public sealed partial class MainViewModel : ObservableObject
         var tool = _project.Tools.FirstOrDefault(t => t.Kind == ToolKind.BallNose);
         if (tool is null)
         {
-            Messages.Add("Для рельефа добавьте сферическую фрезу: «Инструменты» → пресет «Рельеф 3D».");
+            Messages.Add(Loc.T("Для рельефа добавьте сферическую фрезу: «Инструменты» → пресет «Рельеф 3D».", "For a relief add a ball nose: “Tools” → preset “3D relief”."));
         }
 
         return tool;
@@ -443,21 +524,21 @@ public sealed partial class MainViewModel : ObservableObject
     // ---- PCB --------------------------------------------------------------------------------
 
     [RelayCommand]
-    private void ImportGerberCopper() => ImportPcbFile(GerberFilter, "Импорт Gerber: медь", path =>
+    private void ImportGerberCopper() => ImportPcbFile(GerberFilter, Loc.T("Импорт Gerber: медь", "Import Gerber: copper"), path =>
     {
         var result = GerberReader.ReadFile(path, GerberMode.Copper);
         return (result.Contours, result.Warnings);
     });
 
     [RelayCommand]
-    private void ImportGerberOutline() => ImportPcbFile(GerberFilter, "Импорт Gerber: контур платы", path =>
+    private void ImportGerberOutline() => ImportPcbFile(GerberFilter, Loc.T("Импорт Gerber: контур платы", "Import Gerber: board outline"), path =>
     {
         var result = GerberReader.ReadFile(path, GerberMode.Outline);
         return (result.Contours, result.Warnings);
     });
 
     [RelayCommand]
-    private void ImportExcellon() => ImportPcbFile(DrillFilter, "Импорт сверловки Excellon", path =>
+    private void ImportExcellon() => ImportPcbFile(DrillFilter, Loc.T("Импорт сверловки Excellon", "Import Excellon drill file"), path =>
     {
         var result = ExcellonReader.ReadFile(path);
         return (result.ToContours(), result.Warnings);
@@ -497,7 +578,7 @@ public sealed partial class MainViewModel : ObservableObject
             // The new contours are selected so that an operation can be added right away.
             SelectedContourIds.Clear();
             SelectedContourIds.UnionWith(contours.Select(c => c.Id));
-            Messages.Add($"{layer}: добавлено контуров {contours.Count}.");
+            Messages.Add(Loc.T($"{layer}: добавлено контуров {contours.Count}.", $"{layer}: contours added: {contours.Count}."));
             foreach (var warning in warnings)
             {
                 Messages.Add(warning);
@@ -511,7 +592,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError($"Не удалось прочитать файл:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось прочитать файл:\n{ex.Message}", $"Could not read the file:\n{ex.Message}"));
         }
     }
 
@@ -527,7 +608,7 @@ public sealed partial class MainViewModel : ObservableObject
         var mirror = Affine2.Scaling(-1, 1);
         _project.Contours = _project.Contours.Select(c => c.Transformed(mirror)).ToList();
         MirrorTexts();
-        Messages.Add("Чертёж зеркально отражён по X.");
+        Messages.Add(Loc.T("Чертёж зеркально отражён по X.", "The drawing was mirrored in X."));
         OnProjectChanged();
         Regenerate();
         ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
@@ -539,17 +620,17 @@ public sealed partial class MainViewModel : ObservableObject
         var engraver = _project.Tools.FirstOrDefault(t => t.Kind == ToolKind.VBit);
         if (engraver is null)
         {
-            Messages.Add("Для изоляции добавьте гравёр: «Инструменты» → пресет «Текстолит (платы): Гравёр 20°».");
+            Messages.Add(Loc.T("Для изоляции добавьте гравёр: «Инструменты» → пресет «Текстолит (платы): Гравёр 20°».", "For isolation add an engraver: “Tools” → preset “PCB (FR4): Engraver 20°”."));
         }
 
-        AddOperation(new IsolationOperation { Name = $"Изоляция {Operations.Count + 1}" }, engraver);
+        AddOperation(new IsolationOperation { Name = NewName("Изоляция", "Isolation") }, engraver);
     }
 
     // ---- Laser ------------------------------------------------------------------------------
 
     [RelayCommand]
     private void AddLaserVector() =>
-        AddOperation(new LaserVectorOperation { Name = $"Лазер {Operations.Count + 1}" }, LaserTool());
+        AddOperation(new LaserVectorOperation { Name = NewName("Лазер", "Laser") }, LaserTool());
 
     [RelayCommand]
     private void AddLaserRaster()
@@ -562,7 +643,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Start with 0.1 mm per pixel line, but at most 100 mm wide.
         var width = Math.Round(Math.Min(100, Math.Max(10, image.Width * 0.1)));
-        AddOperation(new LaserRasterOperation { Name = $"Картинка {Operations.Count + 1}", Image = image, WidthMm = width }, LaserTool());
+        AddOperation(new LaserRasterOperation { Name = NewName("Картинка", "Picture"), Image = image, WidthMm = width }, LaserTool());
     }
 
     [RelayCommand]
@@ -576,7 +657,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private GrayImage? LoadImage()
     {
-        var path = _dialogs.OpenFile("Картинка для гравировки", ImageLoader.Filter);
+        var path = _dialogs.OpenFile(Loc.T("Картинка для гравировки", "Picture to engrave"), ImageLoader.Filter);
         if (path is null)
         {
             return null;
@@ -588,7 +669,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError($"Не удалось открыть картинку:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось открыть картинку:\n{ex.Message}", $"Could not open the picture:\n{ex.Message}"));
             return null;
         }
     }
@@ -598,11 +679,15 @@ public sealed partial class MainViewModel : ObservableObject
         var laser = _project.Tools.FirstOrDefault(t => t.Kind == ToolKind.Laser);
         if (laser is null)
         {
-            Messages.Add("Добавьте лазер: «Инструменты» → пресет «Лазер: Лазерный модуль 5 Вт», и выберите профиль станка с лазером.");
+            Messages.Add(Loc.T(
+                "Добавьте лазер: «Инструменты» → пресет «Лазер: Лазерный модуль 5 Вт» или «10 Вт», и выберите профиль станка с лазером.",
+                "Add a laser: “Tools” → preset “Laser: Laser module 5 W” or “10 W”, and choose a machine profile with a laser."));
         }
         else if (!_project.Machine.LaserMode)
         {
-            Messages.Add("Для лазера выберите профиль «CNC 3018 Pro (лазер 5 Вт)» на вкладке «Станок» и включите в GRBL $32=1.");
+            Messages.Add(Loc.T(
+                "Для лазера выберите профиль «CNC 3018 Pro (лазер 5 Вт)» или «(лазер 10 Вт)» на вкладке «Станок» и включите в GRBL $32=1.",
+                "For the laser choose the profile “CNC 3018 Pro (5 W laser)” or “(10 W laser)” on the “Machine” tab and enable $32=1 in GRBL."));
         }
 
         return laser;
@@ -614,11 +699,11 @@ public sealed partial class MainViewModel : ObservableObject
         Regenerate();
         if (_generation.Toolpaths.Count == 0)
         {
-            _dialogs.ShowError("Нет траекторий для экспорта: добавьте операции и выберите контуры.");
+            _dialogs.ShowError(Loc.T("Нет траекторий для экспорта: добавьте операции и выберите контуры.", "No toolpaths to export: add operations and select contours."));
             return;
         }
 
-        var path = _dialogs.SaveFile("Сохранить G-code", GcodeFilter, _project.Name + ".nc");
+        var path = _dialogs.SaveFile(Loc.T("Сохранить G-code", "Save G-code"), GcodeFilter, _project.Name + ".nc");
         if (path is null)
         {
             return;
@@ -627,28 +712,31 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             File.WriteAllText(path, Gcode);
-            Messages.Add($"G-code сохранён: {path}");
+            Messages.Add(Loc.T($"G-code сохранён: {path}", $"G-code saved: {path}"));
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError($"Не удалось сохранить G-code:\n{ex.Message}");
+            _dialogs.ShowError(Loc.T($"Не удалось сохранить G-code:\n{ex.Message}", $"Could not save the G-code:\n{ex.Message}"));
         }
     }
 
     // ---- Operations ------------------------------------------------------------------------
 
     [RelayCommand]
-    private void AddProfile() => AddOperation(new ProfileOperation { Name = $"Контур {Operations.Count + 1}" });
+    private void AddProfile() => AddOperation(new ProfileOperation { Name = NewName("Контур", "Profile") });
 
     [RelayCommand]
-    private void AddPocket() => AddOperation(new PocketOperation { Name = $"Карман {Operations.Count + 1}" });
+    private void AddPocket() => AddOperation(new PocketOperation { Name = NewName("Карман", "Pocket") });
 
     [RelayCommand]
     private void AddDrill()
     {
         var drill = _project.Tools.FirstOrDefault(t => t.Kind == ToolKind.Drill);
-        AddOperation(new DrillOperation { Name = $"Сверление {Operations.Count + 1}" }, drill);
+        AddOperation(new DrillOperation { Name = NewName("Сверление", "Drilling") }, drill);
     }
+
+    /// <summary>Default name of a new operation: kind and number.</summary>
+    private string NewName(string russian, string english) => $"{Loc.T(russian, english)} {Operations.Count + 1}";
 
     private void AddOperation(Operation operation, Tool? preferredTool = null)
     {
@@ -663,7 +751,7 @@ public sealed partial class MainViewModel : ObservableObject
         SelectedOperation = vm;
         if (operation.ContourIds.Count == 0 && operation is not LaserRasterOperation)
         {
-            Messages.Add($"{operation.Name}: выделите контуры на чертеже и нажмите «Назначить выделенные».");
+            Messages.Add(Loc.T($"{operation.Name}: выделите контуры на чертеже и нажмите «Назначить выделенные».", $"{operation.Name}: select contours on the drawing and press “Assign selected”."));
         }
 
         OnProjectChanged();
@@ -729,7 +817,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void AddTool()
     {
         var number = _project.Tools.Count == 0 ? 1 : _project.Tools.Max(t => t.Number) + 1;
-        var tool = new Tool { Number = number, Name = $"Фреза {number}" };
+        var tool = new Tool { Number = number, Name = Loc.T($"Фреза {number}", $"Tool {number}") };
         _project.Tools.Add(tool);
         var vm = new ToolViewModel(tool, OnProjectChanged);
         Tools.Add(vm);
@@ -760,7 +848,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (SelectedProfile is not null)
         {
             Machine.ApplyProfile(SelectedProfile);
-            Messages.Add($"Применён профиль станка «{SelectedProfile.Name}».");
+            Messages.Add(Loc.T($"Применён профиль станка «{SelectedProfile.Name}».", $"Machine profile applied: “{SelectedProfile.Name}”."));
         }
     }
 
@@ -774,7 +862,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (_project.Operations.Any(o => o.ToolId == SelectedTool.Id))
         {
-            _dialogs.ShowError("Инструмент используется в операциях. Сначала выберите в них другой инструмент.");
+            _dialogs.ShowError(Loc.T("Инструмент используется в операциях. Сначала выберите в них другой инструмент.", "The tool is used by operations. Choose another tool in them first."));
             return;
         }
 
@@ -826,7 +914,7 @@ public sealed partial class MainViewModel : ObservableObject
             .ToHashSet();
         if (diameters.Count == 0)
         {
-            Messages.Add("Сначала выделите хотя бы одно отверстие (окружность).");
+            Messages.Add(Loc.T("Сначала выделите хотя бы одно отверстие (окружность).", "Select at least one hole (circle) first."));
             return;
         }
 
@@ -913,7 +1001,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             Machine = new MachineSettingsViewModel(project.Machine, OnProjectChanged);
             Stock = new StockSettingsViewModel(project.Stock, OnProjectChanged);
-            SelectedProfile = MachineProfiles.All.FirstOrDefault(p => p.Name == project.Machine.ProfileName) ?? MachineProfiles.All[0];
+            SelectedProfile = MachineProfiles.Find(project.Machine.ProfileName) ?? MachineProfiles.All[0];
             SelectedTool = Tools.FirstOrDefault();
             SelectedOperation = null;
             LoadTexts();
@@ -943,7 +1031,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (_history.Undo() is { } state)
         {
-            RestoreState(state, "Отменено.");
+            RestoreState(state, UndoneText);
         }
     }
 
@@ -952,7 +1040,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_history.Redo() is { } state)
         {
-            RestoreState(state, "Повторено.");
+            RestoreState(state, RedoneText);
         }
     }
 
@@ -1002,7 +1090,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Short message that replaces the previous one of the same kind.</summary>
     private void StatusMessage(string text)
     {
-        if (Messages.Count > 0 && Messages[^1] is "Отменено." or "Повторено.")
+        // Messages written before a language switch are in the other language.
+        if (Messages.Count > 0 && Messages[^1] is "Отменено." or "Повторено." or "Undone." or "Redone.")
         {
             Messages.RemoveAt(Messages.Count - 1);
         }
@@ -1029,14 +1118,16 @@ public sealed partial class MainViewModel : ObservableObject
         _regenerateTimer.Stop();
         _generation = ToolpathGenerator.Generate(_project);
         Gcode = _generation.Toolpaths.Count == 0
-            ? "(Нет траекторий: добавьте операцию и выберите контуры)"
+            ? Loc.T("(Нет траекторий: добавьте операцию и выберите контуры)", "(No toolpaths: add an operation and select contours)")
             : GcodeWriter.Write(_project.Name, _generation, _project.Machine);
 
         var start = new Vec3(0, 0, _generation.SafeZ);
         var stats = ToolpathStatistics.Compute(_generation.Toolpaths, _project.Machine, start);
         Statistics = _generation.Toolpaths.Count == 0
             ? ""
-            : $"Резание: {stats.CutLength / 1000:0.00} м · Холостые: {stats.RapidLength / 1000:0.00} м · Время ≈ {stats.EstimatedTime:hh\\:mm\\:ss}";
+            : Loc.T(
+                $"Резание: {stats.CutLength / 1000:0.00} м · Холостые: {stats.RapidLength / 1000:0.00} м · Время ≈ {stats.EstimatedTime:hh\\:mm\\:ss}",
+                $"Cutting: {stats.CutLength / 1000:0.00} m · Rapids: {stats.RapidLength / 1000:0.00} m · Time ≈ {stats.EstimatedTime:hh\\:mm\\:ss}");
 
         // Keep import messages, replace generation warnings.
         for (var i = Messages.Count - 1; i >= 0; i--)

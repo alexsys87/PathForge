@@ -13,7 +13,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _viewModel = new MainViewModel(new WpfDialogService());
+        _viewModel = new MainViewModel(new WpfDialogService(), App.Appearance);
         _viewModel.ZoomToFitRequested += (_, _) => Viewport.ZoomToFit();
         DataContext = _viewModel;
         Drop += OnFileDrop;

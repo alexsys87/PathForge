@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using PathForge.Core.Localization;
 using PathForge.Core.Projects;
 using PathForge.Core.Text;
 
@@ -48,7 +49,7 @@ public sealed class TextItemViewModel : ModelWrapper
     }
 
     public string FontStatus => Font is null && Model.FontName.Length > 0
-        ? $"Шрифт «{Model.FontName}» не найден на этом компьютере — буквы оставлены как были."
+        ? Loc.T($"Шрифт «{Model.FontName}» не найден на этом компьютере — буквы оставлены как были.", $"The font “{Model.FontName}” is not installed on this computer — the letters are left as they were.")
         : "";
 
     public double HeightMm
@@ -102,13 +103,7 @@ public sealed class TextItemViewModel : ModelWrapper
     public string Layer
     {
         get => Model.Layer;
-        set => Set(Model.Layer, string.IsNullOrWhiteSpace(value) ? "Текст" : value, v => Model.Layer = v);
-    }
-
-    /// <summary>Re-reads values changed outside the editor (mirroring, font list loaded).</summary>
-    public void Refresh()
-    {
-        OnPropertyChanged(string.Empty);
+        set => Set(Model.Layer, string.IsNullOrWhiteSpace(value) ? Loc.T("Текст", "Text") : value, v => Model.Layer = v);
     }
 
     protected override void OnModelChanged() => OnPropertyChanged(nameof(Display));

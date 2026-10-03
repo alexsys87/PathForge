@@ -1,5 +1,6 @@
 using System.Globalization;
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Leveling;
 
@@ -17,7 +18,7 @@ public sealed class LevelingProbe
     {
         if (area.IsEmpty || area.Width <= 0 || area.Height <= 0)
         {
-            throw new ArgumentException("Пустая область карты высот.", nameof(area));
+            throw new ArgumentException(Loc.T("Пустая область карты высот.", "The height map area is empty."), nameof(area));
         }
 
         _area = area;

@@ -3,7 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:PathForge.App.ViewModels"
         xmlns:controls="clr-namespace:PathForge.App.Controls"
+        xmlns:l="clr-namespace:PathForge.App.Localization"
         Title="{Binding Title}"
+        Background="{DynamicResource WindowBrush}"
+        Foreground="{DynamicResource TextBrush}"
         Width="1280" Height="800" MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True">
@@ -38,29 +41,29 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Название" />
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Название', En='Name'}" />
                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-                <CheckBox Grid.Row="1" Grid.Column="1" Content="Включена" IsChecked="{Binding Enabled}" />
-                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Инструмент" />
+                <CheckBox Grid.Row="1" Grid.Column="1" Content="{l:Tr 'Включена', En='Enabled'}" IsChecked="{Binding Enabled}" />
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Инструмент', En='Tool'}" />
                 <ComboBox Grid.Row="2" Grid.Column="1"
                           ItemsSource="{Binding DataContext.Tools, RelativeSource={RelativeSource AncestorType=Window}}"
                           DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding ToolId}" />
-                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Глубина, мм" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Глубина, мм', En='Depth, mm'}" />
                 <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Depth}" />
-                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Начало (Z), мм" />
+                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Начало (Z), мм', En='Start (Z), mm'}" />
                 <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding StartZ}" />
-                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Контуры" />
+                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Контуры', En='Contours'}" />
                 <DockPanel Grid.Row="5" Grid.Column="1" Margin="0,3">
-                    <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Назначить выделенные"
+                    <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Назначить выделенные', En='Assign selected'}"
                             Command="{Binding DataContext.AssignSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                    <TextBlock VerticalAlignment="Center" Text="{Binding ContourCount, StringFormat='{}{0} шт.'}" />
+                    <TextBlock VerticalAlignment="Center"><Run Text="{Binding ContourCount, Mode=OneWay}" /> <Run Text="{l:Tr 'шт.', En='pcs'}" /></TextBlock>
                 </DockPanel>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="EntryFields" DataType="{x:Type vm:OperationViewModel}">
             <StackPanel>
-                <TextBlock Style="{StaticResource SectionHeader}" Text="Врезание" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Врезание', En='Entry'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
@@ -70,11 +73,11 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Способ" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Способ', En='Method'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.EntryModes}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Entry}" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Угол рампы, °" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding RampAngle}" ToolTip="Для 3018: 2–5°" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Угол рампы, °', En='Ramp angle, °'}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding RampAngle}" ToolTip="{l:Tr 'Для 3018: 2–5°', En='For a 3018: 2–5°'}" />
                 </Grid>
             </StackPanel>
         </DataTemplate>
@@ -82,7 +85,7 @@
         <DataTemplate DataType="{x:Type vm:ProfileOperationViewModel}">
             <StackPanel>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
-                <TextBlock Style="{StaticResource SectionHeader}" Text="Контур" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Контур', En='Profile'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
@@ -93,17 +96,17 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Сторона" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Сторона', En='Side'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ProfileSides}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Side}" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
                     <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Припуск, мм" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Припуск, мм', En='Allowance, mm'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Allowance}" />
                 </Grid>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
-                <TextBlock Style="{StaticResource SectionHeader}" Text="Перемычки (удерживают деталь)" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Перемычки (удерживают деталь)', En='Tabs (hold the part)'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
@@ -114,14 +117,14 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Количество" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Количество', En='Count'}" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding TabCount}" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Ширина, мм" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина, мм', En='Width, mm'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TabWidth}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Высота, мм" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Высота, мм', En='Height, mm'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TabHeight}" />
                 </Grid>
-                <TextBlock Style="{StaticResource SectionHeader}" Text="Подвод и отвод" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Подвод и отвод', En='Lead-in and lead-out'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
@@ -132,13 +135,13 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Подвод" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Подвод', En='Lead-in'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.LeadModes}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Lead}" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Радиус дуги, мм" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Радиус дуги, мм', En='Arc radius, mm'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LeadRadius}" />
-                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                               Text="Фреза заходит на контур и уходит с него по касательной дуге со стороны отхода — без следа в месте врезания. Только для «Снаружи» и «Внутри»." />
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{l:Tr 'Фреза заходит на контур и уходит с него по касательной дуге со стороны отхода — без следа в месте врезания. Только для «Снаружи» и «Внутри».', En='The tool enters and leaves the contour along a tangent arc from the waste side — no mark at the entry point. Only for “Outside” and “Inside”.'}" />
                 </Grid>
             </StackPanel>
         </DataTemplate>
@@ -146,7 +149,7 @@
         <DataTemplate DataType="{x:Type vm:VCarveOperationViewModel}">
             <StackPanel>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
-                <TextBlock Style="{StaticResource SectionHeader}" Text="V-карвинг" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'V-карвинг', En='V-carving'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
@@ -158,15 +161,15 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Шаг, мм" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding StepMm}" ToolTip="Меньше — чище середина буквы, но дольше расчёт. Обычно 0,05–0,1" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Шаг по дну, мм" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding FlatStepMm}" ToolTip="Расстояние между проходами на плоском дне; 0 — 80 % кончика фрезы" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг, мм', En='Step, mm'}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding StepMm}" ToolTip="{l:Tr 'Меньше — чище середина буквы, но дольше расчёт. Обычно 0,05–0,1', En='Smaller gives a cleaner letter centre but takes longer to compute. Usually 0.05–0.1'}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг по дну, мм', En='Flat bottom step, mm'}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding FlatStepMm}" ToolTip="{l:Tr 'Расстояние между проходами на плоском дне; 0 — 80 % кончика фрезы', En='Distance between passes on the flat bottom; 0 — 80 % of the tip'}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
                     <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
-                    <TextBlock Grid.Row="3" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                               Text="Нужна V-фреза. Глубина в каждой точке зависит от ширины буквы: края остаются острыми, по середине получается «V». «Глубина» ограничивает погружение — широкие места получают плоское дно. Шаг по глубине берётся из инструмента." />
+                    <TextBlock Grid.Row="3" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{l:Tr 'Нужна V-фреза. Глубина в каждой точке зависит от ширины буквы: края остаются острыми, по середине получается «V». «Глубина» ограничивает погружение — широкие места получают плоское дно. Шаг по глубине берётся из инструмента.', En='Needs a V-bit. The depth at each point depends on the letter width: edges stay sharp, the middle gets a “V”. “Depth” limits the plunge — wide areas get a flat bottom. The step-down comes from the tool.'}" />
                 </Grid>
             </StackPanel>
         </DataTemplate>
@@ -190,10 +193,10 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Текст" VerticalAlignment="Top" />
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Текст', En='Text'}" VerticalAlignment="Top" />
                 <TextBox Grid.Row="0" Grid.Column="1" MinHeight="54" AcceptsReturn="True" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged, Delay=300}" />
-                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Шрифт" />
+                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шрифт', En='Font'}" />
                 <ComboBox Grid.Row="1" Grid.Column="1" IsTextSearchEnabled="True" TextSearch.TextPath="Name"
                           ItemsSource="{Binding DataContext.Fonts, RelativeSource={RelativeSource AncestorType=Window}}"
                           DisplayMemberPath="Name" SelectedItem="{Binding Font}">
@@ -203,25 +206,25 @@
                         </ItemsPanelTemplate>
                     </ComboBox.ItemsPanel>
                 </ComboBox>
-                <TextBlock Grid.Row="2" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="{Binding FontStatus}" />
-                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Высота букв, мм" />
-                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding HeightMm}" ToolTip="Высота заглавных букв" />
-                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="X, мм" />
-                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding X}" ToolTip="Начало базовой линии первой строки (в чертеже)" />
-                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Y, мм" />
-                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Y}" ToolTip="Базовая линия первой строки" />
-                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Выравнивание" />
+                <TextBlock Grid.Row="2" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}" Text="{Binding FontStatus}" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Высота букв, мм', En='Letter height, mm'}" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding HeightMm}" ToolTip="{l:Tr 'Высота заглавных букв', En='Height of capital letters'}" />
+                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'X, мм', En='X, mm'}" />
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding X}" ToolTip="{l:Tr 'Начало базовой линии первой строки (в чертеже)', En='Start of the baseline of the first line (in the drawing)'}" />
+                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Y, мм', En='Y, mm'}" />
+                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Y}" ToolTip="{l:Tr 'Базовая линия первой строки', En='Baseline of the first line'}" />
+                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Выравнивание', En='Alignment'}" />
                 <ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{x:Static vm:Choices.TextAlignments}"
                           DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Alignment}" />
-                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Между буквами, мм" />
+                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Между буквами, мм', En='Letter spacing, mm'}" />
                 <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding LetterSpacing}" />
-                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Между строками, ×" />
+                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Между строками, ×', En='Line spacing, ×'}" />
                 <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding LineSpacing}" />
                 <StackPanel Grid.Row="9" Grid.Column="1">
-                    <CheckBox Content="Кернинг (пары вроде «AV» ближе)" IsChecked="{Binding Kerning}" />
-                    <CheckBox Content="Зеркально (низ платы, штамп)" IsChecked="{Binding Mirrored}" />
+                    <CheckBox Content="{l:Tr 'Кернинг (пары вроде «AV» ближе)', En='Kerning (pairs like “AV” closer)'}" IsChecked="{Binding Kerning}" />
+                    <CheckBox Content="{l:Tr 'Зеркально (низ платы, штамп)', En='Mirrored (board bottom, stamp)'}" IsChecked="{Binding Mirrored}" />
                 </StackPanel>
-                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="Слой" />
+                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Слой', En='Layer'}" />
                 <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding Layer}" />
             </Grid>
         </DataTemplate>
@@ -229,7 +232,7 @@
         <DataTemplate DataType="{x:Type vm:PocketOperationViewModel}">
             <StackPanel>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
-                <TextBlock Style="{StaticResource SectionHeader}" Text="Карман" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Карман', En='Pocket'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
@@ -239,39 +242,39 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Припуск, мм" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Припуск, мм', En='Allowance, mm'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Allowance}" />
                 </Grid>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
-                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                           Text="Контуры внутри выбранных контуров становятся островами и не обрабатываются." />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Контуры внутри выбранных контуров становятся островами и не обрабатываются.', En='Contours inside the selected contours become islands and are not machined.'}" />
             </StackPanel>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:DrillOperationViewModel}">
             <StackPanel>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
-                <TextBlock Style="{StaticResource SectionHeader}" Text="Сверление" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Сверление', En='Drilling'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Шаг, мм (0 — сразу)" />
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг, мм (0 — сразу)', En='Peck, mm (0 — at once)'}" />
                     <TextBox Grid.Column="1" Text="{Binding PeckDepth}" />
                 </Grid>
-                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                           Text="Сверлится центр каждой выбранной окружности. Кнопка «Выбрать окружности» на панели инструментов выделяет их все." />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Сверлится центр каждой выбранной окружности. Кнопка «Выбрать окружности» на панели инструментов выделяет их все.', En='The centre of every selected circle is drilled. The “Select circles” button on the tool bar selects all of them.'}" />
             </StackPanel>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:IsolationOperationViewModel}">
             <StackPanel>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
-                <TextBlock Style="{StaticResource SectionHeader}" Text="Изоляция дорожек" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Изоляция дорожек', En='Trace isolation'}" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
@@ -282,16 +285,16 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Проходов" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Passes}" ToolTip="Больше проходов — шире зазор вокруг меди" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Перекрытие, %" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Проходов', En='Passes'}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Passes}" ToolTip="{l:Tr 'Больше проходов — шире зазор вокруг меди', En='More passes — a wider gap around the copper'}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Перекрытие, %', En='Overlap, %'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OverlapPercent}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
                     <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
                 </Grid>
-                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                           Text="Выберите контуры меди (слой Gerber). Глубина для текстолита обычно 0,05–0,1 мм; ширина реза гравёра зависит от глубины. Неровность заготовки компенсируйте картой высот в Candle." />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Выберите контуры меди (слой Gerber). Глубина для текстолита обычно 0,05–0,1 мм; ширина реза гравёра зависит от глубины. Неровность заготовки компенсируйте картой высот в Candle.', En='Select the copper contours (Gerber layer). The depth for FR4 is usually 0.05–0.1 mm; the engraver cut width depends on the depth. Compensate an uneven board with a height map.'}" />
             </StackPanel>
         </DataTemplate>
 
@@ -308,15 +311,15 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Название" />
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Название', En='Name'}" />
                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-                <CheckBox Grid.Row="1" Grid.Column="1" Content="Включена" IsChecked="{Binding Enabled}" />
-                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Инструмент" />
+                <CheckBox Grid.Row="1" Grid.Column="1" Content="{l:Tr 'Включена', En='Enabled'}" IsChecked="{Binding Enabled}" />
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Инструмент', En='Tool'}" />
                 <ComboBox Grid.Row="2" Grid.Column="1"
                           ItemsSource="{Binding DataContext.Tools, RelativeSource={RelativeSource AncestorType=Window}}"
                           DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding ToolId}" />
-                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Фокус Z, мм" />
-                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding StartZ}" ToolTip="0 — фокус выставлен на поверхности" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фокус Z, мм', En='Focus Z, mm'}" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding StartZ}" ToolTip="{l:Tr '0 — фокус выставлен на поверхности', En='0 — focused on the surface'}" />
             </Grid>
         </DataTemplate>
 
@@ -338,30 +341,30 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Контуры" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Контуры', En='Contours'}" />
                     <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,3">
-                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Назначить выделенные"
+                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Назначить выделенные', En='Assign selected'}"
                                 Command="{Binding DataContext.AssignSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                        <TextBlock VerticalAlignment="Center" Text="{Binding ContourCount, StringFormat='{}{0} шт.'}" />
+                        <TextBlock VerticalAlignment="Center"><Run Text="{Binding ContourCount, Mode=OneWay}" /> <Run Text="{l:Tr 'шт.', En='pcs'}" /></TextBlock>
                     </DockPanel>
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Режим" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Режим', En='Mode'}" />
                     <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:Choices.LaserVectorModes}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Мощность, %" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Мощность, %', En='Power, %'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding PowerPercent}" />
-                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Скорость, мм/мин" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Скорость, мм/мин', En='Speed, mm/min'}" />
                     <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Speed}" />
-                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Проходов" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Проходов', En='Passes'}" />
                     <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Passes}" />
-                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Опускать Z за проход" />
-                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ZStepPerPass}" ToolTip="Для резки толстой фанеры: 0,3–0,5 мм; 0 — не опускать" />
-                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Шаг заливки, мм" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Опускать Z за проход', En='Lower Z per pass'}" />
+                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ZStepPerPass}" ToolTip="{l:Tr 'Для резки толстой фанеры: 0,3–0,5 мм; 0 — не опускать', En='For cutting thick plywood: 0.3–0.5 mm; 0 — do not lower'}" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг заливки, мм', En='Fill spacing, mm'}" />
                     <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding FillSpacing}" />
-                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Угол заливки, °" />
+                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Угол заливки, °', En='Fill angle, °'}" />
                     <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding FillAngle}" />
                 </Grid>
-                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                           Text="Начните с пробы на обрезке: фанера 3 мм на 5 Вт режется примерно за 3–6 проходов при 100 % и 150–250 мм/мин. Работайте в защитных очках и с вытяжкой." />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Начните с пробы на обрезке: фанера 3 мм режется лазером 5 Вт примерно за 3–6 проходов при 100 % и 150–250 мм/мин, лазером 10 Вт — за 1–2 прохода при 100 % и 200–300 мм/мин (с обдувом). Работайте в защитных очках и с вытяжкой.', En='Start with a test on scrap: 3 mm plywood is cut by a 5 W laser in about 3–6 passes at 100 % and 150–250 mm/min, by a 10 W laser in 1–2 passes at 100 % and 200–300 mm/min (with air assist). Wear safety glasses and use an exhaust.'}" />
             </StackPanel>
         </DataTemplate>
 
@@ -369,7 +372,7 @@
             <StackPanel>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource LaserCommonFields}" />
                 <DockPanel Margin="0,3">
-                    <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Заменить…"
+                    <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Заменить…', En='Replace…'}"
                             Command="{Binding DataContext.ReplaceRasterImageCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding ImageInfo}" />
                 </DockPanel>
@@ -391,30 +394,30 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="X, мм (левый край)" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'X, мм (левый край)', En='X, mm (left edge)'}" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding X}" />
-                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Y, мм (нижний край)" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Y, мм (нижний край)', En='Y, mm (bottom edge)'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Y}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Ширина, мм" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина, мм', En='Width, mm'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding WidthMm}" />
-                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Высота, мм" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Высота, мм', En='Height, mm'}" />
                     <TextBlock Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Text="{Binding HeightMm, StringFormat='{}{0:0.#}'}" />
-                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Шаг строк, мм" />
-                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding LineInterval}" ToolTip="0,1 мм ≈ 254 точки на дюйм" />
-                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Режим" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг строк, мм', En='Line interval, mm'}" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding LineInterval}" ToolTip="{l:Tr '0,1 мм ≈ 254 точки на дюйм', En='0.1 mm ≈ 254 dots per inch'}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Режим', En='Mode'}" />
                     <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterModes}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" />
-                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Мощность мин., %" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Мощность мин., %', En='Min power, %'}" />
                     <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PowerMinPercent}" />
-                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Мощность макс., %" />
+                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Мощность макс., %', En='Max power, %'}" />
                     <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding PowerMaxPercent}" />
-                    <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Скорость, мм/мин" />
+                    <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Скорость, мм/мин', En='Speed, mm/min'}" />
                     <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Speed}" />
-                    <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Перебег, мм" />
+                    <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Перебег, мм', En='Overscan, mm'}" />
                     <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Overscan}" />
                     <StackPanel Grid.Row="10" Grid.Column="1">
-                        <CheckBox Content="Инверсия (выжигать светлое)" IsChecked="{Binding Invert}" />
-                        <CheckBox Content="В обе стороны" IsChecked="{Binding Bidirectional}" />
+                        <CheckBox Content="{l:Tr 'Инверсия (выжигать светлое)', En='Invert (burn light areas)'}" IsChecked="{Binding Invert}" />
+                        <CheckBox Content="{l:Tr 'В обе стороны', En='Bidirectional'}" IsChecked="{Binding Bidirectional}" />
                     </StackPanel>
                 </Grid>
             </StackPanel>
@@ -447,55 +450,55 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Название" />
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Название', En='Name'}" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-                    <CheckBox Grid.Row="1" Grid.Column="1" Content="Включена" IsChecked="{Binding Enabled}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Инструмент" />
+                    <CheckBox Grid.Row="1" Grid.Column="1" Content="{l:Tr 'Включена', En='Enabled'}" IsChecked="{Binding Enabled}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Инструмент', En='Tool'}" />
                     <ComboBox Grid.Row="2" Grid.Column="1"
                               ItemsSource="{Binding DataContext.Tools, RelativeSource={RelativeSource AncestorType=Window}}"
                               DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding ToolId}" />
-                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Источник" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Источник', En='Source'}" />
                     <DockPanel Grid.Row="3" Grid.Column="1" Margin="0,3">
-                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Заменить…"
+                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Заменить…', En='Replace…'}"
                                 Command="{Binding DataContext.ReplaceReliefSourceCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                         <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding SourceInfo}" />
                     </DockPanel>
-                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="X, мм (левый край)" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'X, мм (левый край)', En='X, mm (left edge)'}" />
                     <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding X}" />
-                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Y, мм (нижний край)" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Y, мм (нижний край)', En='Y, mm (bottom edge)'}" />
                     <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Y}" />
-                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Ширина, мм" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина, мм', En='Width, mm'}" />
                     <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding WidthMm}" />
-                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Длина, мм" />
+                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Длина, мм', En='Length, mm'}" />
                     <TextBlock Grid.Row="7" Grid.Column="1" VerticalAlignment="Center" Text="{Binding HeightMm, StringFormat='{}{0:0.#}'}" />
-                    <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Глубина, мм" />
+                    <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Глубина, мм', En='Depth, mm'}" />
                     <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Depth}" />
-                    <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Начало (Z), мм" />
+                    <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Начало (Z), мм', En='Start (Z), mm'}" />
                     <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding StartZ}" />
-                    <CheckBox Grid.Row="10" Grid.Column="1" Content="Инверсия (светлое — глубже)" IsChecked="{Binding Invert}" IsEnabled="{Binding IsImage}" />
-                    <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="Шаг сетки, мм" />
-                    <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding Resolution}" ToolTip="Точность модели: меньше — точнее, но дольше расчёт" />
-                    <TextBlock Grid.Row="12" Style="{StaticResource FieldLabel}" Text="Шаг строк, мм" />
-                    <TextBox Grid.Row="12" Grid.Column="1" Text="{Binding StepOverMm}" ToolTip="Чистовой проход: 10–20 % диаметра сферической фрезы" />
-                    <TextBlock Grid.Row="13" Style="{StaticResource FieldLabel}" Text="Направление строк" />
+                    <CheckBox Grid.Row="10" Grid.Column="1" Content="{l:Tr 'Инверсия (светлое — глубже)', En='Invert (light is deeper)'}" IsChecked="{Binding Invert}" IsEnabled="{Binding IsImage}" />
+                    <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг сетки, мм', En='Grid step, mm'}" />
+                    <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding Resolution}" ToolTip="{l:Tr 'Точность модели: меньше — точнее, но дольше расчёт', En='Model accuracy: smaller is more accurate but slower to compute'}" />
+                    <TextBlock Grid.Row="12" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг строк, мм', En='Line interval, mm'}" />
+                    <TextBox Grid.Row="12" Grid.Column="1" Text="{Binding StepOverMm}" ToolTip="{l:Tr 'Чистовой проход: 10–20 % диаметра сферической фрезы', En='Finishing pass: 10–20 % of the ball nose diameter'}" />
+                    <TextBlock Grid.Row="13" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Направление строк', En='Line direction'}" />
                     <ComboBox Grid.Row="13" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterAxes}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Axis}" />
                     <StackPanel Grid.Row="14" Grid.Column="1" Orientation="Horizontal">
-                        <CheckBox Content="Черновая, припуск" IsChecked="{Binding Roughing}" />
+                        <CheckBox Content="{l:Tr 'Черновая, припуск', En='Roughing, allowance'}" IsChecked="{Binding Roughing}" />
                         <TextBox Width="60" Margin="6,0,0,0" Text="{Binding RoughAllowance}" IsEnabled="{Binding Roughing}" />
                     </StackPanel>
-                    <TextBlock Grid.Row="15" Style="{StaticResource FieldLabel}" Text="Чистовая" />
+                    <TextBlock Grid.Row="15" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Чистовая', En='Finishing'}" />
                     <ComboBox Grid.Row="15" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ReliefFinishings}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Finishing}"
-                              ToolTip="Строки хороши на пологих местах, уровни — на крутых стенках" />
-                    <TextBlock Grid.Row="16" Style="{StaticResource FieldLabel}" Text="Шаг уровней Z, мм" />
-                    <TextBox Grid.Row="16" Grid.Column="1" Text="{Binding WaterlineStepZ}" ToolTip="Расстояние между уровнями waterline" />
-                    <TextBlock Grid.Row="17" Style="{StaticResource FieldLabel}" Text="Фрезерование уровней" />
+                              ToolTip="{l:Tr 'Строки хороши на пологих местах, уровни — на крутых стенках', En='Lines work well on gentle slopes, levels on steep walls'}" />
+                    <TextBlock Grid.Row="16" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг уровней Z, мм', En='Z level step, mm'}" />
+                    <TextBox Grid.Row="16" Grid.Column="1" Text="{Binding WaterlineStepZ}" ToolTip="{l:Tr 'Расстояние между уровнями waterline', En='Distance between waterline levels'}" />
+                    <TextBlock Grid.Row="17" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование уровней', En='Level cut direction'}" />
                     <ComboBox Grid.Row="17" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
                 </Grid>
-                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                           Text="Расчёт учитывает форму фрезы (сферическая, гравёр, концевая), поэтому она не врезается в соседние склоны. Черновые проходы идут по уровням шага по глубине инструмента." />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Расчёт учитывает форму фрезы (сферическая, гравёр, концевая), поэтому она не врезается в соседние склоны. Черновые проходы идут по уровням шага по глубине инструмента.', En='The calculation takes the tool shape into account (ball nose, V-bit, end mill), so it does not gouge neighbouring slopes. Roughing passes follow the levels of the tool step-down.'}" />
             </StackPanel>
         </DataTemplate>
 
@@ -519,96 +522,110 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Номер (T)" />
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Номер (T)', En='Number (T)'}" />
                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Number}" />
-                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Название" />
+                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Название', En='Name'}" />
                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Тип" />
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Тип', En='Type'}" />
                 <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ToolKinds}"
                           DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Kind}" />
-                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Диаметр, мм" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Диаметр, мм', En='Diameter, mm'}" />
                 <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Diameter}" />
-                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Обороты, об/мин" />
+                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Обороты, об/мин', En='Spindle speed, rpm'}" />
                 <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SpindleRpm}" />
-                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Подача, мм/мин" />
+                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Подача, мм/мин', En='Feed, mm/min'}" />
                 <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding FeedRate}" />
-                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Врезание, мм/мин" />
+                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Врезание, мм/мин', En='Plunge, mm/min'}" />
                 <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PlungeRate}" />
-                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Шаг по глубине, мм" />
+                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг по глубине, мм', En='Step-down, mm'}" />
                 <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding StepDown}" />
-                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Перекрытие, % Ø" />
+                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Перекрытие, % Ø', En='Step-over, % Ø'}" />
                 <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding StepOverPercent}" />
-                <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Гравёр: кончик, мм" />
+                <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Гравёр: кончик, мм', En='V-bit: tip, mm'}" />
                 <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding TipDiameter}" IsEnabled="{Binding IsVBit}" />
-                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="Гравёр: угол, °" />
+                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Гравёр: угол, °', En='V-bit: angle, °'}" />
                 <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding TipAngle}" IsEnabled="{Binding IsVBit}" />
-                <TextBlock Grid.Row="11" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="{Binding CutWidthHint}" />
+                <TextBlock Grid.Row="11" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}" Text="{Binding CutWidthHint}" />
             </Grid>
         </DataTemplate>
     </Window.Resources>
 
     <DockPanel>
         <Menu DockPanel.Dock="Top">
-            <MenuItem Header="_Файл">
-                <MenuItem Header="_Новый проект" InputGestureText="Ctrl+N" Command="{Binding NewProjectCommand}" />
-                <MenuItem Header="_Открыть проект…" InputGestureText="Ctrl+O" Command="{Binding OpenProjectCommand}" />
-                <MenuItem Header="_Сохранить" InputGestureText="Ctrl+S" Command="{Binding SaveProjectCommand}" />
-                <MenuItem Header="Сохранить _как…" Command="{Binding SaveProjectAsCommand}" />
+            <MenuItem Header="{l:Tr '_Файл', En='_File'}">
+                <MenuItem Header="{l:Tr '_Новый проект', En='_New project'}" InputGestureText="Ctrl+N" Command="{Binding NewProjectCommand}" />
+                <MenuItem Header="{l:Tr '_Открыть проект…', En='_Open project…'}" InputGestureText="Ctrl+O" Command="{Binding OpenProjectCommand}" />
+                <MenuItem Header="{l:Tr '_Сохранить', En='_Save'}" InputGestureText="Ctrl+S" Command="{Binding SaveProjectCommand}" />
+                <MenuItem Header="{l:Tr 'Сохранить _как…', En='Save _as…'}" Command="{Binding SaveProjectAsCommand}" />
                 <Separator />
-                <MenuItem Header="_Импорт чертежа (DXF, SVG)…" InputGestureText="Ctrl+I" Command="{Binding ImportDrawingCommand}" />
-                <MenuItem Header="_Добавить чертёж (DXF, SVG)…" Command="{Binding AddDrawingCommand}" />
-                <MenuItem Header="3D-_рельеф">
-                    <MenuItem Header="Импорт STL…" Command="{Binding ImportStlCommand}" />
-                    <MenuItem Header="Рельеф из картинки…" Command="{Binding AddImageReliefCommand}" />
+                <MenuItem Header="{l:Tr '_Импорт чертежа (DXF, SVG)…', En='_Import drawing (DXF, SVG)…'}" InputGestureText="Ctrl+I" Command="{Binding ImportDrawingCommand}" />
+                <MenuItem Header="{l:Tr '_Добавить чертёж (DXF, SVG)…', En='A_dd drawing (DXF, SVG)…'}" Command="{Binding AddDrawingCommand}" />
+                <MenuItem Header="{l:Tr '3D-_рельеф', En='3D _relief'}">
+                    <MenuItem Header="{l:Tr 'Импорт STL…', En='Import STL…'}" Command="{Binding ImportStlCommand}" />
+                    <MenuItem Header="{l:Tr 'Рельеф из картинки…', En='Relief from a picture…'}" Command="{Binding AddImageReliefCommand}" />
                 </MenuItem>
-                <MenuItem Header="Печатная _плата">
-                    <MenuItem Header="Добавить Gerber: медь…" Command="{Binding ImportGerberCopperCommand}" />
-                    <MenuItem Header="Добавить Gerber: контур платы…" Command="{Binding ImportGerberOutlineCommand}" />
-                    <MenuItem Header="Добавить сверловку (Excellon)…" Command="{Binding ImportExcellonCommand}" />
+                <MenuItem Header="{l:Tr 'Печатная _плата', En='_PCB'}">
+                    <MenuItem Header="{l:Tr 'Добавить Gerber: медь…', En='Add Gerber: copper…'}" Command="{Binding ImportGerberCopperCommand}" />
+                    <MenuItem Header="{l:Tr 'Добавить Gerber: контур платы…', En='Add Gerber: board outline…'}" Command="{Binding ImportGerberOutlineCommand}" />
+                    <MenuItem Header="{l:Tr 'Добавить сверловку (Excellon)…', En='Add drill file (Excellon)…'}" Command="{Binding ImportExcellonCommand}" />
                     <Separator />
-                    <MenuItem Header="Зеркалить по X (нижний слой)" Command="{Binding MirrorXCommand}" />
+                    <MenuItem Header="{l:Tr 'Зеркалить по X (нижний слой)', En='Mirror X (bottom layer)'}" Command="{Binding MirrorXCommand}" />
                 </MenuItem>
-                <MenuItem Header="_Экспорт G-code…" InputGestureText="Ctrl+E" Command="{Binding ExportGcodeCommand}" />
+                <MenuItem Header="{l:Tr '_Экспорт G-code…', En='_Export G-code…'}" InputGestureText="Ctrl+E" Command="{Binding ExportGcodeCommand}" />
                 <Separator />
-                <MenuItem Header="_Выход" Click="OnExitClick" />
+                <MenuItem Header="{l:Tr '_Выход', En='E_xit'}" Click="OnExitClick" />
             </MenuItem>
-            <MenuItem Header="_Правка">
-                <MenuItem Header="_Отменить" InputGestureText="Ctrl+Z" Command="{Binding UndoCommand}" />
-                <MenuItem Header="_Повторить" InputGestureText="Ctrl+Y" Command="{Binding RedoCommand}" />
+            <MenuItem Header="{l:Tr '_Правка', En='_Edit'}">
+                <MenuItem Header="{l:Tr '_Отменить', En='_Undo'}" InputGestureText="Ctrl+Z" Command="{Binding UndoCommand}" />
+                <MenuItem Header="{l:Tr '_Повторить', En='_Redo'}" InputGestureText="Ctrl+Y" Command="{Binding RedoCommand}" />
             </MenuItem>
-            <MenuItem Header="_Выделение">
-                <MenuItem Header="Выделить всё" InputGestureText="Ctrl+A" Command="{Binding SelectAllCommand}" />
-                <MenuItem Header="Выделить окружности" Command="{Binding SelectCirclesCommand}" />
-                <MenuItem Header="Выделить отверстия того же диаметра" Command="{Binding SelectSameDiameterCommand}" />
-                <MenuItem Header="Снять выделение" InputGestureText="Esc" Command="{Binding ClearSelectionCommand}" />
+            <MenuItem Header="{l:Tr '_Выделение', En='_Selection'}">
+                <MenuItem Header="{l:Tr 'Выделить всё', En='Select all'}" InputGestureText="Ctrl+A" Command="{Binding SelectAllCommand}" />
+                <MenuItem Header="{l:Tr 'Выделить окружности', En='Select circles'}" Command="{Binding SelectCirclesCommand}" />
+                <MenuItem Header="{l:Tr 'Выделить отверстия того же диаметра', En='Select holes of the same diameter'}" Command="{Binding SelectSameDiameterCommand}" />
+                <MenuItem Header="{l:Tr 'Снять выделение', En='Clear selection'}" InputGestureText="Esc" Command="{Binding ClearSelectionCommand}" />
             </MenuItem>
-            <MenuItem Header="_Вид">
-                <MenuItem Header="Показать всё" InputGestureText="Home" Command="{Binding ZoomToFitCommand}" />
+            <MenuItem Header="{l:Tr '_Вид', En='_View'}">
+                <MenuItem Header="{l:Tr 'Показать всё', En='Zoom to fit'}" InputGestureText="Home" Command="{Binding ZoomToFitCommand}" />
+                <Separator />
+                <MenuItem Header="{l:Tr '_Язык', En='_Language'}">
+                    <!-- Language names are always shown in their own language -->
+                    <MenuItem Header="Русский" IsChecked="{Binding IsRussian, Mode=OneWay}"
+                              Command="{Binding SetLanguageCommand}" CommandParameter="ru" />
+                    <MenuItem Header="English" IsChecked="{Binding IsEnglish, Mode=OneWay}"
+                              Command="{Binding SetLanguageCommand}" CommandParameter="en" />
+                </MenuItem>
+                <MenuItem Header="{l:Tr '_Тема', En='_Theme'}">
+                    <MenuItem Header="{l:Tr 'Светлая', En='Light'}" IsChecked="{Binding IsLightTheme, Mode=OneWay}"
+                              Command="{Binding SetThemeCommand}" CommandParameter="Light" />
+                    <MenuItem Header="{l:Tr 'Тёмная', En='Dark'}" IsChecked="{Binding IsDarkTheme, Mode=OneWay}"
+                              Command="{Binding SetThemeCommand}" CommandParameter="Dark" />
+                </MenuItem>
             </MenuItem>
         </Menu>
 
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
-                <Button Style="{StaticResource ToolBarButton}" Content="Импорт DXF/SVG" Command="{Binding ImportDrawingCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="STL" ToolTip="Импорт 3D-модели STL как рельефа" Command="{Binding ImportStlCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="Открыть" Command="{Binding OpenProjectCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="Сохранить" Command="{Binding SaveProjectCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="↶" FontSize="15" ToolTip="Отменить (Ctrl+Z)" Command="{Binding UndoCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="↷" FontSize="15" ToolTip="Повторить (Ctrl+Y)" Command="{Binding RedoCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Импорт DXF/SVG', En='Import DXF/SVG'}" Command="{Binding ImportDrawingCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="STL" ToolTip="{l:Tr 'Импорт 3D-модели STL как рельефа', En='Import a 3D STL model as a relief'}" Command="{Binding ImportStlCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Открыть', En='Open'}" Command="{Binding OpenProjectCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Сохранить', En='Save'}" Command="{Binding SaveProjectCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="↶" FontSize="15" ToolTip="{l:Tr 'Отменить (Ctrl+Z)', En='Undo (Ctrl+Z)'}" Command="{Binding UndoCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="↷" FontSize="15" ToolTip="{l:Tr 'Повторить (Ctrl+Y)', En='Redo (Ctrl+Y)'}" Command="{Binding RedoCommand}" />
                 <Separator />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ Контур" Command="{Binding AddProfileCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ Карман" Command="{Binding AddPocketCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ Сверление" Command="{Binding AddDrillCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ Изоляция" Command="{Binding AddIsolationCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ V-карвинг" Command="{Binding AddVCarveCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ Текст" Command="{Binding AddTextCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ Лазер" Command="{Binding AddLaserVectorCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="+ Картинка" Command="{Binding AddLaserRasterCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Контур', En='+ Profile'}" Command="{Binding AddProfileCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Карман', En='+ Pocket'}" Command="{Binding AddPocketCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Сверление', En='+ Drill'}" Command="{Binding AddDrillCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Изоляция', En='+ Isolation'}" Command="{Binding AddIsolationCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" Command="{Binding AddVCarveCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Текст', En='+ Text'}" Command="{Binding AddTextCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Лазер', En='+ Laser'}" Command="{Binding AddLaserVectorCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Картинка', En='+ Picture'}" Command="{Binding AddLaserRasterCommand}" />
                 <Separator />
-                <Button Style="{StaticResource ToolBarButton}" Content="Выбрать окружности" Command="{Binding SelectCirclesCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="Показать всё" Command="{Binding ZoomToFitCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Выбрать окружности', En='Select circles'}" Command="{Binding SelectCirclesCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Показать всё', En='Zoom to fit'}" Command="{Binding ZoomToFitCommand}" />
                 <Separator />
-                <Button Style="{StaticResource ToolBarButton}" Content="Экспорт G-code" FontWeight="SemiBold" Command="{Binding ExportGcodeCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Экспорт G-code', En='Export G-code'}" FontWeight="SemiBold" Command="{Binding ExportGcodeCommand}" />
             </ToolBar>
         </ToolBarTray>
 
@@ -633,8 +650,8 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TabControl Grid.Column="0" Background="{StaticResource PanelBrush}">
-                <TabItem Header="Операции">
+            <TabControl Grid.Column="0" Background="{DynamicResource PanelBrush}">
+                <TabItem Header="{l:Tr 'Операции', En='Operations'}">
                     <Grid Margin="6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -643,15 +660,15 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <WrapPanel Grid.Row="0">
-                            <Button Content="+ Контур" Command="{Binding AddProfileCommand}" />
-                            <Button Content="+ Карман" Command="{Binding AddPocketCommand}" />
-                            <Button Content="+ Сверление" Command="{Binding AddDrillCommand}" />
-                            <Button Content="+ Изоляция" Command="{Binding AddIsolationCommand}" />
-                            <Button Content="+ V-карвинг" Command="{Binding AddVCarveCommand}" />
-                            <Button Content="+ Лазер" Command="{Binding AddLaserVectorCommand}" />
-                            <Button Content="+ Картинка" Command="{Binding AddLaserRasterCommand}" />
-                            <Button Content="+ Рельеф (картинка)" Command="{Binding AddImageReliefCommand}" />
-                            <Button Content="+ Рельеф (STL)" Command="{Binding ImportStlCommand}" />
+                            <Button Content="{l:Tr '+ Контур', En='+ Profile'}" Command="{Binding AddProfileCommand}" />
+                            <Button Content="{l:Tr '+ Карман', En='+ Pocket'}" Command="{Binding AddPocketCommand}" />
+                            <Button Content="{l:Tr '+ Сверление', En='+ Drill'}" Command="{Binding AddDrillCommand}" />
+                            <Button Content="{l:Tr '+ Изоляция', En='+ Isolation'}" Command="{Binding AddIsolationCommand}" />
+                            <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" Command="{Binding AddVCarveCommand}" />
+                            <Button Content="{l:Tr '+ Лазер', En='+ Laser'}" Command="{Binding AddLaserVectorCommand}" />
+                            <Button Content="{l:Tr '+ Картинка', En='+ Picture'}" Command="{Binding AddLaserRasterCommand}" />
+                            <Button Content="{l:Tr '+ Рельеф (картинка)', En='+ Relief (picture)'}" Command="{Binding AddImageReliefCommand}" />
+                            <Button Content="{l:Tr '+ Рельеф (STL)', En='+ Relief (STL)'}" Command="{Binding ImportStlCommand}" />
                         </WrapPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Operations}" SelectedItem="{Binding SelectedOperation}">
                             <ListBox.ItemTemplate>
@@ -660,16 +677,16 @@
                                         <CheckBox IsChecked="{Binding Enabled}" Margin="0,0,6,0" />
                                         <StackPanel>
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding Summary}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                            <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
                                         </StackPanel>
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
                         <WrapPanel Grid.Row="2" Margin="0,4,0,0">
-                            <Button Content="▲" ToolTip="Выше" Command="{Binding MoveOperationUpCommand}" />
-                            <Button Content="▼" ToolTip="Ниже" Command="{Binding MoveOperationDownCommand}" />
-                            <Button Content="Удалить" Command="{Binding RemoveOperationCommand}" />
+                            <Button Content="▲" ToolTip="{l:Tr 'Выше', En='Up'}" Command="{Binding MoveOperationUpCommand}" />
+                            <Button Content="▼" ToolTip="{l:Tr 'Ниже', En='Down'}" Command="{Binding MoveOperationDownCommand}" />
+                            <Button Content="{l:Tr 'Удалить', En='Delete'}" Command="{Binding RemoveOperationCommand}" />
                         </WrapPanel>
                         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                             <ContentControl Content="{Binding SelectedOperation}" Margin="0,0,6,0" />
@@ -677,25 +694,25 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem Header="Слои">
+                <TabItem Header="{l:Tr 'Слои', En='Layers'}">
                     <DockPanel Margin="6">
                         <WrapPanel DockPanel.Dock="Top">
-                            <Button Content="Показать все" Command="{Binding ShowAllLayersCommand}" />
-                            <Button Content="Добавить чертёж…" Command="{Binding AddDrawingCommand}" />
+                            <Button Content="{l:Tr 'Показать все', En='Show all'}" Command="{Binding ShowAllLayersCommand}" />
+                            <Button Content="{l:Tr 'Добавить чертёж…', En='Add drawing…'}" Command="{Binding AddDrawingCommand}" />
                         </WrapPanel>
-                        <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                                   Text="Скрытые слои не показываются и не выделяются. «Выделить» заменяет выделение, «+» добавляет к нему." />
+                        <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="{l:Tr 'Скрытые слои не показываются и не выделяются. «Выделить» заменяет выделение, «+» добавляет к нему.', En='Hidden layers are neither shown nor selected. “Select” replaces the selection, “+” adds to it.'}" />
                         <ListBox ItemsSource="{Binding Layers}" HorizontalContentAlignment="Stretch">
                             <ListBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:LayerViewModel}">
                                     <DockPanel>
-                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="+" ToolTip="Добавить к выделению"
+                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="+" ToolTip="{l:Tr 'Добавить к выделению', En='Add to selection'}"
                                                 Command="{Binding DataContext.AddLayerToSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" />
-                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="Выделить"
+                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="{l:Tr 'Выделить', En='Select'}"
                                                 Command="{Binding DataContext.SelectLayerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" />
-                                        <CheckBox IsChecked="{Binding IsVisible}" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="Видимость" />
+                                        <CheckBox IsChecked="{Binding IsVisible}" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="{l:Tr 'Видимость', En='Visibility'}" />
                                         <TextBlock Text="{Binding Display}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                     </DockPanel>
                                 </DataTemplate>
@@ -704,7 +721,7 @@
                     </DockPanel>
                 </TabItem>
 
-                <TabItem Header="Текст">
+                <TabItem Header="{l:Tr 'Текст', En='Text'}">
                     <Grid Margin="6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -713,13 +730,13 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <WrapPanel Grid.Row="0">
-                            <Button Content="+ Текст" Command="{Binding AddTextCommand}" />
-                            <Button Content="Удалить" Command="{Binding RemoveTextCommand}" />
-                            <Button Content="Выделить буквы" Command="{Binding SelectTextContoursCommand}" />
-                            <Button Content="+ V-карвинг" Command="{Binding AddVCarveCommand}" />
+                            <Button Content="{l:Tr '+ Текст', En='+ Text'}" Command="{Binding AddTextCommand}" />
+                            <Button Content="{l:Tr 'Удалить', En='Delete'}" Command="{Binding RemoveTextCommand}" />
+                            <Button Content="{l:Tr 'Выделить буквы', En='Select letters'}" Command="{Binding SelectTextContoursCommand}" />
+                            <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" Command="{Binding AddVCarveCommand}" />
                         </WrapPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Texts}" SelectedItem="{Binding SelectedText}" DisplayMemberPath="Display" />
-                        <TextBlock Grid.Row="2" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                        <TextBlock Grid.Row="2" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                                    Text="{Binding FontScanStatus}" />
                         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                             <ContentControl Content="{Binding SelectedText}" Margin="0,0,6,0" />
@@ -727,24 +744,24 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem Header="Пульт">
+                <TabItem Header="{l:Tr 'Пульт', En='Control'}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="6,6,12,6" DataContext="{Binding Control}">
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Подключение (GRBL)" Margin="0,0,0,4" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Подключение (GRBL)', En='Connection (GRBL)'}" Margin="0,0,0,4" />
                             <DockPanel Margin="0,0,0,3">
-                                <Button DockPanel.Dock="Right" Content="↻" ToolTip="Обновить список портов" Padding="8,0"
+                                <Button DockPanel.Dock="Right" Content="↻" ToolTip="{l:Tr 'Обновить список портов', En='Refresh the port list'}" Padding="8,0"
                                         Command="{Binding RefreshPortsCommand}" IsEnabled="{Binding IsDisconnected}" />
                                 <ComboBox Width="90" DockPanel.Dock="Right" Margin="4,0" ItemsSource="{Binding BaudRates}"
-                                          SelectedItem="{Binding BaudRate}" IsEnabled="{Binding IsDisconnected}" ToolTip="Скорость порта (обычно 115200)" />
+                                          SelectedItem="{Binding BaudRate}" IsEnabled="{Binding IsDisconnected}" ToolTip="{l:Tr 'Скорость порта (обычно 115200)', En='Port speed (usually 115200)'}" />
                                 <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}" IsEnabled="{Binding IsDisconnected}" />
                             </DockPanel>
                             <WrapPanel>
-                                <Button Content="Подключить" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsDisconnected}" />
-                                <Button Content="Отключить" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}" />
+                                <Button Content="{l:Tr 'Подключить', En='Connect'}" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsDisconnected}" />
+                                <Button Content="{l:Tr 'Отключить', En='Disconnect'}" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}" />
                             </WrapPanel>
-                            <TextBlock Text="{Binding VersionText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                            <TextBlock Text="{Binding VersionText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Состояние" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Состояние', En='State'}" />
                             <TextBlock Text="{Binding StateText}" FontWeight="SemiBold" FontSize="14">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -775,18 +792,18 @@
                                     <TextBlock Text="{Binding WorkZ}" FontSize="18" FontFamily="Consolas" />
                                 </StackPanel>
                             </Grid>
-                            <TextBlock Text="{Binding MachineText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
-                            <TextBlock Text="{Binding FeedText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                            <TextBlock Text="{Binding MachineText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
+                            <TextBlock Text="{Binding FeedText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="Разблокировать" ToolTip="$X — снять аварию (проверьте, что станок ни во что не упёрся)"
+                                <Button Content="{l:Tr 'Разблокировать', En='Unlock'}" ToolTip="{l:Tr '$X — снять аварию (проверьте, что станок ни во что не упёрся)', En='$X — clear the alarm (make sure the machine is not jammed)'}"
                                         Command="{Binding UnlockCommand}" IsEnabled="{Binding CanControl}" />
-                                <Button Content="Домой" ToolTip="$H — поиск дома (только если есть концевики и $22=1)"
+                                <Button Content="{l:Tr 'Домой', En='Home'}" ToolTip="{l:Tr '$H — поиск дома (только если есть концевики и $22=1)', En='$H — homing (only with limit switches and $22=1)'}"
                                         Command="{Binding HomeCommand}" IsEnabled="{Binding CanControl}" />
-                                <Button Content="Сброс" ToolTip="Ctrl-X — немедленный сброс контроллера (во время движения положение может сбиться)"
+                                <Button Content="{l:Tr 'Сброс', En='Reset'}" ToolTip="{l:Tr 'Ctrl-X — немедленный сброс контроллера (во время движения положение может сбиться)', En='Ctrl-X — immediate controller reset (the position may be lost while moving)'}"
                                         Command="{Binding SoftResetCommand}" IsEnabled="{Binding IsConnected}" />
                             </WrapPanel>
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Перемещение" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Перемещение', En='Jog'}" />
                             <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -794,9 +811,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Шаг, мм" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBlock Grid.Column="0" Text="{l:Tr 'Шаг, мм', En='Step, mm'}" VerticalAlignment="Center" Margin="0,0,4,0" />
                                 <ComboBox Grid.Column="1" ItemsSource="{Binding JogSteps}" SelectedItem="{Binding JogStep}" />
-                                <TextBlock Grid.Column="2" Text="Подача XY / Z" VerticalAlignment="Center" Margin="8,0,4,0" />
+                                <TextBlock Grid.Column="2" Text="{l:Tr 'Подача XY / Z', En='Feed XY / Z'}" VerticalAlignment="Center" Margin="8,0,4,0" />
                                 <StackPanel Grid.Column="3" Orientation="Horizontal">
                                     <TextBox Width="50" Text="{Binding JogFeed}" />
                                     <TextBox Width="45" Margin="2,0,0,0" Text="{Binding JogFeedZ}" />
@@ -825,21 +842,21 @@
                                 </Grid.RowDefinitions>
                                 <Button Grid.Row="0" Grid.Column="1" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+" />
                                 <Button Grid.Row="1" Grid.Column="0" Content="X−" Command="{Binding JogCommand}" CommandParameter="X-" />
-                                <Button Grid.Row="1" Grid.Column="1" Content="■" ToolTip="Остановить перемещение" Command="{Binding JogCancelCommand}" />
+                                <Button Grid.Row="1" Grid.Column="1" Content="■" ToolTip="{l:Tr 'Остановить перемещение', En='Stop jogging'}" Command="{Binding JogCancelCommand}" />
                                 <Button Grid.Row="1" Grid.Column="2" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+" />
                                 <Button Grid.Row="2" Grid.Column="1" Content="Y−" Command="{Binding JogCommand}" CommandParameter="Y-" />
                                 <Button Grid.Row="0" Grid.Column="4" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+" />
                                 <Button Grid.Row="2" Grid.Column="4" Content="Z−" Command="{Binding JogCommand}" CommandParameter="Z-" />
                             </Grid>
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Ноль заготовки" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Ноль заготовки', En='Work zero'}" />
                             <WrapPanel IsEnabled="{Binding CanControl}">
                                 <Button Content="X0" Command="{Binding ZeroCommand}" CommandParameter="X" />
                                 <Button Content="Y0" Command="{Binding ZeroCommand}" CommandParameter="Y" />
                                 <Button Content="Z0" Command="{Binding ZeroCommand}" CommandParameter="Z" />
                                 <Button Content="X0 Y0" Command="{Binding ZeroCommand}" CommandParameter="XY" />
-                                <Button Content="Все" Command="{Binding ZeroCommand}" CommandParameter="XYZ" />
-                                <Button Content="К нулю X Y" ToolTip="Подняться на безопасную высоту и переехать в X0 Y0" Command="{Binding GoToZeroCommand}" />
+                                <Button Content="{l:Tr 'Все', En='All'}" Command="{Binding ZeroCommand}" CommandParameter="XYZ" />
+                                <Button Content="{l:Tr 'К нулю X Y', En='Go to X0 Y0'}" ToolTip="{l:Tr 'Подняться на безопасную высоту и переехать в X0 Y0', En='Rise to the safe height and move to X0 Y0'}" Command="{Binding GoToZeroCommand}" />
                             </WrapPanel>
                             <Grid Margin="0,4,0,0" IsEnabled="{Binding CanControl}">
                                 <Grid.ColumnDefinitions>
@@ -851,18 +868,18 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="Щуп: толщина пластины, мм" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="0" Text="{l:Tr 'Щуп: толщина пластины, мм', En='Probe: plate thickness, mm'}" VerticalAlignment="Center" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Width="60" Text="{Binding ProbePlate}" />
-                                <TextBlock Grid.Row="1" Text="Ход вниз, мм / подача, мм/мин" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="1" Text="{l:Tr 'Ход вниз, мм / подача, мм/мин', En='Travel down, mm / feed, mm/min'}" VerticalAlignment="Center" />
                                 <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
                                     <TextBox Width="40" Text="{Binding ProbeTravel}" />
                                     <TextBox Width="40" Margin="2,0,0,0" Text="{Binding ProbeFeed}" />
                                 </StackPanel>
-                                <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="Найти Z щупом"
-                                        ToolTip="G38.2: опускание до касания пластины, затем Z0 на поверхности заготовки" Command="{Binding ProbeZCommand}" />
+                                <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="{l:Tr 'Найти Z щупом', En='Probe Z'}"
+                                        ToolTip="{l:Tr 'G38.2: опускание до касания пластины, затем Z0 на поверхности заготовки', En='G38.2: lower until the plate is touched, then Z0 on the stock surface'}" Command="{Binding ProbeZCommand}" />
                             </Grid>
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Карта высот (платы)" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Карта высот (платы)', En='Height map (PCB)'}" />
                             <Grid IsEnabled="{Binding IsConnected}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -876,41 +893,41 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="X от / до" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBlock Grid.Row="0" Text="{l:Tr 'X от / до', En='X from / to'}" VerticalAlignment="Center" Margin="0,0,4,0" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LevelMinX}" />
                                 <TextBox Grid.Row="0" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelMaxX}" />
-                                <Button Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="4,0,0,0" Content="Из программы"
-                                        ToolTip="Область всех резов проекта + 1 мм" Command="{Binding LevelAreaFromProgramCommand}" />
-                                <TextBlock Grid.Row="1" Text="Y от / до" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <Button Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="4,0,0,0" Content="{l:Tr 'Из программы', En='From program'}"
+                                        ToolTip="{l:Tr 'Область всех резов проекта + 1 мм', En='Area of all cuts of the project + 1 mm'}" Command="{Binding LevelAreaFromProgramCommand}" />
+                                <TextBlock Grid.Row="1" Text="{l:Tr 'Y от / до', En='Y from / to'}" VerticalAlignment="Center" Margin="0,0,4,0" />
                                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LevelMinY}" />
                                 <TextBox Grid.Row="1" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelMaxY}" />
-                                <TextBlock Grid.Row="2" Text="Шаг / подача" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LevelStep}" ToolTip="Расстояние между точками, мм (5–15)" />
-                                <TextBox Grid.Row="2" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelFeed}" ToolTip="Скорость щупа, мм/мин" />
-                                <TextBlock Grid.Row="3" Text="Подъём / глубина" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding LevelClearance}" ToolTip="Высота переездов между точками, мм" />
-                                <TextBox Grid.Row="3" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelDepth}" ToolTip="Насколько ниже Z0 искать поверхность, мм" />
+                                <TextBlock Grid.Row="2" Text="{l:Tr 'Шаг / подача', En='Step / feed'}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LevelStep}" ToolTip="{l:Tr 'Расстояние между точками, мм (5–15)', En='Distance between points, mm (5–15)'}" />
+                                <TextBox Grid.Row="2" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelFeed}" ToolTip="{l:Tr 'Скорость щупа, мм/мин', En='Probe speed, mm/min'}" />
+                                <TextBlock Grid.Row="3" Text="{l:Tr 'Подъём / глубина', En='Clearance / depth'}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding LevelClearance}" ToolTip="{l:Tr 'Высота переездов между точками, мм', En='Travel height between points, mm'}" />
+                                <TextBox Grid.Row="3" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelDepth}" ToolTip="{l:Tr 'Насколько ниже Z0 искать поверхность, мм', En='How far below Z0 to search for the surface, mm'}" />
                             </Grid>
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="Снять карту" Command="{Binding ProbeMapCommand}" IsEnabled="{Binding CanControl}" />
-                                <Button Content="Удалить карту" Command="{Binding ClearMapCommand}" IsEnabled="{Binding HasLevelingMap}" />
+                                <Button Content="{l:Tr 'Снять карту', En='Probe map'}" Command="{Binding ProbeMapCommand}" IsEnabled="{Binding CanControl}" />
+                                <Button Content="{l:Tr 'Удалить карту', En='Delete map'}" Command="{Binding ClearMapCommand}" IsEnabled="{Binding HasLevelingMap}" />
                             </WrapPanel>
-                            <TextBlock Text="{Binding LevelingText}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                            <TextBlock Text="{Binding LevelingText}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" />
                             <TextBlock Text="{Binding LevelingTable}" FontFamily="Consolas" FontSize="11" Margin="0,2" />
-                            <CheckBox Content="Учитывать карту высот при запуске" IsChecked="{Binding UseLeveling}" IsEnabled="{Binding HasLevelingMap}"
-                                      ToolTip="Каждая линия делится на отрезки по 1 мм, к Z добавляется высота платы в этой точке" />
+                            <CheckBox Content="{l:Tr 'Учитывать карту высот при запуске', En='Apply the height map when running'}" IsChecked="{Binding UseLeveling}" IsEnabled="{Binding HasLevelingMap}"
+                                      ToolTip="{l:Tr 'Каждая линия делится на отрезки по 1 мм, к Z добавляется высота платы в этой точке', En='Every line is split into 1 mm segments, the board height at that point is added to Z'}" />
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Программа" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Программа', En='Program'}" />
                             <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="Файл…" ToolTip="Запустить готовый файл G-code" Command="{Binding LoadFileCommand}" />
-                                <Button DockPanel.Dock="Right" Content="Проект" ToolTip="Запускать G-code текущего проекта" Command="{Binding UseProjectCommand}" />
+                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Файл…', En='File…'}" ToolTip="{l:Tr 'Запустить готовый файл G-code', En='Run an existing G-code file'}" Command="{Binding LoadFileCommand}" />
+                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Проект', En='Project'}" ToolTip="{l:Tr 'Запускать G-code текущего проекта', En='Run the G-code of the current project'}" Command="{Binding UseProjectCommand}" />
                                 <TextBlock VerticalAlignment="Center" Text="{Binding ProgramSource}" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="▶ Старт" FontWeight="SemiBold" Command="{Binding StartJobCommand}" IsEnabled="{Binding CanStartJob}" />
-                                <Button Content="❚❚ Пауза" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" />
-                                <Button Content="Продолжить" Command="{Binding ResumeCommand}" IsEnabled="{Binding CanResume}" />
-                                <Button Content="■ Стоп" Command="{Binding StopCommand}" IsEnabled="{Binding IsJobActive}" />
+                                <Button Content="{l:Tr '▶ Старт', En='▶ Start'}" FontWeight="SemiBold" Command="{Binding StartJobCommand}" IsEnabled="{Binding CanStartJob}" />
+                                <Button Content="{l:Tr '❚❚ Пауза', En='❚❚ Pause'}" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" />
+                                <Button Content="{l:Tr 'Продолжить', En='Resume'}" Command="{Binding ResumeCommand}" IsEnabled="{Binding CanResume}" />
+                                <Button Content="{l:Tr '■ Стоп', En='■ Stop'}" Command="{Binding StopCommand}" IsEnabled="{Binding IsJobActive}" />
                             </WrapPanel>
                             <ProgressBar Height="12" Margin="0,4" Maximum="100" Value="{Binding Progress}" />
                             <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" FontSize="11" />
@@ -926,22 +943,22 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="Подача" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="0" Text="{l:Tr 'Подача', En='Feed'}" VerticalAlignment="Center" />
                                 <Button Grid.Row="0" Grid.Column="1" Content="−10 %" Command="{Binding FeedOverrideCommand}" CommandParameter="-" />
                                 <Button Grid.Row="0" Grid.Column="2" Content="100 %" Command="{Binding FeedOverrideCommand}" CommandParameter="0" />
                                 <Button Grid.Row="0" Grid.Column="3" Content="+10 %" Command="{Binding FeedOverrideCommand}" CommandParameter="+" />
-                                <TextBlock Grid.Row="1" Text="Шпиндель" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="1" Text="{l:Tr 'Шпиндель', En='Spindle'}" VerticalAlignment="Center" />
                                 <Button Grid.Row="1" Grid.Column="1" Content="−10 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="-" />
                                 <Button Grid.Row="1" Grid.Column="2" Content="100 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="0" />
                                 <Button Grid.Row="1" Grid.Column="3" Content="+10 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="+" />
                             </Grid>
-                            <TextBlock Text="{Binding OverridesText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                            <TextBlock Text="{Binding OverridesText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Консоль" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Консоль', En='Console'}" />
                             <DockPanel IsEnabled="{Binding IsConnected}">
-                                <Button DockPanel.Dock="Right" Content="Отправить" Command="{Binding SendConsoleCommand}" />
+                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Отправить', En='Send'}" Command="{Binding SendConsoleCommand}" />
                                 <TextBox Text="{Binding ConsoleInput, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"
-                                         ToolTip="Команда GRBL, например $$ (настройки), $G (режимы), $I (версия)">
+                                         ToolTip="{l:Tr 'Команда GRBL, например $$ (настройки), $G (режимы), $I (версия)', En='GRBL command, e.g. $$ (settings), $G (modes), $I (version)'}">
                                     <TextBox.InputBindings>
                                         <KeyBinding Key="Enter" Command="{Binding SendConsoleCommand}" />
                                     </TextBox.InputBindings>
@@ -952,7 +969,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="Инструменты">
+                <TabItem Header="{l:Tr 'Инструменты', En='Tools'}">
                     <Grid Margin="6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -961,13 +978,13 @@
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0">
                             <DockPanel Margin="0,0,0,4">
-                                <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Добавить" Command="{Binding AddToolFromPresetCommand}" />
-                                <ComboBox ItemsSource="{Binding ToolPresetList}" SelectedItem="{Binding SelectedToolPreset}"
-                                          DisplayMemberPath="Display" ToolTip="Пресеты для CNC 3018 (шпиндель ~10 000 об/мин)" />
+                                <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Добавить', En='Add'}" Command="{Binding AddToolFromPresetCommand}" />
+                                <ComboBox ItemsSource="{Binding ToolPresetOptions}" SelectedValue="{Binding SelectedToolPreset}"
+                                          DisplayMemberPath="Label" SelectedValuePath="Value" ToolTip="{l:Tr 'Пресеты для CNC 3018 (шпиндель ~10 000 об/мин)', En='Presets for a CNC 3018 (spindle ~10,000 rpm)'}" />
                             </DockPanel>
                             <WrapPanel>
-                                <Button Content="+ Пустой" Command="{Binding AddToolCommand}" />
-                                <Button Content="Удалить" Command="{Binding RemoveToolCommand}" />
+                                <Button Content="{l:Tr '+ Пустой', En='+ Empty'}" Command="{Binding AddToolCommand}" />
+                                <Button Content="{l:Tr 'Удалить', En='Delete'}" Command="{Binding RemoveToolCommand}" />
                             </WrapPanel>
                         </StackPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Tools}" SelectedItem="{Binding SelectedTool}" DisplayMemberPath="Display" />
@@ -977,18 +994,18 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem Header="Станок">
+                <TabItem Header="{l:Tr 'Станок', En='Machine'}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="6">
-                            <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,4" Text="Профиль станка" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,4" Text="{l:Tr 'Профиль станка', En='Machine profile'}" />
                             <DockPanel>
-                                <Button DockPanel.Dock="Right" Margin="4,3,0,3" Content="Применить" Command="{Binding ApplyProfileCommand}" />
-                                <ComboBox ItemsSource="{Binding Machine.Profiles}" SelectedItem="{Binding SelectedProfile}" DisplayMemberPath="Name" />
+                                <Button DockPanel.Dock="Right" Margin="4,3,0,3" Content="{l:Tr 'Применить', En='Apply'}" Command="{Binding ApplyProfileCommand}" />
+                                <ComboBox ItemsSource="{Binding ProfileOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding SelectedProfile}" />
                             </DockPanel>
-                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="{Binding SelectedProfile.Description}" />
-                            <TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Machine.ProfileName, StringFormat='Сейчас: {0}'}" />
+                            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}" Text="{Binding SelectedProfile.Description}" />
+                            <TextBlock Foreground="{DynamicResource MutedTextBrush}"><Run Text="{l:Tr 'Сейчас:', En='Current:'}" /> <Run Text="{Binding Machine.ProfileName, Mode=OneWay}" /></TextBlock>
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Заготовка и ноль" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Заготовка и ноль', En='Stock and zero'}" />
                             <Grid DataContext="{Binding Stock}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="170" />
@@ -999,19 +1016,19 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Толщина заготовки, мм" />
+                                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Толщина заготовки, мм', En='Stock thickness, mm'}" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Thickness}" />
-                                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Ноль X/Y" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ноль X/Y', En='Zero X/Y'}" />
                                 <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:Choices.Origins}"
                                           DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Origin}" />
-                                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Ноль Z" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ноль Z', En='Zero Z'}" />
                                 <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ZeroLevels}"
                                           DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding ZeroAtBottom}" />
                             </Grid>
-                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                                       Text="Ноль X/Y берётся от габарита всего чертежа. На станке выставьте ноль фрезы в эту точку." />
+                            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="{l:Tr 'Ноль X/Y берётся от габарита всего чертежа. На станке выставьте ноль фрезы в эту точку.', En='Zero X/Y is taken from the bounds of the whole drawing. Set the tool zero at this point on the machine.'}" />
 
-                            <TextBlock Style="{StaticResource SectionHeader}" Text="Станок и G-code" />
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Станок и G-code', En='Machine and G-code'}" />
                             <Grid DataContext="{Binding Machine}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="170" />
@@ -1037,43 +1054,43 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Формат G-code" />
+                                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Формат G-code', En='G-code format'}" />
                                 <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.Dialects}"
                                           DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Dialect}" />
-                                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Макс. обороты, об/мин" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Макс. обороты, об/мин', En='Max spindle speed, rpm'}" />
                                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SpindleMaxRpm}" />
-                                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="S при макс. оборотах" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'S при макс. оборотах', En='S at max speed'}" />
                                 <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SpindleMaxS}"
-                                         ToolTip="GRBL: значение $30 (обычно 1000). 0 — писать обороты как есть." />
-                                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Макс. подача, мм/мин" />
-                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxFeedRate}" ToolTip="0 — не проверять" />
-                                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Рабочее поле X, мм" />
-                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding WorkAreaX}" ToolTip="0 — не проверять" />
-                                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Рабочее поле Y, мм" />
+                                         ToolTip="{l:Tr 'GRBL: значение $30 (обычно 1000). 0 — писать обороты как есть.', En='GRBL: the $30 value (usually 1000). 0 — write the speed as is.'}" />
+                                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Макс. подача, мм/мин', En='Max feed, mm/min'}" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxFeedRate}" ToolTip="{l:Tr '0 — не проверять', En='0 — do not check'}" />
+                                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Рабочее поле X, мм', En='Work area X, mm'}" />
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding WorkAreaX}" ToolTip="{l:Tr '0 — не проверять', En='0 — do not check'}" />
+                                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Рабочее поле Y, мм', En='Work area Y, mm'}" />
                                 <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding WorkAreaY}" />
-                                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Ход Z, мм" />
+                                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ход Z, мм', En='Z travel, mm'}" />
                                 <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding WorkAreaZ}" />
-                                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Безопасная высота, мм" />
-                                <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding SafeZ}" ToolTip="Над верхом заготовки" />
-                                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Подход к заготовке, мм" />
+                                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Безопасная высота, мм', En='Safe height, mm'}" />
+                                <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding SafeZ}" ToolTip="{l:Tr 'Над верхом заготовки', En='Above the stock top'}" />
+                                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Подход к заготовке, мм', En='Approach clearance, mm'}" />
                                 <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding ApproachClearance}" />
-                                <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Холостой ход, мм/мин" />
-                                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding RapidRate}" ToolTip="Только для оценки времени" />
-                                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="Знаков после запятой" />
+                                <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Холостой ход, мм/мин', En='Rapid rate, mm/min'}" />
+                                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding RapidRate}" ToolTip="{l:Tr 'Только для оценки времени', En='Only for the time estimate'}" />
+                                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Знаков после запятой', En='Decimal places'}" />
                                 <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding DecimalPlaces}" />
-                                <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="Пауза после M3, с" />
+                                <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Пауза после M3, с', En='Dwell after M3, s'}" />
                                 <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding SpindleDelaySeconds}" />
-                                <CheckBox Grid.Row="12" Grid.Column="1" Content="Автосмена инструмента (Tn M6)" IsChecked="{Binding UseToolChange}"
-                                          ToolTip="Не для GRBL: там смена инструмента — пауза M0" />
+                                <CheckBox Grid.Row="12" Grid.Column="1" Content="{l:Tr 'Автосмена инструмента (Tn M6)', En='Automatic tool change (Tn M6)'}" IsChecked="{Binding UseToolChange}"
+                                          ToolTip="{l:Tr 'Не для GRBL: там смена инструмента — пауза M0', En='Not for GRBL: there a tool change is an M0 pause'}" />
                                 <StackPanel Grid.Row="13" Grid.Column="1">
-                                    <CheckBox Content="В конце вернуться в X0 Y0" IsChecked="{Binding ReturnToOrigin}" />
-                                    <CheckBox Content="Дуги G2/G3 вместо коротких отрезков" IsChecked="{Binding UseArcs}"
-                                              ToolTip="Файл короче, движение плавнее. Нужны 3 знака после запятой." />
+                                    <CheckBox Content="{l:Tr 'В конце вернуться в X0 Y0', En='Return to X0 Y0 at the end'}" IsChecked="{Binding ReturnToOrigin}" />
+                                    <CheckBox Content="{l:Tr 'Дуги G2/G3 вместо коротких отрезков', En='G2/G3 arcs instead of short segments'}" IsChecked="{Binding UseArcs}"
+                                              ToolTip="{l:Tr 'Файл короче, движение плавнее. Нужны 3 знака после запятой.', En='Shorter file, smoother motion. Needs 3 decimal places.'}" />
                                 </StackPanel>
-                                <TextBlock Grid.Row="14" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="Свои строки в начале программы" />
+                                <TextBlock Grid.Row="14" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="{l:Tr 'Свои строки в начале программы', En='Custom lines at the program start'}" />
                                 <TextBox Grid.Row="15" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
                                          VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Text="{Binding Header}" />
-                                <TextBlock Grid.Row="16" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="Свои строки в конце программы" />
+                                <TextBlock Grid.Row="16" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="{l:Tr 'Свои строки в конце программы', En='Custom lines at the program end'}" />
                                 <TextBox Grid.Row="17" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
                                          VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Text="{Binding Footer}" />
                             </Grid>
@@ -1082,7 +1099,7 @@
                 </TabItem>
             </TabControl>
 
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrushLight}" />
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrushLight}" />
 
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
@@ -1091,7 +1108,7 @@
                     <RowDefinition Height="200" MinHeight="80" />
                 </Grid.RowDefinitions>
                 <TabControl Grid.Row="0" Padding="0">
-                    <TabItem Header="Чертёж (2D)">
+                    <TabItem Header="{l:Tr 'Чертёж (2D)', En='Drawing (2D)'}">
                         <Grid>
                             <controls:CamViewport x:Name="Viewport"
                                                   Scene="{Binding Scene}"
@@ -1099,30 +1116,30 @@
                                                   ContourClickCommand="{Binding ContourClickedCommand}"
                                                   CursorText="{Binding CursorText, Mode=OneWayToSource}" />
                             <TextBlock Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#8A939E" IsHitTestVisible="False"
-                                       Text="Колесо — масштаб · перетаскивание — сдвиг · клик — выбор контура (Ctrl — добавить) · Home — показать всё · крестик — ноль X0 Y0" />
+                                       Text="{l:Tr 'Колесо — масштаб · перетаскивание — сдвиг · клик — выбор контура (Ctrl — добавить) · Home — показать всё · крестик — ноль X0 Y0', En='Wheel — zoom · drag — pan · click — select a contour (Ctrl — add) · Home — fit all · cross — zero X0 Y0'}" />
                         </Grid>
                     </TabItem>
-                    <TabItem Header="3D-симуляция" IsSelected="{Binding Simulation.IsActive, Mode=TwoWay}">
+                    <TabItem Header="{l:Tr '3D-симуляция', En='3D simulation'}" IsSelected="{Binding Simulation.IsActive, Mode=TwoWay}">
                         <DockPanel DataContext="{Binding Simulation}">
-                            <Border DockPanel.Dock="Bottom" Padding="6,4" Background="{StaticResource PanelBrush}">
+                            <Border DockPanel.Dock="Bottom" Padding="6,4" Background="{DynamicResource PanelBrush}">
                                 <StackPanel>
                                     <DockPanel>
-                                        <Button DockPanel.Dock="Left" Content="⏮" ToolTip="В начало" Command="{Binding ToStartCommand}" />
+                                        <Button DockPanel.Dock="Left" Content="⏮" ToolTip="{l:Tr 'В начало', En='To start'}" Command="{Binding ToStartCommand}" />
                                         <Button DockPanel.Dock="Left" MinWidth="80" Content="{Binding PlayLabel}" Command="{Binding PlayPauseCommand}" />
-                                        <Button DockPanel.Dock="Left" Content="⏭" ToolTip="Готовая деталь" Command="{Binding ToEndCommand}" />
+                                        <Button DockPanel.Dock="Left" Content="⏭" ToolTip="{l:Tr 'Готовая деталь', En='Finished part'}" Command="{Binding ToEndCommand}" />
                                         <ComboBox DockPanel.Dock="Left" Width="140" Margin="4,0" ItemsSource="{Binding Speeds}"
-                                                  DisplayMemberPath="Label" SelectedItem="{Binding SelectedSpeed}" ToolTip="Скорость воспроизведения" />
+                                                  DisplayMemberPath="Label" SelectedItem="{Binding SelectedSpeed}" ToolTip="{l:Tr 'Скорость воспроизведения', En='Playback speed'}" />
                                         <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding TimeText}" />
                                         <Slider Minimum="0" Maximum="1000" VerticalAlignment="Center" Value="{Binding Position}"
-                                                ToolTip="Перетащите, чтобы посмотреть заготовку в любой момент обработки" />
+                                                ToolTip="{l:Tr 'Перетащите, чтобы посмотреть заготовку в любой момент обработки', En='Drag to see the stock at any moment of machining'}" />
                                     </DockPanel>
                                     <DockPanel Margin="0,4,0,0">
-                                        <Button DockPanel.Dock="Right" Content="Пересчитать" Command="{Binding RebuildCommand}" />
+                                        <Button DockPanel.Dock="Right" Content="{l:Tr 'Пересчитать', En='Recalculate'}" Command="{Binding RebuildCommand}" />
                                         <ComboBox DockPanel.Dock="Right" Width="150" Margin="4,0" ItemsSource="{Binding Qualities}"
-                                                  DisplayMemberPath="Label" SelectedItem="{Binding SelectedQuality}" ToolTip="Точность сетки" />
+                                                  DisplayMemberPath="Label" SelectedItem="{Binding SelectedQuality}" ToolTip="{l:Tr 'Точность сетки', En='Grid accuracy'}" />
                                         <StackPanel>
                                             <TextBlock Text="{Binding OperationText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding StatsText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                            <TextBlock Text="{Binding StatsText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
                                         </StackPanel>
                                     </DockPanel>
                                     <ItemsControl ItemsSource="{Binding Issues}" Margin="0,2,0,0">
@@ -1137,18 +1154,18 @@
                             <Grid>
                                 <controls:SimulationView Frame="{Binding Frame}" />
                                 <TextBlock Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#8A939E" IsHitTestVisible="False"
-                                           Text="Левая кнопка — вращение · правая — сдвиг · колесо — масштаб · двойной клик — исходный вид" />
+                                           Text="{l:Tr 'Левая кнопка — вращение · правая — сдвиг · колесо — масштаб · двойной клик — исходный вид', En='Left button — rotate · right — pan · wheel — zoom · double click — default view'}" />
                             </Grid>
                         </DockPanel>
                     </TabItem>
                 </TabControl>
-                <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrushLight}" />
+                <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrushLight}" />
                 <TabControl Grid.Row="2">
                     <TabItem Header="G-code">
                         <TextBox Text="{Binding Gcode, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" Margin="0"
                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" VerticalContentAlignment="Top" />
                     </TabItem>
-                    <TabItem Header="Сообщения">
+                    <TabItem Header="{l:Tr 'Сообщения', En='Messages'}">
                         <ListBox ItemsSource="{Binding Messages}" />
                     </TabItem>
                 </TabControl>

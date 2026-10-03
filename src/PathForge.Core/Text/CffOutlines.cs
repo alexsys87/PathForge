@@ -1,4 +1,5 @@
 using PathForge.Core.Geometry;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Text;
 
@@ -26,7 +27,7 @@ internal sealed class CffOutlines
         var end = offset + length;
         if (length < 4 || data[offset] != 1)
         {
-            throw new FormatException("Неподдерживаемая версия таблицы CFF.");
+            throw new FormatException(Loc.T("Неподдерживаемая версия таблицы CFF.", "Unsupported CFF table version."));
         }
 
         var position = offset + data[offset + 2]; // header size
@@ -36,18 +37,18 @@ internal sealed class CffOutlines
         ReadIndex(position, out _globalSubrs);
         if (topDicts.Count == 0)
         {
-            throw new FormatException("В таблице CFF нет шрифта.");
+            throw new FormatException(Loc.T("В таблице CFF нет шрифта.", "The CFF table contains no font."));
         }
 
         var top = ReadDict(topDicts[0].Start, topDicts[0].End);
         if (top.TryGetValue(1206, out var charstringType) && charstringType[0] != 2)
         {
-            throw new NotSupportedException("Поддерживаются только контуры Type 2 (CFF).");
+            throw new NotSupportedException(Loc.T("Поддерживаются только контуры Type 2 (CFF).", "Only Type 2 (CFF) outlines are supported."));
         }
 
         if (!top.TryGetValue(17, out var charStringsOffset))
         {
-            throw new FormatException("В шрифте CFF нет контуров (CharStrings).");
+            throw new FormatException(Loc.T("В шрифте CFF нет контуров (CharStrings).", "The CFF font has no outlines (CharStrings)."));
         }
 
         ReadIndex(offset + (int)charStringsOffset[0], out _charStrings);
@@ -57,7 +58,7 @@ internal sealed class CffOutlines
             // CID-keyed: every glyph belongs to a font dictionary with its own private data.
             if (!top.TryGetValue(1236, out var fdArrayOffset) || !top.TryGetValue(1237, out var fdSelectOffset))
             {
-                throw new FormatException("В CID-шрифте нет FDArray/FDSelect.");
+                throw new FormatException(Loc.T("В CID-шрифте нет FDArray/FDSelect.", "The CID font has no FDArray/FDSelect."));
             }
 
             ReadIndex(offset + (int)fdArrayOffset[0], out var fontDicts);
@@ -136,7 +137,7 @@ internal sealed class CffOutlines
         }
         else
         {
-            throw new NotSupportedException($"Формат FDSelect {format} не поддерживается.");
+            throw new NotSupportedException(Loc.T($"Формат FDSelect {format} не поддерживается.", $"FDSelect format {format} is not supported."));
         }
 
         return result;

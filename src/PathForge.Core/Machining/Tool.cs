@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using PathForge.Core.Localization;
 
 namespace PathForge.Core.Machining;
 
@@ -23,7 +24,7 @@ public sealed class Tool
     /// <summary>Tool number used for tool changes (T word).</summary>
     public int Number { get; set; } = 1;
 
-    public string Name { get; set; } = "Фреза Ø3,175";
+    public string Name { get; set; } = Loc.T("Фреза Ø3,175", "End mill Ø3.175");
 
     public ToolKind Kind { get; set; } = ToolKind.EndMill;
 
