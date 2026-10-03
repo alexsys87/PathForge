@@ -1,0 +1,1096 @@
+<Window x:Class="PathForge.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PathForge.App.ViewModels"
+        xmlns:controls="clr-namespace:PathForge.App.Controls"
+        Title="{Binding Title}"
+        Width="1280" Height="800" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        AllowDrop="True">
+
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewProjectCommand}" />
+        <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenProjectCommand}" />
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveProjectCommand}" />
+        <KeyBinding Key="I" Modifiers="Control" Command="{Binding ImportDrawingCommand}" />
+        <KeyBinding Key="E" Modifiers="Control" Command="{Binding ExportGcodeCommand}" />
+        <KeyBinding Key="A" Modifiers="Control" Command="{Binding SelectAllCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding ClearSelectionCommand}" />
+        <KeyBinding Key="Home" Command="{Binding ZoomToFitCommand}" />
+    </Window.InputBindings>
+
+    <Window.Resources>
+        <!-- Shared fields of every operation -->
+        <DataTemplate x:Key="CommonOperationFields" DataType="{x:Type vm:OperationViewModel}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Название" />
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Grid.Row="1" Grid.Column="1" Content="Включена" IsChecked="{Binding Enabled}" />
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Инструмент" />
+                <ComboBox Grid.Row="2" Grid.Column="1"
+                          ItemsSource="{Binding DataContext.Tools, RelativeSource={RelativeSource AncestorType=Window}}"
+                          DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding ToolId}" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Глубина, мм" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Depth}" />
+                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Начало (Z), мм" />
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding StartZ}" />
+                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Контуры" />
+                <DockPanel Grid.Row="5" Grid.Column="1" Margin="0,3">
+                    <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Назначить выделенные"
+                            Command="{Binding DataContext.AssignSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <TextBlock VerticalAlignment="Center" Text="{Binding ContourCount, StringFormat='{}{0} шт.'}" />
+                </DockPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="EntryFields" DataType="{x:Type vm:OperationViewModel}">
+            <StackPanel>
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Врезание" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Способ" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.EntryModes}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Entry}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Угол рампы, °" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding RampAngle}" ToolTip="Для 3018: 2–5°" />
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:ProfileOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Контур" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Сторона" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ProfileSides}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Side}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Припуск, мм" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Allowance}" />
+                </Grid>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Перемычки (удерживают деталь)" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Количество" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding TabCount}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Ширина, мм" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding TabWidth}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Высота, мм" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TabHeight}" />
+                </Grid>
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Подвод и отвод" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Подвод" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.LeadModes}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Lead}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Радиус дуги, мм" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LeadRadius}" />
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                               Text="Фреза заходит на контур и уходит с него по касательной дуге со стороны отхода — без следа в месте врезания. Только для «Снаружи» и «Внутри»." />
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:VCarveOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="V-карвинг" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Шаг, мм" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding StepMm}" ToolTip="Меньше — чище середина буквы, но дольше расчёт. Обычно 0,05–0,1" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Шаг по дну, мм" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding FlatStepMm}" ToolTip="Расстояние между проходами на плоском дне; 0 — 80 % кончика фрезы" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
+                    <TextBlock Grid.Row="3" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                               Text="Нужна V-фреза. Глубина в каждой точке зависит от ширины буквы: края остаются острыми, по середине получается «V». «Глубина» ограничивает погружение — широкие места получают плоское дно. Шаг по глубине берётся из инструмента." />
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:TextItemViewModel}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Текст" VerticalAlignment="Top" />
+                <TextBox Grid.Row="0" Grid.Column="1" MinHeight="54" AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged, Delay=300}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Шрифт" />
+                <ComboBox Grid.Row="1" Grid.Column="1" IsTextSearchEnabled="True" TextSearch.TextPath="Name"
+                          ItemsSource="{Binding DataContext.Fonts, RelativeSource={RelativeSource AncestorType=Window}}"
+                          DisplayMemberPath="Name" SelectedItem="{Binding Font}">
+                    <ComboBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ComboBox.ItemsPanel>
+                </ComboBox>
+                <TextBlock Grid.Row="2" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="{Binding FontStatus}" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Высота букв, мм" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding HeightMm}" ToolTip="Высота заглавных букв" />
+                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="X, мм" />
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding X}" ToolTip="Начало базовой линии первой строки (в чертеже)" />
+                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Y, мм" />
+                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Y}" ToolTip="Базовая линия первой строки" />
+                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Выравнивание" />
+                <ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{x:Static vm:Choices.TextAlignments}"
+                          DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Alignment}" />
+                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Между буквами, мм" />
+                <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding LetterSpacing}" />
+                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Между строками, ×" />
+                <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding LineSpacing}" />
+                <CheckBox Grid.Row="9" Grid.Column="1" Content="Зеркально (низ платы, штамп)" IsChecked="{Binding Mirrored}" />
+                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="Слой" />
+                <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding Layer}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:PocketOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Карман" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Припуск, мм" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Allowance}" />
+                </Grid>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                           Text="Контуры внутри выбранных контуров становятся островами и не обрабатываются." />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:DrillOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Сверление" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Шаг, мм (0 — сразу)" />
+                    <TextBox Grid.Column="1" Text="{Binding PeckDepth}" />
+                </Grid>
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                           Text="Сверлится центр каждой выбранной окружности. Кнопка «Выбрать окружности» на панели инструментов выделяет их все." />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:IsolationOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Изоляция дорожек" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Проходов" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Passes}" ToolTip="Больше проходов — шире зазор вокруг меди" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Перекрытие, %" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OverlapPercent}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Фрезерование" />
+                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" />
+                </Grid>
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                           Text="Выберите контуры меди (слой Gerber). Глубина для текстолита обычно 0,05–0,1 мм; ширина реза гравёра зависит от глубины. Неровность заготовки компенсируйте картой высот в Candle." />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Laser operations have no depth: name, tool and focus height only -->
+        <DataTemplate x:Key="LaserCommonFields" DataType="{x:Type vm:OperationViewModel}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Название" />
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Grid.Row="1" Grid.Column="1" Content="Включена" IsChecked="{Binding Enabled}" />
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Инструмент" />
+                <ComboBox Grid.Row="2" Grid.Column="1"
+                          ItemsSource="{Binding DataContext.Tools, RelativeSource={RelativeSource AncestorType=Window}}"
+                          DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding ToolId}" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Фокус Z, мм" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding StartZ}" ToolTip="0 — фокус выставлен на поверхности" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:LaserVectorOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource LaserCommonFields}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Контуры" />
+                    <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,3">
+                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Назначить выделенные"
+                                Command="{Binding DataContext.AssignSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        <TextBlock VerticalAlignment="Center" Text="{Binding ContourCount, StringFormat='{}{0} шт.'}" />
+                    </DockPanel>
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Режим" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:Choices.LaserVectorModes}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Мощность, %" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding PowerPercent}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Скорость, мм/мин" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Speed}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Проходов" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Passes}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Опускать Z за проход" />
+                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ZStepPerPass}" ToolTip="Для резки толстой фанеры: 0,3–0,5 мм; 0 — не опускать" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Шаг заливки, мм" />
+                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding FillSpacing}" />
+                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Угол заливки, °" />
+                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding FillAngle}" />
+                </Grid>
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                           Text="Начните с пробы на обрезке: фанера 3 мм на 5 Вт режется примерно за 3–6 проходов при 100 % и 150–250 мм/мин. Работайте в защитных очках и с вытяжкой." />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:LaserRasterOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource LaserCommonFields}" />
+                <DockPanel Margin="0,3">
+                    <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Заменить…"
+                            Command="{Binding DataContext.ReplaceRasterImageCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding ImageInfo}" />
+                </DockPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="X, мм (левый край)" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding X}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Y, мм (нижний край)" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Y}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Ширина, мм" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding WidthMm}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Высота, мм" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Text="{Binding HeightMm, StringFormat='{}{0:0.#}'}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Шаг строк, мм" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding LineInterval}" ToolTip="0,1 мм ≈ 254 точки на дюйм" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Режим" />
+                    <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterModes}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Мощность мин., %" />
+                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PowerMinPercent}" />
+                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Мощность макс., %" />
+                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding PowerMaxPercent}" />
+                    <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Скорость, мм/мин" />
+                    <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Speed}" />
+                    <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Перебег, мм" />
+                    <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Overscan}" />
+                    <StackPanel Grid.Row="10" Grid.Column="1">
+                        <CheckBox Content="Инверсия (выжигать светлое)" IsChecked="{Binding Invert}" />
+                        <CheckBox Content="В обе стороны" IsChecked="{Binding Bidirectional}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:ReliefOperationViewModel}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Название" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                    <CheckBox Grid.Row="1" Grid.Column="1" Content="Включена" IsChecked="{Binding Enabled}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Инструмент" />
+                    <ComboBox Grid.Row="2" Grid.Column="1"
+                              ItemsSource="{Binding DataContext.Tools, RelativeSource={RelativeSource AncestorType=Window}}"
+                              DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding ToolId}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Источник" />
+                    <DockPanel Grid.Row="3" Grid.Column="1" Margin="0,3">
+                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Заменить…"
+                                Command="{Binding DataContext.ReplaceReliefSourceCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding SourceInfo}" />
+                    </DockPanel>
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="X, мм (левый край)" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding X}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Y, мм (нижний край)" />
+                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Y}" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Ширина, мм" />
+                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding WidthMm}" />
+                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Длина, мм" />
+                    <TextBlock Grid.Row="7" Grid.Column="1" VerticalAlignment="Center" Text="{Binding HeightMm, StringFormat='{}{0:0.#}'}" />
+                    <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Глубина, мм" />
+                    <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Depth}" />
+                    <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Начало (Z), мм" />
+                    <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding StartZ}" />
+                    <CheckBox Grid.Row="10" Grid.Column="1" Content="Инверсия (светлое — глубже)" IsChecked="{Binding Invert}" IsEnabled="{Binding IsImage}" />
+                    <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="Шаг сетки, мм" />
+                    <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding Resolution}" ToolTip="Точность модели: меньше — точнее, но дольше расчёт" />
+                    <TextBlock Grid.Row="12" Style="{StaticResource FieldLabel}" Text="Шаг строк, мм" />
+                    <TextBox Grid.Row="12" Grid.Column="1" Text="{Binding StepOverMm}" ToolTip="Чистовой проход: 10–20 % диаметра сферической фрезы" />
+                    <TextBlock Grid.Row="13" Style="{StaticResource FieldLabel}" Text="Направление строк" />
+                    <ComboBox Grid.Row="13" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterAxes}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Axis}" />
+                    <StackPanel Grid.Row="14" Grid.Column="1" Orientation="Horizontal">
+                        <CheckBox Content="Черновая, припуск" IsChecked="{Binding Roughing}" />
+                        <TextBox Width="60" Margin="6,0,0,0" Text="{Binding RoughAllowance}" IsEnabled="{Binding Roughing}" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                           Text="Расчёт учитывает форму фрезы (сферическая, гравёр, концевая), поэтому она не врезается в соседние склоны. Черновые проходы идут по уровням шага по глубине инструмента." />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:ToolViewModel}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Номер (T)" />
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Number}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Название" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Тип" />
+                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ToolKinds}"
+                          DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Kind}" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Диаметр, мм" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Diameter}" />
+                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Обороты, об/мин" />
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SpindleRpm}" />
+                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Подача, мм/мин" />
+                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding FeedRate}" />
+                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Врезание, мм/мин" />
+                <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PlungeRate}" />
+                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Шаг по глубине, мм" />
+                <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding StepDown}" />
+                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Перекрытие, % Ø" />
+                <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding StepOverPercent}" />
+                <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Гравёр: кончик, мм" />
+                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding TipDiameter}" IsEnabled="{Binding IsVBit}" />
+                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="Гравёр: угол, °" />
+                <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding TipAngle}" IsEnabled="{Binding IsVBit}" />
+                <TextBlock Grid.Row="11" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="{Binding CutWidthHint}" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_Файл">
+                <MenuItem Header="_Новый проект" InputGestureText="Ctrl+N" Command="{Binding NewProjectCommand}" />
+                <MenuItem Header="_Открыть проект…" InputGestureText="Ctrl+O" Command="{Binding OpenProjectCommand}" />
+                <MenuItem Header="_Сохранить" InputGestureText="Ctrl+S" Command="{Binding SaveProjectCommand}" />
+                <MenuItem Header="Сохранить _как…" Command="{Binding SaveProjectAsCommand}" />
+                <Separator />
+                <MenuItem Header="_Импорт чертежа (DXF, SVG)…" InputGestureText="Ctrl+I" Command="{Binding ImportDrawingCommand}" />
+                <MenuItem Header="_Добавить чертёж (DXF, SVG)…" Command="{Binding AddDrawingCommand}" />
+                <MenuItem Header="3D-_рельеф">
+                    <MenuItem Header="Импорт STL…" Command="{Binding ImportStlCommand}" />
+                    <MenuItem Header="Рельеф из картинки…" Command="{Binding AddImageReliefCommand}" />
+                </MenuItem>
+                <MenuItem Header="Печатная _плата">
+                    <MenuItem Header="Добавить Gerber: медь…" Command="{Binding ImportGerberCopperCommand}" />
+                    <MenuItem Header="Добавить Gerber: контур платы…" Command="{Binding ImportGerberOutlineCommand}" />
+                    <MenuItem Header="Добавить сверловку (Excellon)…" Command="{Binding ImportExcellonCommand}" />
+                    <Separator />
+                    <MenuItem Header="Зеркалить по X (нижний слой)" Command="{Binding MirrorXCommand}" />
+                </MenuItem>
+                <MenuItem Header="_Экспорт G-code…" InputGestureText="Ctrl+E" Command="{Binding ExportGcodeCommand}" />
+                <Separator />
+                <MenuItem Header="_Выход" Click="OnExitClick" />
+            </MenuItem>
+            <MenuItem Header="_Выделение">
+                <MenuItem Header="Выделить всё" InputGestureText="Ctrl+A" Command="{Binding SelectAllCommand}" />
+                <MenuItem Header="Выделить окружности" Command="{Binding SelectCirclesCommand}" />
+                <MenuItem Header="Выделить отверстия того же диаметра" Command="{Binding SelectSameDiameterCommand}" />
+                <MenuItem Header="Снять выделение" InputGestureText="Esc" Command="{Binding ClearSelectionCommand}" />
+            </MenuItem>
+            <MenuItem Header="_Вид">
+                <MenuItem Header="Показать всё" InputGestureText="Home" Command="{Binding ZoomToFitCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <ToolBarTray DockPanel.Dock="Top">
+            <ToolBar>
+                <Button Style="{StaticResource ToolBarButton}" Content="Импорт DXF/SVG" Command="{Binding ImportDrawingCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="STL" ToolTip="Импорт 3D-модели STL как рельефа" Command="{Binding ImportStlCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="Открыть" Command="{Binding OpenProjectCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="Сохранить" Command="{Binding SaveProjectCommand}" />
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ Контур" Command="{Binding AddProfileCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ Карман" Command="{Binding AddPocketCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ Сверление" Command="{Binding AddDrillCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ Изоляция" Command="{Binding AddIsolationCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ V-карвинг" Command="{Binding AddVCarveCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ Текст" Command="{Binding AddTextCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ Лазер" Command="{Binding AddLaserVectorCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="+ Картинка" Command="{Binding AddLaserRasterCommand}" />
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}" Content="Выбрать окружности" Command="{Binding SelectCirclesCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="Показать всё" Command="{Binding ZoomToFitCommand}" />
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}" Content="Экспорт G-code" FontWeight="SemiBold" Command="{Binding ExportGcodeCommand}" />
+            </ToolBar>
+        </ToolBarTray>
+
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem Width="190">
+                <TextBlock Text="{Binding CursorText}" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock Text="{Binding SelectionText}" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock Text="{Binding Statistics}" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="360" MinWidth="280" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TabControl Grid.Column="0" Background="{StaticResource PanelBrush}">
+                <TabItem Header="Операции">
+                    <Grid Margin="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="160" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <WrapPanel Grid.Row="0">
+                            <Button Content="+ Контур" Command="{Binding AddProfileCommand}" />
+                            <Button Content="+ Карман" Command="{Binding AddPocketCommand}" />
+                            <Button Content="+ Сверление" Command="{Binding AddDrillCommand}" />
+                            <Button Content="+ Изоляция" Command="{Binding AddIsolationCommand}" />
+                            <Button Content="+ V-карвинг" Command="{Binding AddVCarveCommand}" />
+                            <Button Content="+ Лазер" Command="{Binding AddLaserVectorCommand}" />
+                            <Button Content="+ Картинка" Command="{Binding AddLaserRasterCommand}" />
+                            <Button Content="+ Рельеф (картинка)" Command="{Binding AddImageReliefCommand}" />
+                            <Button Content="+ Рельеф (STL)" Command="{Binding ImportStlCommand}" />
+                        </WrapPanel>
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Operations}" SelectedItem="{Binding SelectedOperation}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OperationViewModel}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox IsChecked="{Binding Enabled}" Margin="0,0,6,0" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Summary}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <WrapPanel Grid.Row="2" Margin="0,4,0,0">
+                            <Button Content="▲" ToolTip="Выше" Command="{Binding MoveOperationUpCommand}" />
+                            <Button Content="▼" ToolTip="Ниже" Command="{Binding MoveOperationDownCommand}" />
+                            <Button Content="Удалить" Command="{Binding RemoveOperationCommand}" />
+                        </WrapPanel>
+                        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <ContentControl Content="{Binding SelectedOperation}" Margin="0,0,6,0" />
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Слои">
+                    <DockPanel Margin="6">
+                        <WrapPanel DockPanel.Dock="Top">
+                            <Button Content="Показать все" Command="{Binding ShowAllLayersCommand}" />
+                            <Button Content="Добавить чертёж…" Command="{Binding AddDrawingCommand}" />
+                        </WrapPanel>
+                        <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                                   Text="Скрытые слои не показываются и не выделяются. «Выделить» заменяет выделение, «+» добавляет к нему." />
+                        <ListBox ItemsSource="{Binding Layers}" HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:LayerViewModel}">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="+" ToolTip="Добавить к выделению"
+                                                Command="{Binding DataContext.AddLayerToSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="Выделить"
+                                                Command="{Binding DataContext.SelectLayerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                        <CheckBox IsChecked="{Binding IsVisible}" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="Видимость" />
+                                        <TextBlock Text="{Binding Display}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </TabItem>
+
+                <TabItem Header="Текст">
+                    <Grid Margin="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="110" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <WrapPanel Grid.Row="0">
+                            <Button Content="+ Текст" Command="{Binding AddTextCommand}" />
+                            <Button Content="Удалить" Command="{Binding RemoveTextCommand}" />
+                            <Button Content="Выделить буквы" Command="{Binding SelectTextContoursCommand}" />
+                            <Button Content="+ V-карвинг" Command="{Binding AddVCarveCommand}" />
+                        </WrapPanel>
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Texts}" SelectedItem="{Binding SelectedText}" DisplayMemberPath="Display" />
+                        <TextBlock Grid.Row="2" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                                   Text="{Binding FontScanStatus}" />
+                        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <ContentControl Content="{Binding SelectedText}" Margin="0,0,6,0" />
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Пульт">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="6,6,12,6" DataContext="{Binding Control}">
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Подключение (GRBL)" Margin="0,0,0,4" />
+                            <DockPanel Margin="0,0,0,3">
+                                <Button DockPanel.Dock="Right" Content="↻" ToolTip="Обновить список портов" Padding="8,0"
+                                        Command="{Binding RefreshPortsCommand}" IsEnabled="{Binding IsDisconnected}" />
+                                <ComboBox Width="90" DockPanel.Dock="Right" Margin="4,0" ItemsSource="{Binding BaudRates}"
+                                          SelectedItem="{Binding BaudRate}" IsEnabled="{Binding IsDisconnected}" ToolTip="Скорость порта (обычно 115200)" />
+                                <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}" IsEnabled="{Binding IsDisconnected}" />
+                            </DockPanel>
+                            <WrapPanel>
+                                <Button Content="Подключить" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsDisconnected}" />
+                                <Button Content="Отключить" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding VersionText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Состояние" />
+                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold" FontSize="14">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAlarm}" Value="True">
+                                                <Setter Property="Foreground" Value="IndianRed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="X" Foreground="IndianRed" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding WorkX}" FontSize="18" FontFamily="Consolas" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Y" Foreground="MediumSeaGreen" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding WorkY}" FontSize="18" FontFamily="Consolas" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Z" Foreground="SteelBlue" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding WorkZ}" FontSize="18" FontFamily="Consolas" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding MachineText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                            <TextBlock Text="{Binding FeedText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                            <WrapPanel Margin="0,4,0,0">
+                                <Button Content="Разблокировать" ToolTip="$X — снять аварию (проверьте, что станок ни во что не упёрся)"
+                                        Command="{Binding UnlockCommand}" IsEnabled="{Binding CanControl}" />
+                                <Button Content="Домой" ToolTip="$H — поиск дома (только если есть концевики и $22=1)"
+                                        Command="{Binding HomeCommand}" IsEnabled="{Binding CanControl}" />
+                                <Button Content="Сброс" ToolTip="Ctrl-X — немедленный сброс контроллера (во время движения положение может сбиться)"
+                                        Command="{Binding SoftResetCommand}" IsEnabled="{Binding IsConnected}" />
+                            </WrapPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Перемещение" />
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Шаг, мм" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding JogSteps}" SelectedItem="{Binding JogStep}" />
+                                <TextBlock Grid.Column="2" Text="Подача XY / Z" VerticalAlignment="Center" Margin="8,0,4,0" />
+                                <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                    <TextBox Width="50" Text="{Binding JogFeed}" />
+                                    <TextBox Width="45" Margin="2,0,0,0" Text="{Binding JogFeedZ}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid HorizontalAlignment="Left" IsEnabled="{Binding CanControl}">
+                                <Grid.Resources>
+                                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                        <Setter Property="Width" Value="52" />
+                                        <Setter Property="Height" Value="36" />
+                                        <Setter Property="Margin" Value="2" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </Style>
+                                </Grid.Resources>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Button Grid.Row="0" Grid.Column="1" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+" />
+                                <Button Grid.Row="1" Grid.Column="0" Content="X−" Command="{Binding JogCommand}" CommandParameter="X-" />
+                                <Button Grid.Row="1" Grid.Column="1" Content="■" ToolTip="Остановить перемещение" Command="{Binding JogCancelCommand}" />
+                                <Button Grid.Row="1" Grid.Column="2" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+" />
+                                <Button Grid.Row="2" Grid.Column="1" Content="Y−" Command="{Binding JogCommand}" CommandParameter="Y-" />
+                                <Button Grid.Row="0" Grid.Column="4" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+" />
+                                <Button Grid.Row="2" Grid.Column="4" Content="Z−" Command="{Binding JogCommand}" CommandParameter="Z-" />
+                            </Grid>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Ноль заготовки" />
+                            <WrapPanel IsEnabled="{Binding CanControl}">
+                                <Button Content="X0" Command="{Binding ZeroCommand}" CommandParameter="X" />
+                                <Button Content="Y0" Command="{Binding ZeroCommand}" CommandParameter="Y" />
+                                <Button Content="Z0" Command="{Binding ZeroCommand}" CommandParameter="Z" />
+                                <Button Content="X0 Y0" Command="{Binding ZeroCommand}" CommandParameter="XY" />
+                                <Button Content="Все" Command="{Binding ZeroCommand}" CommandParameter="XYZ" />
+                                <Button Content="К нулю X Y" ToolTip="Подняться на безопасную высоту и переехать в X0 Y0" Command="{Binding GoToZeroCommand}" />
+                            </WrapPanel>
+                            <Grid Margin="0,4,0,0" IsEnabled="{Binding CanControl}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Щуп: толщина пластины, мм" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Width="60" Text="{Binding ProbePlate}" />
+                                <TextBlock Grid.Row="1" Text="Ход вниз, мм / подача, мм/мин" VerticalAlignment="Center" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                                    <TextBox Width="40" Text="{Binding ProbeTravel}" />
+                                    <TextBox Width="40" Margin="2,0,0,0" Text="{Binding ProbeFeed}" />
+                                </StackPanel>
+                                <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="Найти Z щупом"
+                                        ToolTip="G38.2: опускание до касания пластины, затем Z0 на поверхности заготовки" Command="{Binding ProbeZCommand}" />
+                            </Grid>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Программа" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Файл…" ToolTip="Запустить готовый файл G-code" Command="{Binding LoadFileCommand}" />
+                                <Button DockPanel.Dock="Right" Content="Проект" ToolTip="Запускать G-code текущего проекта" Command="{Binding UseProjectCommand}" />
+                                <TextBlock VerticalAlignment="Center" Text="{Binding ProgramSource}" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                            <WrapPanel Margin="0,4,0,0">
+                                <Button Content="▶ Старт" FontWeight="SemiBold" Command="{Binding StartJobCommand}" IsEnabled="{Binding CanStartJob}" />
+                                <Button Content="❚❚ Пауза" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" />
+                                <Button Content="Продолжить" Command="{Binding ResumeCommand}" IsEnabled="{Binding CanResume}" />
+                                <Button Content="■ Стоп" Command="{Binding StopCommand}" IsEnabled="{Binding IsJobActive}" />
+                            </WrapPanel>
+                            <ProgressBar Height="12" Margin="0,4" Maximum="100" Value="{Binding Progress}" />
+                            <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" FontSize="11" />
+                            <TextBlock Text="{Binding JobMessage}" TextWrapping="Wrap" Foreground="DarkOrange" FontWeight="SemiBold" Margin="0,2" />
+                            <Grid Margin="0,4,0,0" IsEnabled="{Binding IsConnected}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Подача" VerticalAlignment="Center" />
+                                <Button Grid.Row="0" Grid.Column="1" Content="−10 %" Command="{Binding FeedOverrideCommand}" CommandParameter="-" />
+                                <Button Grid.Row="0" Grid.Column="2" Content="100 %" Command="{Binding FeedOverrideCommand}" CommandParameter="0" />
+                                <Button Grid.Row="0" Grid.Column="3" Content="+10 %" Command="{Binding FeedOverrideCommand}" CommandParameter="+" />
+                                <TextBlock Grid.Row="1" Text="Шпиндель" VerticalAlignment="Center" />
+                                <Button Grid.Row="1" Grid.Column="1" Content="−10 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="-" />
+                                <Button Grid.Row="1" Grid.Column="2" Content="100 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="0" />
+                                <Button Grid.Row="1" Grid.Column="3" Content="+10 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="+" />
+                            </Grid>
+                            <TextBlock Text="{Binding OverridesText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Консоль" />
+                            <DockPanel IsEnabled="{Binding IsConnected}">
+                                <Button DockPanel.Dock="Right" Content="Отправить" Command="{Binding SendConsoleCommand}" />
+                                <TextBox Text="{Binding ConsoleInput, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"
+                                         ToolTip="Команда GRBL, например $$ (настройки), $G (режимы), $I (версия)">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding SendConsoleCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                            </DockPanel>
+                            <ListBox Height="200" Margin="0,4,0,0" ItemsSource="{Binding Log}" FontFamily="Consolas" FontSize="11" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Инструменты">
+                    <Grid Margin="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="150" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0">
+                            <DockPanel Margin="0,0,0,4">
+                                <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="Добавить" Command="{Binding AddToolFromPresetCommand}" />
+                                <ComboBox ItemsSource="{Binding ToolPresetList}" SelectedItem="{Binding SelectedToolPreset}"
+                                          DisplayMemberPath="Display" ToolTip="Пресеты для CNC 3018 (шпиндель ~10 000 об/мин)" />
+                            </DockPanel>
+                            <WrapPanel>
+                                <Button Content="+ Пустой" Command="{Binding AddToolCommand}" />
+                                <Button Content="Удалить" Command="{Binding RemoveToolCommand}" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Tools}" SelectedItem="{Binding SelectedTool}" DisplayMemberPath="Display" />
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <ContentControl Content="{Binding SelectedTool}" Margin="0,0,6,0" />
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Станок">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="6">
+                            <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,4" Text="Профиль станка" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Margin="4,3,0,3" Content="Применить" Command="{Binding ApplyProfileCommand}" />
+                                <ComboBox ItemsSource="{Binding Machine.Profiles}" SelectedItem="{Binding SelectedProfile}" DisplayMemberPath="Name" />
+                            </DockPanel>
+                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="{Binding SelectedProfile.Description}" />
+                            <TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Machine.ProfileName, StringFormat='Сейчас: {0}'}" />
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Заготовка и ноль" />
+                            <Grid DataContext="{Binding Stock}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Толщина заготовки, мм" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Thickness}" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Ноль X/Y" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:Choices.Origins}"
+                                          DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Origin}" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Ноль Z" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ZeroLevels}"
+                                          DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding ZeroAtBottom}" />
+                            </Grid>
+                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
+                                       Text="Ноль X/Y берётся от габарита всего чертежа. На станке выставьте ноль фрезы в эту точку." />
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Станок и G-code" />
+                            <Grid DataContext="{Binding Machine}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Формат G-code" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.Dialects}"
+                                          DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Dialect}" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Макс. обороты, об/мин" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SpindleMaxRpm}" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="S при макс. оборотах" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SpindleMaxS}"
+                                         ToolTip="GRBL: значение $30 (обычно 1000). 0 — писать обороты как есть." />
+                                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Макс. подача, мм/мин" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxFeedRate}" ToolTip="0 — не проверять" />
+                                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Рабочее поле X, мм" />
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding WorkAreaX}" ToolTip="0 — не проверять" />
+                                <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Рабочее поле Y, мм" />
+                                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding WorkAreaY}" />
+                                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Ход Z, мм" />
+                                <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding WorkAreaZ}" />
+                                <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="Безопасная высота, мм" />
+                                <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding SafeZ}" ToolTip="Над верхом заготовки" />
+                                <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="Подход к заготовке, мм" />
+                                <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding ApproachClearance}" />
+                                <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="Холостой ход, мм/мин" />
+                                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding RapidRate}" ToolTip="Только для оценки времени" />
+                                <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="Знаков после запятой" />
+                                <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding DecimalPlaces}" />
+                                <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="Пауза после M3, с" />
+                                <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding SpindleDelaySeconds}" />
+                                <CheckBox Grid.Row="12" Grid.Column="1" Content="Автосмена инструмента (Tn M6)" IsChecked="{Binding UseToolChange}"
+                                          ToolTip="Не для GRBL: там смена инструмента — пауза M0" />
+                                <StackPanel Grid.Row="13" Grid.Column="1">
+                                    <CheckBox Content="В конце вернуться в X0 Y0" IsChecked="{Binding ReturnToOrigin}" />
+                                    <CheckBox Content="Дуги G2/G3 вместо коротких отрезков" IsChecked="{Binding UseArcs}"
+                                              ToolTip="Файл короче, движение плавнее. Нужны 3 знака после запятой." />
+                                </StackPanel>
+                                <TextBlock Grid.Row="14" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="Свои строки в начале программы" />
+                                <TextBox Grid.Row="15" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
+                                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Text="{Binding Header}" />
+                                <TextBlock Grid.Row="16" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="Свои строки в конце программы" />
+                                <TextBox Grid.Row="17" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
+                                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Text="{Binding Footer}" />
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrushLight}" />
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="200" />
+                    <RowDefinition Height="5" />
+                    <RowDefinition Height="200" MinHeight="80" />
+                </Grid.RowDefinitions>
+                <TabControl Grid.Row="0" Padding="0">
+                    <TabItem Header="Чертёж (2D)">
+                        <Grid>
+                            <controls:CamViewport x:Name="Viewport"
+                                                  Scene="{Binding Scene}"
+                                                  MachinePosition="{Binding Control.ToolPosition}"
+                                                  ContourClickCommand="{Binding ContourClickedCommand}"
+                                                  CursorText="{Binding CursorText, Mode=OneWayToSource}" />
+                            <TextBlock Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#8A939E" IsHitTestVisible="False"
+                                       Text="Колесо — масштаб · перетаскивание — сдвиг · клик — выбор контура (Ctrl — добавить) · Home — показать всё · крестик — ноль X0 Y0" />
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="3D-симуляция" IsSelected="{Binding Simulation.IsActive, Mode=TwoWay}">
+                        <DockPanel DataContext="{Binding Simulation}">
+                            <Border DockPanel.Dock="Bottom" Padding="6,4" Background="{StaticResource PanelBrush}">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Left" Content="⏮" ToolTip="В начало" Command="{Binding ToStartCommand}" />
+                                        <Button DockPanel.Dock="Left" MinWidth="80" Content="{Binding PlayLabel}" Command="{Binding PlayPauseCommand}" />
+                                        <Button DockPanel.Dock="Left" Content="⏭" ToolTip="Готовая деталь" Command="{Binding ToEndCommand}" />
+                                        <ComboBox DockPanel.Dock="Left" Width="140" Margin="4,0" ItemsSource="{Binding Speeds}"
+                                                  DisplayMemberPath="Label" SelectedItem="{Binding SelectedSpeed}" ToolTip="Скорость воспроизведения" />
+                                        <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding TimeText}" />
+                                        <Slider Minimum="0" Maximum="1000" VerticalAlignment="Center" Value="{Binding Position}"
+                                                ToolTip="Перетащите, чтобы посмотреть заготовку в любой момент обработки" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,4,0,0">
+                                        <Button DockPanel.Dock="Right" Content="Пересчитать" Command="{Binding RebuildCommand}" />
+                                        <ComboBox DockPanel.Dock="Right" Width="150" Margin="4,0" ItemsSource="{Binding Qualities}"
+                                                  DisplayMemberPath="Label" SelectedItem="{Binding SelectedQuality}" ToolTip="Точность сетки" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding OperationText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding StatsText}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <ItemsControl ItemsSource="{Binding Issues}" Margin="0,2,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" Foreground="DarkOrange" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                            <Grid>
+                                <controls:SimulationView Frame="{Binding Frame}" />
+                                <TextBlock Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#8A939E" IsHitTestVisible="False"
+                                           Text="Левая кнопка — вращение · правая — сдвиг · колесо — масштаб · двойной клик — исходный вид" />
+                            </Grid>
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
+                <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrushLight}" />
+                <TabControl Grid.Row="2">
+                    <TabItem Header="G-code">
+                        <TextBox Text="{Binding Gcode, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" Margin="0"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" VerticalContentAlignment="Top" />
+                    </TabItem>
+                    <TabItem Header="Сообщения">
+                        <ListBox ItemsSource="{Binding Messages}" />
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</Window>

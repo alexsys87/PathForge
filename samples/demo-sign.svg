@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PathForge demo: sign with mounting holes and an engraved star (hand-written sample) -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     width="120mm" height="60mm" viewBox="0 0 120 60">
+  <g inkscape:groupmode="layer" inkscape:label="Контур">
+    <rect x="1" y="1" width="118" height="58" rx="6" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="Отверстия">
+    <circle cx="8" cy="30" r="2" />
+    <circle cx="112" cy="30" r="2" />
+  </g>
+  <g inkscape:groupmode="layer" inkscape:label="Гравировка">
+    <path d="M60,8 L66.5,24 L84,24 L70,34.5 L75.5,51 L60,41 L44.5,51 L50,34.5 L36,24 L53.5,24 Z" />
+    <path d="M20 46 C 26 36, 34 56, 40 46" />
+  </g>
+</svg>

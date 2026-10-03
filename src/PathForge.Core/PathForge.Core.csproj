@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>PathForge.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Polygon offsetting / boolean operations, Boost Software License 1.0 -->
+    <PackageReference Include="Clipper2" Version="1.5.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PathForge.Core.Tests" />
+  </ItemGroup>
+</Project>

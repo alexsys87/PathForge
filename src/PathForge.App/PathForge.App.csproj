@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>PathForge.App</RootNamespace>
+    <AssemblyName>PathForge</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Allows building on non-Windows machines (CI); the app itself runs only on Windows -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- MVVM helpers, MIT license -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- Serial port for the machine connection, MIT license -->
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PathForge.Core\PathForge.Core.csproj" />
+  </ItemGroup>
+</Project>

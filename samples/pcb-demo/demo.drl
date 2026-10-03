@@ -1,0 +1,15 @@
+M48
+; PathForge demo board drill file (hand-written sample)
+METRIC
+T1C0.800
+T2C1.000
+%
+G90
+G05
+T1
+X5.0Y10.0
+X25.0Y10.0
+T2
+X15.0Y15.0
+T0
+M30
