@@ -55,6 +55,7 @@
                 <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Контуры', En='Contours'}" />
                 <DockPanel Grid.Row="5" Grid.Column="1" Margin="0,3">
                     <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Назначить выделенные', En='Assign selected'}"
+                            ToolTip="{l:Tr 'Заменяет контуры этой операции на те, что сейчас выделены на чертеже. Выделите нужные контуры кликом (Ctrl — несколько) и нажмите кнопку.', En='Replaces the contours of this operation with the ones currently selected on the drawing. Select contours with a click (Ctrl adds more), then press the button.'}"
                             Command="{Binding DataContext.AssignSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <TextBlock VerticalAlignment="Center"><Run Text="{Binding ContourCount, Mode=OneWay}" /> <Run Text="{l:Tr 'шт.', En='pcs'}" /></TextBlock>
                 </DockPanel>
@@ -344,6 +345,7 @@
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Контуры', En='Contours'}" />
                     <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,3">
                         <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Назначить выделенные', En='Assign selected'}"
+                                ToolTip="{l:Tr 'Заменяет контуры этой операции на те, что сейчас выделены на чертеже. Выделите нужные контуры кликом (Ctrl — несколько) и нажмите кнопку.', En='Replaces the contours of this operation with the ones currently selected on the drawing. Select contours with a click (Ctrl adds more), then press the button.'}"
                                 Command="{Binding DataContext.AssignSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                         <TextBlock VerticalAlignment="Center"><Run Text="{Binding ContourCount, Mode=OneWay}" /> <Run Text="{l:Tr 'шт.', En='pcs'}" /></TextBlock>
                     </DockPanel>
@@ -373,6 +375,7 @@
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource LaserCommonFields}" />
                 <DockPanel Margin="0,3">
                     <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Заменить…', En='Replace…'}"
+                            ToolTip="{l:Tr 'Загрузить другую картинку (PNG, JPG, BMP…) для этой гравировки. Положение, ширина и режимы останутся прежними.', En='Load another picture (PNG, JPG, BMP…) for this engraving. Position, width and settings stay as they are.'}"
                             Command="{Binding DataContext.ReplaceRasterImageCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding ImageInfo}" />
                 </DockPanel>
@@ -460,6 +463,7 @@
                     <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Источник', En='Source'}" />
                     <DockPanel Grid.Row="3" Grid.Column="1" Margin="0,3">
                         <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Заменить…', En='Replace…'}"
+                                ToolTip="{l:Tr 'Загрузить другой источник рельефа: картинку (яркость → глубина) или 3D-модель STL, в зависимости от типа операции. Размеры и режимы останутся прежними.', En='Load another relief source: a picture (brightness → depth) or an STL 3D model, depending on the operation. Size and settings stay as they are.'}"
                                 Command="{Binding DataContext.ReplaceReliefSourceCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                         <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding SourceInfo}" />
                     </DockPanel>
@@ -606,26 +610,26 @@
 
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Импорт DXF/SVG', En='Import DXF/SVG'}" Command="{Binding ImportDrawingCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="STL" ToolTip="{l:Tr 'Импорт 3D-модели STL как рельефа', En='Import a 3D STL model as a relief'}" Command="{Binding ImportStlCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Открыть', En='Open'}" Command="{Binding OpenProjectCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Сохранить', En='Save'}" Command="{Binding SaveProjectCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="↶" FontSize="15" ToolTip="{l:Tr 'Отменить (Ctrl+Z)', En='Undo (Ctrl+Z)'}" Command="{Binding UndoCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="↷" FontSize="15" ToolTip="{l:Tr 'Повторить (Ctrl+Y)', En='Redo (Ctrl+Y)'}" Command="{Binding RedoCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Импорт DXF/SVG', En='Import DXF/SVG'}" ToolTip="{l:Tr 'Открыть чертёж DXF или SVG (Ctrl+I). Текущий чертёж заменяется, контуры операций нужно будет выбрать заново. Файл можно и просто перетащить в окно.', En='Open a DXF or SVG drawing (Ctrl+I). It replaces the current drawing; the contours of the operations have to be selected again. You can also drop the file onto the window.'}" Command="{Binding ImportDrawingCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="STL" ToolTip="{l:Tr 'Загрузить 3D-модель STL и создать операцию «Рельеф 3D»: обработка поверхности строками сферической фрезой с черновыми проходами.', En='Load an STL 3D model and create a “3D relief” operation: surface machining in lines with a ball nose, with roughing passes.'}" Command="{Binding ImportStlCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Открыть', En='Open'}" ToolTip="{l:Tr 'Открыть сохранённый проект PathForge (*.pfproj, Ctrl+O): чертёж, инструменты, операции, настройки станка и карту высот.', En='Open a saved PathForge project (*.pfproj, Ctrl+O): drawing, tools, operations, machine settings and height map.'}" Command="{Binding OpenProjectCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Сохранить', En='Save'}" ToolTip="{l:Tr 'Сохранить проект (Ctrl+S). Сохраняется всё: чертёж, тексты, инструменты, операции, настройки станка и карта высот.', En='Save the project (Ctrl+S). Everything is saved: drawing, texts, tools, operations, machine settings and height map.'}" Command="{Binding SaveProjectCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="↶" FontSize="15" ToolTip="{l:Tr 'Отменить последнее изменение проекта (Ctrl+Z).', En='Undo the last change to the project (Ctrl+Z).'}" Command="{Binding UndoCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="↷" FontSize="15" ToolTip="{l:Tr 'Повторить отменённое изменение (Ctrl+Y или Ctrl+Shift+Z).', En='Redo the undone change (Ctrl+Y or Ctrl+Shift+Z).'}" Command="{Binding RedoCommand}" />
                 <Separator />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Контур', En='+ Profile'}" Command="{Binding AddProfileCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Карман', En='+ Pocket'}" Command="{Binding AddPocketCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Сверление', En='+ Drill'}" Command="{Binding AddDrillCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Изоляция', En='+ Isolation'}" Command="{Binding AddIsolationCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" Command="{Binding AddVCarveCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Текст', En='+ Text'}" Command="{Binding AddTextCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Лазер', En='+ Laser'}" Command="{Binding AddLaserVectorCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Картинка', En='+ Picture'}" Command="{Binding AddLaserRasterCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Контур', En='+ Profile'}" ToolTip="{l:Tr 'Добавить операцию «Контур»: фреза идёт вдоль выделенных контуров снаружи, внутри или по линии, в несколько проходов по глубине, с перемычками. Для вырезания деталей и отверстий.', En='Add a “Profile” operation: the tool follows the selected contours outside, inside or on the line, in several depth passes, with tabs. For cutting out parts and holes.'}" Command="{Binding AddProfileCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Карман', En='+ Pocket'}" ToolTip="{l:Tr 'Добавить операцию «Карман»: выборка материала внутри выделенных замкнутых контуров на заданную глубину. Вложенные контуры остаются островами.', En='Add a “Pocket” operation: clears the material inside the selected closed contours to the given depth. Nested contours stay as islands.'}" Command="{Binding AddPocketCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Сверление', En='+ Drill'}" ToolTip="{l:Tr 'Добавить операцию «Сверление»: сверлится центр каждой выделенной окружности, сразу или с шагом (выводом стружки).', En='Add a “Drilling” operation: drills the centre of every selected circle, at once or with pecking.'}" Command="{Binding AddDrillCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Изоляция', En='+ Isolation'}" ToolTip="{l:Tr 'Добавить операцию «Изоляция» для печатных плат: гравёр обходит контуры меди в несколько проходов, отделяя дорожки друг от друга.', En='Add an “Isolation” operation for PCBs: the engraver goes around the copper contours in several passes, separating the tracks.'}" Command="{Binding AddIsolationCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" ToolTip="{l:Tr 'Добавить операцию «V-карвинг»: V-фреза режет внутри выделенных контуров (обычно букв), глубина зависит от ширины — острые углы и красивые надписи.', En='Add a “V-carving” operation: a V-bit cuts inside the selected contours (usually letters), the depth follows the width — sharp corners and nice lettering.'}" Command="{Binding AddVCarveCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Текст', En='+ Text'}" ToolTip="{l:Tr 'Добавить надпись любым установленным шрифтом. Буквы становятся контурами, к ним можно применить контур, карман, V-карвинг или лазер.', En='Add text in any installed font. The letters become contours that can be profiled, pocketed, V-carved or lasered.'}" Command="{Binding AddTextCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Лазер', En='+ Laser'}" ToolTip="{l:Tr 'Добавить лазерную операцию по выделенным контурам: резка или обводка по линии, заливка штриховкой или и то и другое. Нужен профиль станка с лазером.', En='Add a laser operation on the selected contours: cutting or outlining on the line, hatch fill, or both. Needs a machine profile with a laser.'}" Command="{Binding AddLaserVectorCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Картинка', En='+ Picture'}" ToolTip="{l:Tr 'Добавить лазерную гравировку картинки (PNG, JPG, BMP…): оттенки серого, дизеринг или порог, строка за строкой.', En='Add a laser engraving of a picture (PNG, JPG, BMP…): grayscale, dithering or threshold, line by line.'}" Command="{Binding AddLaserRasterCommand}" />
                 <Separator />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Выбрать окружности', En='Select circles'}" Command="{Binding SelectCirclesCommand}" />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Показать всё', En='Zoom to fit'}" Command="{Binding ZoomToFitCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Выбрать окружности', En='Select circles'}" ToolTip="{l:Tr 'Выделить все окружности на видимых слоях — например, все отверстия под сверление.', En='Select all circles on visible layers — for example, all holes to drill.'}" Command="{Binding SelectCirclesCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Показать всё', En='Zoom to fit'}" ToolTip="{l:Tr 'Показать весь чертёж и траектории в окне (Home).', En='Fit the whole drawing and toolpaths in the view (Home).'}" Command="{Binding ZoomToFitCommand}" />
                 <Separator />
-                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Экспорт G-code', En='Export G-code'}" FontWeight="SemiBold" Command="{Binding ExportGcodeCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Экспорт G-code', En='Export G-code'}" FontWeight="SemiBold" ToolTip="{l:Tr 'Сохранить G-code всех включённых операций в файл .nc (Ctrl+E) для запуска в Candle, GRBLControl или на другом станке.', En='Save the G-code of all enabled operations to an .nc file (Ctrl+E) to run it in Candle, GRBLControl or on another machine.'}" Command="{Binding ExportGcodeCommand}" />
             </ToolBar>
         </ToolBarTray>
 
@@ -660,15 +664,15 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <WrapPanel Grid.Row="0">
-                            <Button Content="{l:Tr '+ Контур', En='+ Profile'}" Command="{Binding AddProfileCommand}" />
-                            <Button Content="{l:Tr '+ Карман', En='+ Pocket'}" Command="{Binding AddPocketCommand}" />
-                            <Button Content="{l:Tr '+ Сверление', En='+ Drill'}" Command="{Binding AddDrillCommand}" />
-                            <Button Content="{l:Tr '+ Изоляция', En='+ Isolation'}" Command="{Binding AddIsolationCommand}" />
-                            <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" Command="{Binding AddVCarveCommand}" />
-                            <Button Content="{l:Tr '+ Лазер', En='+ Laser'}" Command="{Binding AddLaserVectorCommand}" />
-                            <Button Content="{l:Tr '+ Картинка', En='+ Picture'}" Command="{Binding AddLaserRasterCommand}" />
-                            <Button Content="{l:Tr '+ Рельеф (картинка)', En='+ Relief (picture)'}" Command="{Binding AddImageReliefCommand}" />
-                            <Button Content="{l:Tr '+ Рельеф (STL)', En='+ Relief (STL)'}" Command="{Binding ImportStlCommand}" />
+                            <Button Content="{l:Tr '+ Контур', En='+ Profile'}" ToolTip="{l:Tr 'Добавить операцию «Контур»: фреза идёт вдоль выделенных контуров снаружи, внутри или по линии, в несколько проходов по глубине, с перемычками. Для вырезания деталей и отверстий.', En='Add a “Profile” operation: the tool follows the selected contours outside, inside or on the line, in several depth passes, with tabs. For cutting out parts and holes.'}" Command="{Binding AddProfileCommand}" />
+                            <Button Content="{l:Tr '+ Карман', En='+ Pocket'}" ToolTip="{l:Tr 'Добавить операцию «Карман»: выборка материала внутри выделенных замкнутых контуров на заданную глубину. Вложенные контуры остаются островами.', En='Add a “Pocket” operation: clears the material inside the selected closed contours to the given depth. Nested contours stay as islands.'}" Command="{Binding AddPocketCommand}" />
+                            <Button Content="{l:Tr '+ Сверление', En='+ Drill'}" ToolTip="{l:Tr 'Добавить операцию «Сверление»: сверлится центр каждой выделенной окружности, сразу или с шагом (выводом стружки).', En='Add a “Drilling” operation: drills the centre of every selected circle, at once or with pecking.'}" Command="{Binding AddDrillCommand}" />
+                            <Button Content="{l:Tr '+ Изоляция', En='+ Isolation'}" ToolTip="{l:Tr 'Добавить операцию «Изоляция» для печатных плат: гравёр обходит контуры меди в несколько проходов, отделяя дорожки друг от друга.', En='Add an “Isolation” operation for PCBs: the engraver goes around the copper contours in several passes, separating the tracks.'}" Command="{Binding AddIsolationCommand}" />
+                            <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" ToolTip="{l:Tr 'Добавить операцию «V-карвинг»: V-фреза режет внутри выделенных контуров (обычно букв), глубина зависит от ширины — острые углы и красивые надписи.', En='Add a “V-carving” operation: a V-bit cuts inside the selected contours (usually letters), the depth follows the width — sharp corners and nice lettering.'}" Command="{Binding AddVCarveCommand}" />
+                            <Button Content="{l:Tr '+ Лазер', En='+ Laser'}" ToolTip="{l:Tr 'Добавить лазерную операцию по выделенным контурам: резка или обводка по линии, заливка штриховкой или и то и другое. Нужен профиль станка с лазером.', En='Add a laser operation on the selected contours: cutting or outlining on the line, hatch fill, or both. Needs a machine profile with a laser.'}" Command="{Binding AddLaserVectorCommand}" />
+                            <Button Content="{l:Tr '+ Картинка', En='+ Picture'}" ToolTip="{l:Tr 'Добавить лазерную гравировку картинки (PNG, JPG, BMP…): оттенки серого, дизеринг или порог, строка за строкой.', En='Add a laser engraving of a picture (PNG, JPG, BMP…): grayscale, dithering or threshold, line by line.'}" Command="{Binding AddLaserRasterCommand}" />
+                            <Button Content="{l:Tr '+ Рельеф (картинка)', En='+ Relief (picture)'}" ToolTip="{l:Tr 'Создать 3D-рельеф из картинки: светлое — выше, тёмное — глубже (можно инвертировать). Обработка сферической фрезой.', En='Create a 3D relief from a picture: light is high, dark is deep (can be inverted). Machined with a ball nose.'}" Command="{Binding AddImageReliefCommand}" />
+                            <Button Content="{l:Tr '+ Рельеф (STL)', En='+ Relief (STL)'}" ToolTip="{l:Tr 'Загрузить 3D-модель STL и создать операцию «Рельеф 3D»: обработка поверхности строками сферической фрезой с черновыми проходами.', En='Load an STL 3D model and create a “3D relief” operation: surface machining in lines with a ball nose, with roughing passes.'}" Command="{Binding ImportStlCommand}" />
                         </WrapPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Operations}" SelectedItem="{Binding SelectedOperation}">
                             <ListBox.ItemTemplate>
@@ -684,9 +688,9 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                         <WrapPanel Grid.Row="2" Margin="0,4,0,0">
-                            <Button Content="▲" ToolTip="{l:Tr 'Выше', En='Up'}" Command="{Binding MoveOperationUpCommand}" />
-                            <Button Content="▼" ToolTip="{l:Tr 'Ниже', En='Down'}" Command="{Binding MoveOperationDownCommand}" />
-                            <Button Content="{l:Tr 'Удалить', En='Delete'}" Command="{Binding RemoveOperationCommand}" />
+                            <Button Content="▲" ToolTip="{l:Tr 'Переместить операцию выше: она выполнится раньше. Обычно сначала карманы и отверстия, наружный контур — последним.', En='Move the operation up: it runs earlier. Usually pockets and holes first, the outer profile last.'}" Command="{Binding MoveOperationUpCommand}" />
+                            <Button Content="▼" ToolTip="{l:Tr 'Переместить операцию ниже: она выполнится позже.', En='Move the operation down: it runs later.'}" Command="{Binding MoveOperationDownCommand}" />
+                            <Button Content="{l:Tr 'Удалить', En='Delete'}" ToolTip="{l:Tr 'Удалить выбранную операцию. Чертёж и инструменты не меняются; отменить — Ctrl+Z.', En='Delete the selected operation. The drawing and tools stay; undo with Ctrl+Z.'}" Command="{Binding RemoveOperationCommand}" />
                         </WrapPanel>
                         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                             <ContentControl Content="{Binding SelectedOperation}" Margin="0,0,6,0" />
@@ -697,8 +701,8 @@
                 <TabItem Header="{l:Tr 'Слои', En='Layers'}">
                     <DockPanel Margin="6">
                         <WrapPanel DockPanel.Dock="Top">
-                            <Button Content="{l:Tr 'Показать все', En='Show all'}" Command="{Binding ShowAllLayersCommand}" />
-                            <Button Content="{l:Tr 'Добавить чертёж…', En='Add drawing…'}" Command="{Binding AddDrawingCommand}" />
+                            <Button Content="{l:Tr 'Показать все', En='Show all'}" ToolTip="{l:Tr 'Сделать видимыми все слои чертежа.', En='Make all drawing layers visible.'}" Command="{Binding ShowAllLayersCommand}" />
+                            <Button Content="{l:Tr 'Добавить чертёж…', En='Add drawing…'}" ToolTip="{l:Tr 'Добавить ещё один чертёж DXF или SVG к текущему, не удаляя его (например, логотип к детали). Новые контуры сразу выделяются.', En='Add another DXF or SVG drawing to the current one without removing it (for example, a logo on a part). The new contours are selected right away.'}" Command="{Binding AddDrawingCommand}" />
                         </WrapPanel>
                         <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                                    Text="{l:Tr 'Скрытые слои не показываются и не выделяются. «Выделить» заменяет выделение, «+» добавляет к нему.', En='Hidden layers are neither shown nor selected. “Select” replaces the selection, “+” adds to it.'}" />
@@ -706,10 +710,12 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:LayerViewModel}">
                                     <DockPanel>
-                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="+" ToolTip="{l:Tr 'Добавить к выделению', En='Add to selection'}"
+                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="+"
+                                                ToolTip="{l:Tr 'Добавить все контуры этого слоя к текущему выделению.', En='Add all contours of this layer to the current selection.'}"
                                                 Command="{Binding DataContext.AddLayerToSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" />
                                         <Button DockPanel.Dock="Right" Margin="4,0,0,0" Padding="6,0" Content="{l:Tr 'Выделить', En='Select'}"
+                                                ToolTip="{l:Tr 'Выделить все контуры этого слоя (предыдущее выделение снимается). Скрытый слой станет видимым.', En='Select all contours of this layer (the previous selection is cleared). A hidden layer becomes visible.'}"
                                                 Command="{Binding DataContext.SelectLayerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" />
                                         <CheckBox IsChecked="{Binding IsVisible}" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="{l:Tr 'Видимость', En='Visibility'}" />
@@ -730,10 +736,10 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <WrapPanel Grid.Row="0">
-                            <Button Content="{l:Tr '+ Текст', En='+ Text'}" Command="{Binding AddTextCommand}" />
-                            <Button Content="{l:Tr 'Удалить', En='Delete'}" Command="{Binding RemoveTextCommand}" />
-                            <Button Content="{l:Tr 'Выделить буквы', En='Select letters'}" Command="{Binding SelectTextContoursCommand}" />
-                            <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" Command="{Binding AddVCarveCommand}" />
+                            <Button Content="{l:Tr '+ Текст', En='+ Text'}" ToolTip="{l:Tr 'Добавить надпись любым установленным шрифтом. Буквы становятся контурами, к ним можно применить контур, карман, V-карвинг или лазер.', En='Add text in any installed font. The letters become contours that can be profiled, pocketed, V-carved or lasered.'}" Command="{Binding AddTextCommand}" />
+                            <Button Content="{l:Tr 'Удалить', En='Delete'}" ToolTip="{l:Tr 'Удалить выбранную надпись вместе с её буквами-контурами.', En='Delete the selected text together with its letter contours.'}" Command="{Binding RemoveTextCommand}" />
+                            <Button Content="{l:Tr 'Выделить буквы', En='Select letters'}" ToolTip="{l:Tr 'Выделить на чертеже все буквы выбранной надписи, чтобы добавить для них операцию.', En='Select all letters of the chosen text on the drawing to add an operation for them.'}" Command="{Binding SelectTextContoursCommand}" />
+                            <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" ToolTip="{l:Tr 'Добавить операцию «V-карвинг»: V-фреза режет внутри выделенных контуров (обычно букв), глубина зависит от ширины — острые углы и красивые надписи.', En='Add a “V-carving” operation: a V-bit cuts inside the selected contours (usually letters), the depth follows the width — sharp corners and nice lettering.'}" Command="{Binding AddVCarveCommand}" />
                         </WrapPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Texts}" SelectedItem="{Binding SelectedText}" DisplayMemberPath="Display" />
                         <TextBlock Grid.Row="2" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
@@ -749,15 +755,16 @@
                         <StackPanel Margin="6,6,12,6" DataContext="{Binding Control}">
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Подключение (GRBL)', En='Connection (GRBL)'}" Margin="0,0,0,4" />
                             <DockPanel Margin="0,0,0,3">
-                                <Button DockPanel.Dock="Right" Content="↻" ToolTip="{l:Tr 'Обновить список портов', En='Refresh the port list'}" Padding="8,0"
+                                <Button DockPanel.Dock="Right" Content="↻" Padding="8,0"
+                                        ToolTip="{l:Tr 'Заново найти COM-порты — после подключения станка по USB.', En='Look for COM ports again — after plugging the machine in by USB.'}"
                                         Command="{Binding RefreshPortsCommand}" IsEnabled="{Binding IsDisconnected}" />
                                 <ComboBox Width="90" DockPanel.Dock="Right" Margin="4,0" ItemsSource="{Binding BaudRates}"
                                           SelectedItem="{Binding BaudRate}" IsEnabled="{Binding IsDisconnected}" ToolTip="{l:Tr 'Скорость порта (обычно 115200)', En='Port speed (usually 115200)'}" />
                                 <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}" IsEnabled="{Binding IsDisconnected}" />
                             </DockPanel>
                             <WrapPanel>
-                                <Button Content="{l:Tr 'Подключить', En='Connect'}" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsDisconnected}" />
-                                <Button Content="{l:Tr 'Отключить', En='Disconnect'}" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}" />
+                                <Button Content="{l:Tr 'Подключить', En='Connect'}" ToolTip="{l:Tr 'Открыть выбранный COM-порт и подключиться к GRBL. Плата перезагрузится и ответит версией прошивки. Закройте другие программы, которые держат порт.', En='Open the selected COM port and connect to GRBL. The board restarts and answers with its firmware version. Close other programs that hold the port.'}" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsDisconnected}" />
+                                <Button Content="{l:Tr 'Отключить', En='Disconnect'}" ToolTip="{l:Tr 'Закрыть соединение со станком. Если программа выполняется, станок доработает уже принятые команды.', En='Close the connection to the machine. If a program is running, the machine finishes the commands it has already received.'}" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}" />
                             </WrapPanel>
                             <TextBlock Text="{Binding VersionText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
 
@@ -795,11 +802,14 @@
                             <TextBlock Text="{Binding MachineText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
                             <TextBlock Text="{Binding FeedText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="{l:Tr 'Разблокировать', En='Unlock'}" ToolTip="{l:Tr '$X — снять аварию (проверьте, что станок ни во что не упёрся)', En='$X — clear the alarm (make sure the machine is not jammed)'}"
+                                <Button Content="{l:Tr 'Разблокировать', En='Unlock'}"
+                                        ToolTip="{l:Tr '$X — снять аварию (Alarm) и разрешить движения. Сначала убедитесь, что станок ни во что не упёрся.', En='$X — clear the alarm and allow motion. First make sure the machine is not jammed against anything.'}"
                                         Command="{Binding UnlockCommand}" IsEnabled="{Binding CanControl}" />
-                                <Button Content="{l:Tr 'Домой', En='Home'}" ToolTip="{l:Tr '$H — поиск дома (только если есть концевики и $22=1)', En='$H — homing (only with limit switches and $22=1)'}"
+                                <Button Content="{l:Tr 'Домой', En='Home'}"
+                                        ToolTip="{l:Tr '$H — поиск дома по концевикам. Работает только если концевики установлены и включены ($22=1).', En='$H — homing on the limit switches. Works only if limit switches are installed and enabled ($22=1).'}"
                                         Command="{Binding HomeCommand}" IsEnabled="{Binding CanControl}" />
-                                <Button Content="{l:Tr 'Сброс', En='Reset'}" ToolTip="{l:Tr 'Ctrl-X — немедленный сброс контроллера (во время движения положение может сбиться)', En='Ctrl-X — immediate controller reset (the position may be lost while moving)'}"
+                                <Button Content="{l:Tr 'Сброс', En='Reset'}"
+                                        ToolTip="{l:Tr 'Ctrl-X — немедленный сброс контроллера: движение и шпиндель останавливаются. Во время движения положение может сбиться — заново выставьте ноль.', En='Ctrl-X — immediate controller reset: motion and spindle stop. Resetting while moving may lose the position — set zero again.'}"
                                         Command="{Binding SoftResetCommand}" IsEnabled="{Binding IsConnected}" />
                             </WrapPanel>
 
@@ -840,23 +850,23 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <Button Grid.Row="0" Grid.Column="1" Content="Y+" Command="{Binding JogCommand}" CommandParameter="Y+" />
-                                <Button Grid.Row="1" Grid.Column="0" Content="X−" Command="{Binding JogCommand}" CommandParameter="X-" />
-                                <Button Grid.Row="1" Grid.Column="1" Content="■" ToolTip="{l:Tr 'Остановить перемещение', En='Stop jogging'}" Command="{Binding JogCancelCommand}" />
-                                <Button Grid.Row="1" Grid.Column="2" Content="X+" Command="{Binding JogCommand}" CommandParameter="X+" />
-                                <Button Grid.Row="2" Grid.Column="1" Content="Y−" Command="{Binding JogCommand}" CommandParameter="Y-" />
-                                <Button Grid.Row="0" Grid.Column="4" Content="Z+" Command="{Binding JogCommand}" CommandParameter="Z+" />
-                                <Button Grid.Row="2" Grid.Column="4" Content="Z−" Command="{Binding JogCommand}" CommandParameter="Z-" />
+                                <Button Grid.Row="0" Grid.Column="1" Content="Y+" ToolTip="{l:Tr 'Переместить фрезу назад (Y+) на выбранный шаг: на 3018 стол едет к вам.', En='Move the tool back (Y+) by the selected step: on a 3018 the table moves towards you.'}" Command="{Binding JogCommand}" CommandParameter="Y+" />
+                                <Button Grid.Row="1" Grid.Column="0" Content="X−" ToolTip="{l:Tr 'Переместить фрезу влево (X−) на выбранный шаг.', En='Move the tool left (X−) by the selected step.'}" Command="{Binding JogCommand}" CommandParameter="X-" />
+                                <Button Grid.Row="1" Grid.Column="1" Content="■" ToolTip="{l:Tr 'Остановить перемещение кнопками сразу, не дожидаясь конца шага.', En='Stop jogging immediately without waiting for the end of the step.'}" Command="{Binding JogCancelCommand}" />
+                                <Button Grid.Row="1" Grid.Column="2" Content="X+" ToolTip="{l:Tr 'Переместить фрезу вправо (X+) на выбранный шаг.', En='Move the tool right (X+) by the selected step.'}" Command="{Binding JogCommand}" CommandParameter="X+" />
+                                <Button Grid.Row="2" Grid.Column="1" Content="Y−" ToolTip="{l:Tr 'Переместить фрезу вперёд (Y−) на выбранный шаг: на 3018 стол едет от вас.', En='Move the tool forward (Y−) by the selected step: on a 3018 the table moves away from you.'}" Command="{Binding JogCommand}" CommandParameter="Y-" />
+                                <Button Grid.Row="0" Grid.Column="4" Content="Z+" ToolTip="{l:Tr 'Поднять фрезу (Z+) на выбранный шаг.', En='Raise the tool (Z+) by the selected step.'}" Command="{Binding JogCommand}" CommandParameter="Z+" />
+                                <Button Grid.Row="2" Grid.Column="4" Content="Z−" ToolTip="{l:Tr 'Опустить фрезу (Z−) на выбранный шаг. Возле заготовки берите шаг 0,1 или 0,01 мм.', En='Lower the tool (Z−) by the selected step. Near the stock use a 0.1 or 0.01 mm step.'}" Command="{Binding JogCommand}" CommandParameter="Z-" />
                             </Grid>
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Ноль заготовки', En='Work zero'}" />
                             <WrapPanel IsEnabled="{Binding CanControl}">
-                                <Button Content="X0" Command="{Binding ZeroCommand}" CommandParameter="X" />
-                                <Button Content="Y0" Command="{Binding ZeroCommand}" CommandParameter="Y" />
-                                <Button Content="Z0" Command="{Binding ZeroCommand}" CommandParameter="Z" />
-                                <Button Content="X0 Y0" Command="{Binding ZeroCommand}" CommandParameter="XY" />
-                                <Button Content="{l:Tr 'Все', En='All'}" Command="{Binding ZeroCommand}" CommandParameter="XYZ" />
-                                <Button Content="{l:Tr 'К нулю X Y', En='Go to X0 Y0'}" ToolTip="{l:Tr 'Подняться на безопасную высоту и переехать в X0 Y0', En='Rise to the safe height and move to X0 Y0'}" Command="{Binding GoToZeroCommand}" />
+                                <Button Content="X0" ToolTip="{l:Tr 'Принять текущее положение фрезы за X0 заготовки (G10 L20).', En='Set the current tool position as work X0 (G10 L20).'}" Command="{Binding ZeroCommand}" CommandParameter="X" />
+                                <Button Content="Y0" ToolTip="{l:Tr 'Принять текущее положение фрезы за Y0 заготовки (G10 L20).', En='Set the current tool position as work Y0 (G10 L20).'}" Command="{Binding ZeroCommand}" CommandParameter="Y" />
+                                <Button Content="Z0" ToolTip="{l:Tr 'Принять текущую высоту фрезы за Z0. Обычно фреза касается верха заготовки (проверка бумажкой).', En='Set the current tool height as Z0. Usually the tool just touches the stock top (paper test).'}" Command="{Binding ZeroCommand}" CommandParameter="Z" />
+                                <Button Content="X0 Y0" ToolTip="{l:Tr 'Принять текущее положение фрезы за X0 Y0 — угол или центр заготовки, выбранный на вкладке «Станок».', En='Set the current tool position as X0 Y0 — the stock corner or centre chosen on the “Machine” tab.'}" Command="{Binding ZeroCommand}" CommandParameter="XY" />
+                                <Button Content="{l:Tr 'Все', En='All'}" ToolTip="{l:Tr 'Принять текущее положение фрезы за ноль по всем осям: X0 Y0 Z0.', En='Set the current tool position as zero on all axes: X0 Y0 Z0.'}" Command="{Binding ZeroCommand}" CommandParameter="XYZ" />
+                                <Button Content="{l:Tr 'К нулю X Y', En='Go to X0 Y0'}" ToolTip="{l:Tr 'Поднять фрезу на безопасную высоту и переехать в X0 Y0 — проверить, где у заготовки ноль.', En='Raise the tool to the safe height and move to X0 Y0 — to check where the work zero is.'}" Command="{Binding GoToZeroCommand}" />
                             </WrapPanel>
                             <Grid Margin="0,4,0,0" IsEnabled="{Binding CanControl}">
                                 <Grid.ColumnDefinitions>
@@ -875,8 +885,7 @@
                                     <TextBox Width="40" Text="{Binding ProbeTravel}" />
                                     <TextBox Width="40" Margin="2,0,0,0" Text="{Binding ProbeFeed}" />
                                 </StackPanel>
-                                <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="{l:Tr 'Найти Z щупом', En='Probe Z'}"
-                                        ToolTip="{l:Tr 'G38.2: опускание до касания пластины, затем Z0 на поверхности заготовки', En='G38.2: lower until the plate is touched, then Z0 on the stock surface'}" Command="{Binding ProbeZCommand}" />
+                                <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="{l:Tr 'Найти Z щупом', En='Probe Z'}" ToolTip="{l:Tr 'G38.2: фреза опускается до касания пластины щупа, затем Z0 ставится на поверхность заготовки с учётом толщины пластины. Зажим щупа — на фрезе.', En='G38.2: the tool goes down until it touches the probe plate, then Z0 is set on the stock surface, taking the plate thickness into account. Probe clip on the tool.'}" Command="{Binding ProbeZCommand}" />
                             </Grid>
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Карта высот (платы)', En='Height map (PCB)'}" />
@@ -896,8 +905,7 @@
                                 <TextBlock Grid.Row="0" Text="{l:Tr 'X от / до', En='X from / to'}" VerticalAlignment="Center" Margin="0,0,4,0" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LevelMinX}" />
                                 <TextBox Grid.Row="0" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelMaxX}" />
-                                <Button Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="4,0,0,0" Content="{l:Tr 'Из программы', En='From program'}"
-                                        ToolTip="{l:Tr 'Область всех резов проекта + 1 мм', En='Area of all cuts of the project + 1 mm'}" Command="{Binding LevelAreaFromProgramCommand}" />
+                                <Button Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="4,0,0,0" Content="{l:Tr 'Из программы', En='From program'}" ToolTip="{l:Tr 'Взять область карты высот из траекторий проекта (все резы + 1 мм).', En='Take the height map area from the project toolpaths (all cuts + 1 mm).'}" Command="{Binding LevelAreaFromProgramCommand}" />
                                 <TextBlock Grid.Row="1" Text="{l:Tr 'Y от / до', En='Y from / to'}" VerticalAlignment="Center" Margin="0,0,4,0" />
                                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LevelMinY}" />
                                 <TextBox Grid.Row="1" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelMaxY}" />
@@ -909,8 +917,8 @@
                                 <TextBox Grid.Row="3" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelDepth}" ToolTip="{l:Tr 'Насколько ниже Z0 искать поверхность, мм', En='How far below Z0 to search for the surface, mm'}" />
                             </Grid>
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="{l:Tr 'Снять карту', En='Probe map'}" Command="{Binding ProbeMapCommand}" IsEnabled="{Binding CanControl}" />
-                                <Button Content="{l:Tr 'Удалить карту', En='Delete map'}" Command="{Binding ClearMapCommand}" IsEnabled="{Binding HasLevelingMap}" />
+                                <Button Content="{l:Tr 'Снять карту', En='Probe map'}" ToolTip="{l:Tr 'Снять карту высот: щуп обходит сетку точек змейкой и измеряет неровность платы. В первой точке ставится Z0.', En='Probe the height map: the probe visits a grid of points and measures how uneven the board is. Z0 is set at the first point.'}" Command="{Binding ProbeMapCommand}" IsEnabled="{Binding CanControl}" />
+                                <Button Content="{l:Tr 'Удалить карту', En='Delete map'}" ToolTip="{l:Tr 'Удалить снятую карту высот из проекта.', En='Delete the measured height map from the project.'}" Command="{Binding ClearMapCommand}" IsEnabled="{Binding HasLevelingMap}" />
                             </WrapPanel>
                             <TextBlock Text="{Binding LevelingText}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" />
                             <TextBlock Text="{Binding LevelingTable}" FontFamily="Consolas" FontSize="11" Margin="0,2" />
@@ -919,15 +927,15 @@
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Программа', En='Program'}" />
                             <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Файл…', En='File…'}" ToolTip="{l:Tr 'Запустить готовый файл G-code', En='Run an existing G-code file'}" Command="{Binding LoadFileCommand}" />
-                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Проект', En='Project'}" ToolTip="{l:Tr 'Запускать G-code текущего проекта', En='Run the G-code of the current project'}" Command="{Binding UseProjectCommand}" />
+                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Файл…', En='File…'}" ToolTip="{l:Tr 'Выбрать готовый файл G-code (.nc, .gcode, .tap…) и запускать его вместо G-code проекта.', En='Choose an existing G-code file (.nc, .gcode, .tap…) to run instead of the project G-code.'}" Command="{Binding LoadFileCommand}" />
+                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Проект', En='Project'}" ToolTip="{l:Tr 'Снова запускать G-code текущего проекта вместо выбранного файла.', En='Run the G-code of the current project again instead of the chosen file.'}" Command="{Binding UseProjectCommand}" />
                                 <TextBlock VerticalAlignment="Center" Text="{Binding ProgramSource}" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="{l:Tr '▶ Старт', En='▶ Start'}" FontWeight="SemiBold" Command="{Binding StartJobCommand}" IsEnabled="{Binding CanStartJob}" />
-                                <Button Content="{l:Tr '❚❚ Пауза', En='❚❚ Pause'}" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" />
-                                <Button Content="{l:Tr 'Продолжить', En='Resume'}" Command="{Binding ResumeCommand}" IsEnabled="{Binding CanResume}" />
-                                <Button Content="{l:Tr '■ Стоп', En='■ Stop'}" Command="{Binding StopCommand}" IsEnabled="{Binding IsJobActive}" />
+                                <Button Content="{l:Tr '▶ Старт', En='▶ Start'}" FontWeight="SemiBold" ToolTip="{l:Tr 'Запустить программу на станке. Перед стартом проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза.', En='Start the program on the machine. Before starting check: the stock is clamped, X/Y/Z zero is set, the right tool is in the spindle.'}" Command="{Binding StartJobCommand}" IsEnabled="{Binding CanStartJob}" />
+                                <Button Content="{l:Tr '❚❚ Пауза', En='❚❚ Pause'}" ToolTip="{l:Tr 'Плавно остановить подачу (feed hold). Положение сохраняется, «Продолжить» — ехать дальше.', En='Stop the feed smoothly (feed hold). The position is kept; “Resume” continues.'}" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" />
+                                <Button Content="{l:Tr 'Продолжить', En='Resume'}" ToolTip="{l:Tr 'Продолжить программу после паузы, смены инструмента (M0) или ошибки в строке (ошибочная строка пропускается).', En='Continue the program after a pause, a tool change (M0) or a line error (the failed line is skipped).'}" Command="{Binding ResumeCommand}" IsEnabled="{Binding CanResume}" />
+                                <Button Content="{l:Tr '■ Стоп', En='■ Stop'}" ToolTip="{l:Tr 'Прервать программу: станок плавно тормозит, затем GRBL сбрасывается и шпиндель останавливается. Положение не теряется.', En='Abort the program: the machine decelerates, then GRBL is reset and the spindle stops. The position is kept.'}" Command="{Binding StopCommand}" IsEnabled="{Binding IsJobActive}" />
                             </WrapPanel>
                             <ProgressBar Height="12" Margin="0,4" Maximum="100" Value="{Binding Progress}" />
                             <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" FontSize="11" />
@@ -944,19 +952,19 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Text="{l:Tr 'Подача', En='Feed'}" VerticalAlignment="Center" />
-                                <Button Grid.Row="0" Grid.Column="1" Content="−10 %" Command="{Binding FeedOverrideCommand}" CommandParameter="-" />
-                                <Button Grid.Row="0" Grid.Column="2" Content="100 %" Command="{Binding FeedOverrideCommand}" CommandParameter="0" />
-                                <Button Grid.Row="0" Grid.Column="3" Content="+10 %" Command="{Binding FeedOverrideCommand}" CommandParameter="+" />
+                                <Button Grid.Row="0" Grid.Column="1" Content="−10 %" ToolTip="{l:Tr 'Уменьшить подачу на 10 % прямо во время работы (визг, вибрация, подгорание).', En='Reduce the feed by 10 % while running (screeching, vibration, burning).'}" Command="{Binding FeedOverrideCommand}" CommandParameter="-" />
+                                <Button Grid.Row="0" Grid.Column="2" Content="100 %" ToolTip="{l:Tr 'Вернуть подачу из программы (100 %).', En='Back to the programmed feed (100 %).'}" Command="{Binding FeedOverrideCommand}" CommandParameter="0" />
+                                <Button Grid.Row="0" Grid.Column="3" Content="+10 %" ToolTip="{l:Tr 'Увеличить подачу на 10 % прямо во время работы.', En='Increase the feed by 10 % while running.'}" Command="{Binding FeedOverrideCommand}" CommandParameter="+" />
                                 <TextBlock Grid.Row="1" Text="{l:Tr 'Шпиндель', En='Spindle'}" VerticalAlignment="Center" />
-                                <Button Grid.Row="1" Grid.Column="1" Content="−10 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="-" />
-                                <Button Grid.Row="1" Grid.Column="2" Content="100 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="0" />
-                                <Button Grid.Row="1" Grid.Column="3" Content="+10 %" Command="{Binding SpindleOverrideCommand}" CommandParameter="+" />
+                                <Button Grid.Row="1" Grid.Column="1" Content="−10 %" ToolTip="{l:Tr 'Уменьшить обороты шпинделя (или мощность лазера) на 10 %.', En='Reduce the spindle speed (or laser power) by 10 %.'}" Command="{Binding SpindleOverrideCommand}" CommandParameter="-" />
+                                <Button Grid.Row="1" Grid.Column="2" Content="100 %" ToolTip="{l:Tr 'Вернуть обороты (мощность) из программы (100 %).', En='Back to the programmed speed (power) (100 %).'}" Command="{Binding SpindleOverrideCommand}" CommandParameter="0" />
+                                <Button Grid.Row="1" Grid.Column="3" Content="+10 %" ToolTip="{l:Tr 'Увеличить обороты шпинделя (или мощность лазера) на 10 %.', En='Increase the spindle speed (or laser power) by 10 %.'}" Command="{Binding SpindleOverrideCommand}" CommandParameter="+" />
                             </Grid>
                             <TextBlock Text="{Binding OverridesText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Консоль', En='Console'}" />
                             <DockPanel IsEnabled="{Binding IsConnected}">
-                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Отправить', En='Send'}" Command="{Binding SendConsoleCommand}" />
+                                <Button DockPanel.Dock="Right" Content="{l:Tr 'Отправить', En='Send'}" ToolTip="{l:Tr 'Отправить команду из строки консоли в GRBL (Enter). Например: $$ — настройки, $G — режимы, $I — версия.', En='Send the console line to GRBL (Enter). For example: $$ — settings, $G — modes, $I — version.'}" Command="{Binding SendConsoleCommand}" />
                                 <TextBox Text="{Binding ConsoleInput, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"
                                          ToolTip="{l:Tr 'Команда GRBL, например $$ (настройки), $G (режимы), $I (версия)', En='GRBL command, e.g. $$ (settings), $G (modes), $I (version)'}">
                                     <TextBox.InputBindings>
@@ -978,13 +986,13 @@
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0">
                             <DockPanel Margin="0,0,0,4">
-                                <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Добавить', En='Add'}" Command="{Binding AddToolFromPresetCommand}" />
+                                <Button DockPanel.Dock="Right" Margin="4,0,0,0" Content="{l:Tr 'Добавить', En='Add'}" ToolTip="{l:Tr 'Добавить в проект инструмент из выбранного пресета: диаметр, обороты, подачи и шаг по глубине для 3018.', En='Add a tool from the selected preset to the project: diameter, speed, feeds and step-down for a 3018.'}" Command="{Binding AddToolFromPresetCommand}" />
                                 <ComboBox ItemsSource="{Binding ToolPresetOptions}" SelectedValue="{Binding SelectedToolPreset}"
                                           DisplayMemberPath="Label" SelectedValuePath="Value" ToolTip="{l:Tr 'Пресеты для CNC 3018 (шпиндель ~10 000 об/мин)', En='Presets for a CNC 3018 (spindle ~10,000 rpm)'}" />
                             </DockPanel>
                             <WrapPanel>
-                                <Button Content="{l:Tr '+ Пустой', En='+ Empty'}" Command="{Binding AddToolCommand}" />
-                                <Button Content="{l:Tr 'Удалить', En='Delete'}" Command="{Binding RemoveToolCommand}" />
+                                <Button Content="{l:Tr '+ Пустой', En='+ Empty'}" ToolTip="{l:Tr 'Добавить пустой инструмент и заполнить его данные вручную.', En='Add an empty tool and fill in its data by hand.'}" Command="{Binding AddToolCommand}" />
+                                <Button Content="{l:Tr 'Удалить', En='Delete'}" ToolTip="{l:Tr 'Удалить выбранный инструмент. Инструмент, который используют операции, удалить нельзя.', En='Delete the selected tool. A tool used by operations cannot be deleted.'}" Command="{Binding RemoveToolCommand}" />
                             </WrapPanel>
                         </StackPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Tools}" SelectedItem="{Binding SelectedTool}" DisplayMemberPath="Display" />
@@ -999,7 +1007,7 @@
                         <StackPanel Margin="6">
                             <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,4" Text="{l:Tr 'Профиль станка', En='Machine profile'}" />
                             <DockPanel>
-                                <Button DockPanel.Dock="Right" Margin="4,3,0,3" Content="{l:Tr 'Применить', En='Apply'}" Command="{Binding ApplyProfileCommand}" />
+                                <Button DockPanel.Dock="Right" Margin="4,3,0,3" Content="{l:Tr 'Применить', En='Apply'}" ToolTip="{l:Tr 'Применить выбранный профиль станка: формат G-code, обороты, подачи, рабочее поле, лазерный режим. Свои строки в начале и конце программы сохраняются.', En='Apply the selected machine profile: G-code format, spindle speed, feeds, work area, laser mode. Custom start and end lines are kept.'}" Command="{Binding ApplyProfileCommand}" />
                                 <ComboBox ItemsSource="{Binding ProfileOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding SelectedProfile}" />
                             </DockPanel>
                             <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}" Text="{Binding SelectedProfile.Description}" />
@@ -1124,9 +1132,9 @@
                             <Border DockPanel.Dock="Bottom" Padding="6,4" Background="{DynamicResource PanelBrush}">
                                 <StackPanel>
                                     <DockPanel>
-                                        <Button DockPanel.Dock="Left" Content="⏮" ToolTip="{l:Tr 'В начало', En='To start'}" Command="{Binding ToStartCommand}" />
-                                        <Button DockPanel.Dock="Left" MinWidth="80" Content="{Binding PlayLabel}" Command="{Binding PlayPauseCommand}" />
-                                        <Button DockPanel.Dock="Left" Content="⏭" ToolTip="{l:Tr 'Готовая деталь', En='Finished part'}" Command="{Binding ToEndCommand}" />
+                                        <Button DockPanel.Dock="Left" Content="⏮" ToolTip="{l:Tr 'Перемотать симуляцию в начало: заготовка ещё не обработана.', En='Rewind the simulation to the start: the stock is untouched.'}" Command="{Binding ToStartCommand}" />
+                                        <Button DockPanel.Dock="Left" MinWidth="80" Content="{Binding PlayLabel}" ToolTip="{l:Tr 'Запустить или приостановить воспроизведение обработки с выбранной скоростью.', En='Play or pause the machining at the selected speed.'}" Command="{Binding PlayPauseCommand}" />
+                                        <Button DockPanel.Dock="Left" Content="⏭" ToolTip="{l:Tr 'Показать готовую деталь — результат всей программы.', En='Show the finished part — the result of the whole program.'}" Command="{Binding ToEndCommand}" />
                                         <ComboBox DockPanel.Dock="Left" Width="140" Margin="4,0" ItemsSource="{Binding Speeds}"
                                                   DisplayMemberPath="Label" SelectedItem="{Binding SelectedSpeed}" ToolTip="{l:Tr 'Скорость воспроизведения', En='Playback speed'}" />
                                         <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding TimeText}" />
@@ -1134,7 +1142,7 @@
                                                 ToolTip="{l:Tr 'Перетащите, чтобы посмотреть заготовку в любой момент обработки', En='Drag to see the stock at any moment of machining'}" />
                                     </DockPanel>
                                     <DockPanel Margin="0,4,0,0">
-                                        <Button DockPanel.Dock="Right" Content="{l:Tr 'Пересчитать', En='Recalculate'}" Command="{Binding RebuildCommand}" />
+                                        <Button DockPanel.Dock="Right" Content="{l:Tr 'Пересчитать', En='Recalculate'}" ToolTip="{l:Tr 'Пересчитать симуляцию заново, например после смены точности сетки.', En='Recalculate the simulation, for example after changing the grid accuracy.'}" Command="{Binding RebuildCommand}" />
                                         <ComboBox DockPanel.Dock="Right" Width="150" Margin="4,0" ItemsSource="{Binding Qualities}"
                                                   DisplayMemberPath="Label" SelectedItem="{Binding SelectedQuality}" ToolTip="{l:Tr 'Точность сетки', En='Grid accuracy'}" />
                                         <StackPanel>
