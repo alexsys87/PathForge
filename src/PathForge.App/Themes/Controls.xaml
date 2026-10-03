@@ -17,6 +17,9 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <!-- Hints explain buttons that are still disabled (e.g. before connecting) and stay long enough to read -->
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Setter Property="ToolTipService.ShowDuration" Value="60000" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ButtonBase">
