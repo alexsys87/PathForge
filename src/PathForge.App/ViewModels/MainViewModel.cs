@@ -59,11 +59,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     private static string ProjectFilter => Loc.T("Проекты PathForge", "PathForge projects") + " (*.pfproj)|*.pfproj";
 
+    /// <summary>
+    /// KiCad (*.gbr), Altium Designer / Protel (*.GTL top, *.GBL bottom, *.G1… inner, *.GP1… planes,
+    /// *.GKO keep-out, *.GM1… mechanical) and other generators (*.ger, *.pho, *.art).
+    /// </summary>
     private static string GerberFilter =>
-        "Gerber (*.gbr;*.gtl;*.gbl;*.gko;*.gm1;*.ger)|*.gbr;*.gtl;*.gbl;*.gko;*.gm1;*.gml;*.ger;*.pho" + AllFiles;
+        "Gerber (*.gbr;*.gtl;*.gbl;*.gko;*.gm*;*.ger)|*.gbr;*.gtl;*.gbl;*.g1;*.g2;*.g3;*.g4;*.g5;*.g6;*.gp1;*.gp2;*.gp3;*.gp4;" +
+        "*.gko;*.gm*;*.gml;*.ger;*.pho;*.art" + AllFiles;
 
+    /// <summary>KiCad/Eagle (*.drl, *.xln) and Altium Designer NC drill (*.txt, e.g. Board-RoundHoles.TXT and -SlotHoles.TXT).</summary>
     private static string DrillFilter =>
-        Loc.T("Сверловка Excellon", "Excellon drill files") + " (*.drl;*.xln;*.txt)|*.drl;*.xln;*.txt;*.exc;*.drd" + AllFiles;
+        Loc.T("Сверловка Excellon", "Excellon drill files") + " (*.drl;*.xln;*.txt)|*.drl;*.xln;*.txt;*.exc;*.drd;*.nc" + AllFiles;
 
     private static string GcodeFilter =>
         "G-code (*.nc)|*.nc|G-code (*.gcode)|*.gcode|" + Loc.T("Текст", "Text") + " (*.txt)|*.txt";

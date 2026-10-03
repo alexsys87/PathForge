@@ -234,7 +234,47 @@ public static partial class GerberReader
                 Warn(Loc.T("Зеркалирование в файле (%MI) не поддерживается; используйте «Зеркалить по X».", "Mirroring in the file (%MI) is not supported; use “Mirror X”."));
             }
 
-            // TF/TA/TO/TD (X2 attributes), IN, LN, OF, SF, AS, IR: no influence on 2D geometry here.
+            else if (command.StartsWith("TF.FileFunction,", StringComparison.Ordinal))
+            {
+                CheckFileFunction(command["TF.FileFunction,".Length..]);
+            }
+
+            // Other TF/TA/TO/TD (X2 attributes), IN, LN, OF, SF, AS, IR: no influence on 2D geometry here.
+        }
+
+        /// <summary>
+        /// The X2 attribute (Altium Designer, KiCad) tells what the file is: catch a board outline opened as copper
+        /// and the other way round, and remind that the bottom copper is milled mirrored.
+        /// </summary>
+        private void CheckFileFunction(string function)
+        {
+            var copper = function.StartsWith("Copper", StringComparison.OrdinalIgnoreCase);
+            var outline = function.StartsWith("Profile", StringComparison.OrdinalIgnoreCase);
+            if (_mode == GerberMode.Copper && outline)
+            {
+                Warn(Loc.T(
+                    "Этот файл — контур платы (X2: Profile). Загрузите его через «Добавить Gerber: контур платы».",
+                    "This file is a board outline (X2: Profile). Load it with “Add Gerber: board outline”."));
+            }
+            else if (_mode == GerberMode.Copper && !copper)
+            {
+                Warn(Loc.T(
+                    $"Это не слой меди (X2: {function}): изоляция строится только по меди.",
+                    $"This is not a copper layer (X2: {function}): isolation is made from copper only."));
+            }
+            else if (_mode == GerberMode.Outline && copper)
+            {
+                Warn(Loc.T(
+                    "Этот файл — слой меди (X2: Copper). Загрузите его через «Добавить Gerber: медь».",
+                    "This file is a copper layer (X2: Copper). Load it with “Add Gerber: copper”."));
+            }
+
+            if (_mode == GerberMode.Copper && copper && function.Contains(",Bot", StringComparison.OrdinalIgnoreCase))
+            {
+                Warn(Loc.T(
+                    "Нижний слой меди: перед фрезерованием отзеркальте чертёж (Файл → Печатная плата → Зеркалить по X).",
+                    "Bottom copper layer: mirror the drawing before milling (File → PCB → Mirror X)."));
+            }
         }
 
         public void Word(string command)

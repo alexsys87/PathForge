@@ -15,6 +15,7 @@
   <ItemGroup>
     <None Include="..\..\samples\*.dxf;..\..\samples\*.svg;..\..\samples\*.stl" LinkBase="samples" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\samples\pcb-demo\*" LinkBase="samples\pcb-demo" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\pcb-altium\*" LinkBase="samples\pcb-altium" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\PathForge.Core\PathForge.Core.csproj" />
