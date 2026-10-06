@@ -375,6 +375,33 @@ public class GrblTests
     }
 
     [Fact]
+    public void Silent_controller_is_treated_as_lost_once_it_has_answered()
+    {
+        var board = new FakeGrbl();
+        var controller = new GrblController(board);
+        var later = Environment.TickCount64 + 60_000;
+
+        // Nothing heard yet (wrong port, board still booting): no verdict.
+        controller.CheckResponse(TimeSpan.FromSeconds(10), later);
+        Assert.True(controller.IsConnected);
+        Assert.False(controller.HasAnswered);
+
+        board.Status("Idle");
+        Assert.True(controller.HasAnswered);
+        controller.CheckResponse(TimeSpan.FromSeconds(10), Environment.TickCount64 + 1_000);
+        Assert.True(controller.IsConnected);
+
+        // Homing: GRBL does not answer status queries until the cycle is done.
+        controller.Home();
+        controller.CheckResponse(TimeSpan.FromSeconds(10), later);
+        Assert.True(controller.IsConnected);
+
+        board.ProcessAll();
+        controller.CheckResponse(TimeSpan.FromSeconds(10), later);
+        Assert.False(controller.IsConnected);
+    }
+
+    [Fact]
     public void Jog_cancel_drops_queued_jogs()
     {
         var (controller, board, _) = Connect();

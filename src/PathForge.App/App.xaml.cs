@@ -12,6 +12,8 @@ public partial class App : Application
     /// <summary>Interface language and colour theme of this run.</summary>
     public static IAppearanceService Appearance { get; private set; } = null!;
 
+    public static UiPreferences Preferences { get; private set; } = null!;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         // WPF bindings use en-US by default; use the OS culture so that "2,5" is accepted in Russia.
@@ -33,6 +35,7 @@ public partial class App : Application
         var preferences = UiPreferences.Load();
         Loc.Language = preferences.Language;
         WpfAppearanceService.ApplyTheme(preferences.Theme);
+        Preferences = preferences;
         Appearance = new WpfAppearanceService(preferences);
 
         DispatcherUnhandledException += (_, args) =>

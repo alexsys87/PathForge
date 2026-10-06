@@ -64,13 +64,13 @@ public sealed class SerialPortTransport : IGrblTransport
                     _port.Close();
                 }
             }
-        }
-        catch (IOException)
-        {
-            // The device may already be gone.
-        }
 
-        _port.Dispose();
+            _port.Dispose();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            // The device is already gone (USB unplugged): closing its handle fails, there is nothing left to release.
+        }
     }
 
     private void EnsureOpen()

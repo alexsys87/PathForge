@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PathForge.Core.Grbl;
 using PathForge.Core.Localization;
 
 namespace PathForge.App.Services;
@@ -12,7 +13,7 @@ public enum AppTheme
     Dark,
 }
 
-/// <summary>Interface language and colour theme, kept between runs in %AppData%\PathForge\settings.json.</summary>
+/// <summary>Interface language, colour theme and machine connection, kept between runs in %AppData%\PathForge\settings.json.</summary>
 public sealed class UiPreferences
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -24,6 +25,14 @@ public sealed class UiPreferences
     public AppLanguage Language { get; set; } = DefaultLanguage();
 
     public AppTheme Theme { get; set; } = AppTheme.Light;
+
+    /// <summary>The control panel connects over the network (telnet) instead of a COM port.</summary>
+    public bool MachineUseNetwork { get; set; }
+
+    /// <summary>Address of the board for the network connection (192.168.4.1 is the MKS DLC32 in access point mode).</summary>
+    public string MachineHost { get; set; } = "192.168.4.1";
+
+    public int MachineNetworkPort { get; set; } = TelnetTransport.DefaultPort;
 
     private static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PathForge", "settings.json");
