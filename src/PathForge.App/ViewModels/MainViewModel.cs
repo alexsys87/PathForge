@@ -707,6 +707,41 @@ public sealed partial class MainViewModel : ObservableObject
     private void AddLaserVector() =>
         AddOperation(new LaserVectorOperation { Name = NewName("Лазер", "Laser") }, LaserTool());
 
+    /// <summary>Settings of the power × speed test card.</summary>
+    public LaserTestGridViewModel LaserTest { get; } = new();
+
+    /// <summary>
+    /// Adds a test card: squares burned with every combination of power (rows) and speed (columns), with the
+    /// values burned next to them. Placed to the right of the drawing.
+    /// </summary>
+    [RelayCommand]
+    private void AddLaserTestGrid()
+    {
+        var laser = LaserTool();
+        var drawing = _project.DrawingBounds();
+        var settings = LaserTest.Model;
+        settings.X = drawing.IsEmpty ? 0 : drawing.MaxX + 10;
+        settings.Y = drawing.IsEmpty ? 0 : drawing.MinY;
+        var grid = LaserTestGrid.Build(settings, laser?.Id ?? "", _project.NextContourId());
+        _project.Contours.AddRange(grid.Contours);
+        foreach (var operation in grid.Operations)
+        {
+            _project.Operations.Add(operation);
+            Operations.Add(OperationViewModel.Create(operation, OnProjectChanged));
+        }
+
+        SelectedOperation = Operations[^1];
+        RefreshLayers();
+        Messages.Add(Loc.T(
+            $"Тест-сетка: {settings.PowerSteps}×{settings.SpeedSteps} квадратов, мощность растёт снизу вверх, скорость — слева направо. " +
+            "Выберите лучший квадрат и перенесите его мощность и скорость в свою операцию.",
+            $"Test card: {settings.PowerSteps}×{settings.SpeedSteps} squares, power grows from bottom to top, speed from left to right. " +
+            "Pick the best square and copy its power and speed into your operation."));
+        OnProjectChanged();
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     [RelayCommand]
     private void AddLaserRaster()
     {

@@ -174,6 +174,32 @@ public enum LaserVectorMode
     FillAndLine,
 }
 
+/// <summary>Which size a laser cut keeps when the burnt-away width (kerf) is compensated.</summary>
+public enum KerfCompensation
+{
+    /// <summary>The beam runs exactly on the lines.</summary>
+    None,
+
+    /// <summary>Parts come out to size: outer contours move out by half the kerf, holes move in.</summary>
+    Parts,
+
+    /// <summary>Openings come out to size (inlays, sockets): the other way round.</summary>
+    Openings,
+}
+
+/// <summary>How a raster picture shows grey.</summary>
+public enum RasterModulation
+{
+    /// <summary>Darker pixels get more power at constant speed.</summary>
+    Power,
+
+    /// <summary>
+    /// Constant power, darker pixels go slower: for diode lasers whose power does not follow S linearly
+    /// (weak spots stay unburnt, then the beam suddenly gets too strong).
+    /// </summary>
+    Speed,
+}
+
 /// <summary>Laser cutting or engraving along / inside contours. Z stays at the focus height.</summary>
 public sealed class LaserVectorOperation : Operation
 {
@@ -200,6 +226,12 @@ public sealed class LaserVectorOperation : Operation
 
     /// <summary>Direction of the hatch lines (degrees from X).</summary>
     public double FillAngle { get; set; }
+
+    /// <summary>Compensation of the burnt-away width for closed contours burned as lines.</summary>
+    public KerfCompensation Kerf { get; set; }
+
+    /// <summary>Width of the cut (mm): measure a cut square and subtract its size from the nominal one.</summary>
+    public double KerfWidth { get; set; } = 0.15;
 }
 
 public enum RasterMode
@@ -276,6 +308,12 @@ public sealed class LaserRasterOperation : Operation
     public double PowerMaxPercent { get; set; } = 60;
 
     public double Speed { get; set; } = 1500;
+
+    /// <summary>Grey by power (default) or by speed.</summary>
+    public RasterModulation Modulation { get; set; }
+
+    /// <summary>Speed for the darkest pixels when grey is made by speed (mm/min); <see cref="Speed"/> is the speed for the lightest burnt pixels.</summary>
+    public double SpeedMin { get; set; } = 300;
 
     /// <summary>Burn the light parts instead of the dark ones.</summary>
     public bool Invert { get; set; }

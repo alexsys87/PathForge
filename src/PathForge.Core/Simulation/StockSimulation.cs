@@ -50,8 +50,8 @@ public sealed class StockSimulation
                 var rate = move.Kind switch
                 {
                     MoveKind.Rapid => project.Machine.RapidRate,
-                    MoveKind.Plunge => toolpath.Tool.PlungeRate,
-                    _ => toolpath.Tool.FeedRate,
+                    MoveKind.Plunge => move.FeedOr(toolpath.Tool.PlungeRate),
+                    _ => move.FeedOr(toolpath.Tool.FeedRate),
                 };
                 var duration = length / Math.Max(1, rate);
                 moves.Add(new SimulationMove(toolpath, position, move.Target, move.Kind, move.Power, time, duration));

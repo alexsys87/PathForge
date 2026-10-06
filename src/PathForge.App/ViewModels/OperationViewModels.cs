@@ -316,6 +316,18 @@ public sealed class LaserVectorOperationViewModel : OperationViewModel
         get => _model.FillAngle;
         set => Set(_model.FillAngle, value, v => _model.FillAngle = v);
     }
+
+    public KerfCompensation Kerf
+    {
+        get => _model.Kerf;
+        set => Set(_model.Kerf, value, v => _model.Kerf = v);
+    }
+
+    public double KerfWidth
+    {
+        get => _model.KerfWidth;
+        set => Set(_model.KerfWidth, Math.Clamp(value, 0, 5), v => _model.KerfWidth = v);
+    }
 }
 
 public sealed class LaserRasterOperationViewModel : OperationViewModel
@@ -404,6 +416,18 @@ public sealed class LaserRasterOperationViewModel : OperationViewModel
     {
         get => _model.Overscan;
         set => Set(_model.Overscan, Math.Max(0, value), v => _model.Overscan = v);
+    }
+
+    public RasterModulation Modulation
+    {
+        get => _model.Modulation;
+        set => Set(_model.Modulation, value, v => _model.Modulation = v);
+    }
+
+    public double SpeedMin
+    {
+        get => _model.SpeedMin;
+        set => Set(_model.SpeedMin, Math.Max(1, value), v => _model.SpeedMin = v);
     }
 
     public void ReplaceImage(GrayImage image)
