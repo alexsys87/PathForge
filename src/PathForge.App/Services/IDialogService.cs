@@ -5,6 +5,9 @@ public interface IDialogService
 {
     string? OpenFile(string title, string filter);
 
+    /// <summary>Several files at once; null when cancelled.</summary>
+    string[]? OpenFiles(string title, string filter);
+
     string? SaveFile(string title, string filter, string defaultFileName);
 
     void ShowError(string message);

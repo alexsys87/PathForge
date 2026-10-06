@@ -22,11 +22,11 @@ public sealed record ToolpathStatistics(double CutLength, double RapidLength, Ti
                         break;
                     case MoveKind.Plunge:
                         cut += length;
-                        minutes += length / Math.Max(1, toolpath.Tool.PlungeRate);
+                        minutes += length / Math.Max(1, move.FeedOr(toolpath.Tool.PlungeRate));
                         break;
                     default:
                         cut += length;
-                        minutes += length / Math.Max(1, toolpath.Tool.FeedRate);
+                        minutes += length / Math.Max(1, move.FeedOr(toolpath.Tool.FeedRate));
                         break;
                 }
 

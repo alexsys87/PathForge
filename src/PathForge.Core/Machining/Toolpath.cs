@@ -15,7 +15,12 @@ public enum MoveKind
 }
 
 /// <param name="Power">Laser power 0…1 for this move; NaN for spindle tools.</param>
-public readonly record struct ToolMove(MoveKind Kind, Vec3 Target, double Power = double.NaN);
+/// <param name="Feed">Feed of this move (mm/min); NaN = the tool's feed (laser engraving with variable speed sets it).</param>
+public readonly record struct ToolMove(MoveKind Kind, Vec3 Target, double Power = double.NaN, double Feed = double.NaN)
+{
+    /// <summary>The move's own feed, or <paramref name="toolFeed"/> when it has none.</summary>
+    public double FeedOr(double toolFeed) => double.IsNaN(Feed) ? toolFeed : Feed;
+}
 
 /// <summary>Tool moves produced by one operation.</summary>
 public sealed class Toolpath

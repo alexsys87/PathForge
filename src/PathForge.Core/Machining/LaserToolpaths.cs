@@ -63,6 +63,13 @@ public static partial class ToolpathGenerator
         var fill = operation.Mode is LaserVectorMode.Fill or LaserVectorMode.FillAndLine;
         var line = operation.Mode is LaserVectorMode.Line or LaserVectorMode.FillAndLine;
         var hatch = fill ? HatchLines(contours, operation.FillSpacing, operation.FillAngle, warnings, label) : new List<(Vec2, Vec2)>();
+        var kerf = line && operation.Kerf != KerfCompensation.None && operation.KerfWidth > 0
+            ? KerfDeltas(contours, operation)
+            : new Dictionary<Contour, double>();
+        if (kerf.Count > 0 && contours.Any(c => !c.IsClosed))
+        {
+            warnings.Add(Loc.T($"{label}: ширина реза учитывается только у замкнутых контуров.", $"{label}: the kerf is only compensated on closed contours."));
+        }
 
         for (var pass = 0; pass < Math.Max(1, operation.Passes); pass++)
         {
@@ -86,19 +93,50 @@ public static partial class ToolpathGenerator
                     continue;
                 }
 
-                if (contour.IsClosed)
+                var paths = new List<List<Vec2>> { points };
+                if (kerf.TryGetValue(contour, out var delta))
                 {
-                    points = Polyline.RotateToNearest(points, writer.Position.XY);
-                    points.Add(points[0]);
+                    // Offsetting may split a narrow shape in two or make a small hole vanish.
+                    paths = ClipperBridge.FromPaths(ClipperBridge.Offset(ClipperBridge.EvenOddRegion(new[] { points }), delta));
                 }
 
-                MoveLaserTo(writer, points[0], z);
-                foreach (var p in points.Skip(1))
+                foreach (var path in paths)
                 {
-                    writer.BurnTo(p, power);
+                    var burn = path;
+                    if (contour.IsClosed)
+                    {
+                        burn = Polyline.RotateToNearest(path, writer.Position.XY);
+                        burn.Add(burn[0]);
+                    }
+
+                    MoveLaserTo(writer, burn[0], z);
+                    foreach (var p in burn.Skip(1))
+                    {
+                        writer.BurnTo(p, power);
+                    }
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Offset of every closed contour for kerf compensation: contours inside an odd number of others are holes.
+    /// Positive values grow the shape.
+    /// </summary>
+    internal static Dictionary<Contour, double> KerfDeltas(List<Contour> contours, LaserVectorOperation operation)
+    {
+        var closed = contours.Where(c => c.IsClosed).Select(c => (Contour: c, Ring: c.Flatten(FlattenTolerance))).Where(c => c.Ring.Count >= 3).ToList();
+        var deltas = new Dictionary<Contour, double>();
+        var half = operation.KerfWidth / 2;
+        foreach (var (contour, ring) in closed)
+        {
+            var depth = closed.Count(other => !ReferenceEquals(other.Contour, contour) && Polyline.Contains(other.Ring, ring[0]));
+            var outer = depth % 2 == 0;
+            var grow = outer == (operation.Kerf == KerfCompensation.Parts);
+            deltas[contour] = grow ? half : -half;
+        }
+
+        return deltas;
     }
 
     /// <summary>Travel with the beam off to <paramref name="xy"/> and set the focus height.</summary>
@@ -182,7 +220,30 @@ public static partial class ToolpathGenerator
             return;
         }
 
-        var powers = RasterPowers(operation, columns, rows);
+        var bySpeed = operation.Modulation == RasterModulation.Speed;
+        var fullPower = Math.Clamp(operation.PowerMaxPercent, 0, 100) / 100;
+        // By speed: the grey level 0…1 of each pixel decides the speed, the power stays at the maximum.
+        var powers = bySpeed ? RasterLevels(operation, columns, rows) : RasterPowers(operation, columns, rows);
+        var fast = Math.Max(1, operation.Speed);
+        var slow = Math.Clamp(operation.SpeedMin, 1, fast);
+        if (bySpeed && operation.SpeedMin >= operation.Speed)
+        {
+            warnings.Add(Loc.T($"{label}: минимальная скорость должна быть меньше скорости — оттенки не получатся.", $"{label}: the minimum speed must be below the speed — no grey shades."));
+        }
+
+        // Burnt energy per millimetre grows with 1/speed: interpolate there so that grey looks even.
+        void Burn(Vec2 to, double value)
+        {
+            if (!bySpeed || value <= 0)
+            {
+                writer.BurnTo(to, bySpeed ? 0 : value);
+                return;
+            }
+
+            var speed = 1 / (1 / fast + value * (1 / slow - 1 / fast));
+            writer.BurnTo(to, fullPower, Math.Round(speed));
+        }
+
         var overscan = Math.Max(0, operation.Overscan);
         double X(int column) => operation.X + column * interval;
         var burnedRows = 0;
@@ -213,7 +274,7 @@ public static partial class ToolpathGenerator
                         end++;
                     }
 
-                    writer.BurnTo(new Vec2(X(end + 1), y), powers[r][c]);
+                    Burn(new Vec2(X(end + 1), y), powers[r][c]);
                     c = end + 1;
                 }
 
@@ -232,7 +293,7 @@ public static partial class ToolpathGenerator
                         start--;
                     }
 
-                    writer.BurnTo(new Vec2(X(start), y), powers[r][c]);
+                    Burn(new Vec2(X(start), y), powers[r][c]);
                     c = start - 1;
                 }
 
@@ -246,12 +307,19 @@ public static partial class ToolpathGenerator
         }
     }
 
+    /// <summary>Grey level 0…1 of every pixel (the power formula with the range 0…100 %).</summary>
+    internal static double[][] RasterLevels(LaserRasterOperation operation, int columns, int rows) =>
+        RasterPowers(operation, columns, rows, 0, 1);
+
     /// <summary>Laser power (0…1, rounded to 1/1000) for every pixel of the output grid; row 0 is the top.</summary>
-    internal static double[][] RasterPowers(LaserRasterOperation operation, int columns, int rows)
+    internal static double[][] RasterPowers(LaserRasterOperation operation, int columns, int rows) =>
+        RasterPowers(operation, columns, rows,
+            Math.Clamp(operation.PowerMinPercent, 0, 100) / 100,
+            Math.Clamp(operation.PowerMaxPercent, 0, 100) / 100);
+
+    private static double[][] RasterPowers(LaserRasterOperation operation, int columns, int rows, double min, double max)
     {
         var image = operation.Image;
-        var min = Math.Clamp(operation.PowerMinPercent, 0, 100) / 100;
-        var max = Math.Clamp(operation.PowerMaxPercent, 0, 100) / 100;
         var darkness = new double[rows][];
         for (var r = 0; r < rows; r++)
         {

@@ -50,5 +50,15 @@ public sealed class TextItem
     /// <summary>Mirrored left-right around X (e.g. for the bottom side of a board).</summary>
     public bool Mirrored { get; set; }
 
+    /// <summary>
+    /// Text along a circle of this radius (mm); 0 = straight. Positive: over the top of the circle, letters
+    /// standing outwards (the centre is the radius below X, Y). Negative: along the bottom, letters upright
+    /// and pointing to the centre (the centre is above X, Y) — like the two lines of a round stamp.
+    /// </summary>
+    public double ArcRadius { get; set; }
+
+    /// <summary>Location in the design space of a variable font (axis tag → value, e.g. "wght" → 700); empty = the font's default.</summary>
+    public Dictionary<string, double> Variation { get; set; } = new();
+
     public string Layer { get; set; } = Loc.T("Текст", "Text");
 }

@@ -78,19 +78,20 @@ internal sealed class PathWriter
     }
 
     /// <summary>Laser move with the given power (0…1); power 0 moves at feed with the beam off.</summary>
-    public void BurnTo(Vec2 target, double power)
+    /// <param name="feed">Speed of this move (mm/min); NaN = the operation speed.</param>
+    public void BurnTo(Vec2 target, double power, double feed = double.NaN)
     {
         if (target.IsNear(Position.XY, Epsilon))
         {
             return;
         }
 
-        Add(MoveKind.Cut, new Vec3(target, Position.Z), Math.Clamp(power, 0, 1));
+        Add(MoveKind.Cut, new Vec3(target, Position.Z), Math.Clamp(power, 0, 1), feed);
     }
 
-    private void Add(MoveKind kind, Vec3 target, double power = double.NaN)
+    private void Add(MoveKind kind, Vec3 target, double power = double.NaN, double feed = double.NaN)
     {
-        Moves.Add(new ToolMove(kind, target, power));
+        Moves.Add(new ToolMove(kind, target, power, feed));
         Position = target;
     }
 }

@@ -63,6 +63,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// KiCad (*.gbr), Altium Designer / Protel (*.GTL top, *.GBL bottom, *.G1… inner, *.GP1… planes,
     /// *.GKO keep-out, *.GM1… mechanical) and other generators (*.ger, *.pho, *.art).
     /// </summary>
+    private static string PcbFilesFilter =>
+        Loc.T("Файлы платы", "PCB files") + " (*.gbr;*.gtl;*.gbl;*.gko;*.gm*;*.g?;*.drl;*.xln;*.txt)|*.gbr;*.ger;*.gtl;*.gbl;*.gko;*.gm*;*.gml;*.g1;*.g2;*.g3;*.g4;*.cmp;*.sol;*.drl;*.xln;*.exc;*.drd;*.txt;*.nc" + AllFiles;
+
     private static string GerberFilter =>
         "Gerber (*.gbr;*.gtl;*.gbl;*.gko;*.gm*;*.ger)|*.gbr;*.gtl;*.gbl;*.g1;*.g2;*.g3;*.g4;*.g5;*.g6;*.gp1;*.gp2;*.gp3;*.gp4;" +
         "*.gko;*.gm*;*.gml;*.ger;*.pho;*.art" + AllFiles;
@@ -550,56 +553,122 @@ public sealed partial class MainViewModel : ObservableObject
         return (result.ToContours(), result.Warnings);
     });
 
-    /// <summary>PCB layers are added to the drawing (copper, drills and outline come from separate files).</summary>
-    private void ImportPcbFile(string filter, string title, Func<string, (List<Contour> Contours, List<string> Warnings)> read)
+    /// <summary>
+    /// A whole fabrication output at once: copper layers, board outline and drill files are told apart (X2 attributes
+    /// or file names) and each is added as its own layer; mask, silk screen and paste are skipped.
+    /// </summary>
+    [RelayCommand]
+    private void ImportPcbFiles()
     {
-        var path = _dialogs.OpenFile(title, filter);
-        if (path is null)
+        var paths = _dialogs.OpenFiles(Loc.T("Добавить файлы платы (Gerber и сверловка)", "Add PCB files (Gerber and drills)"), PcbFilesFilter);
+        if (paths is null || paths.Length == 0)
         {
             return;
         }
 
-        try
+        ImportPcbFiles(paths, path =>
+        {
+            var text = File.ReadAllText(path);
+            var (kind, reason) = PcbFileDetector.Detect(path, text);
+            switch (kind)
+            {
+                case PcbFileKind.Copper:
+                case PcbFileKind.Outline:
+                    var gerber = GerberReader.Read(text, kind == PcbFileKind.Copper ? GerberMode.Copper : GerberMode.Outline, Path.GetFileName(path));
+                    return (gerber.Contours, gerber.Warnings, KindName(kind));
+                case PcbFileKind.Drill:
+                    var drill = ExcellonReader.Read(text);
+                    return (drill.ToContours(), drill.Warnings, KindName(kind));
+                default:
+                    return (new List<Contour>(), new List<string>(), reason);
+            }
+        });
+
+        static string KindName(PcbFileKind kind) => kind switch
+        {
+            PcbFileKind.Copper => Loc.T("медь", "copper"),
+            PcbFileKind.Outline => Loc.T("контур платы", "board outline"),
+            _ => Loc.T("сверловка", "drills"),
+        };
+    }
+
+    /// <summary>PCB layers are added to the drawing (copper, drills and outline come from separate files).</summary>
+    private void ImportPcbFile(string filter, string title, Func<string, (List<Contour> Contours, List<string> Warnings)> read)
+    {
+        var paths = _dialogs.OpenFiles(title, filter);
+        if (paths is null || paths.Length == 0)
+        {
+            return;
+        }
+
+        ImportPcbFiles(paths, path =>
         {
             var (contours, warnings) = read(path);
-            var nextId = _project.NextContourId();
+            return (contours, warnings, "");
+        });
+    }
+
+    /// <param name="read">Contours and warnings of a file, and its kind for the message (or why it was skipped when there are no contours).</param>
+    private void ImportPcbFiles(IReadOnlyList<string> paths, Func<string, (List<Contour> Contours, List<string> Warnings, string Note)> read)
+    {
+        var added = new List<int>();
+        foreach (var path in paths)
+        {
             var layer = Path.GetFileName(path);
-            foreach (var contour in contours)
+            try
             {
-                contour.Id = nextId++;
-                if (string.IsNullOrEmpty(contour.Layer))
+                var (contours, warnings, note) = read(path);
+                if (contours.Count == 0 && note.Length > 0)
                 {
-                    contour.Layer = layer;
+                    Messages.Add(Loc.T($"{layer}: пропущен — {note}.", $"{layer}: skipped — {note}."));
+                    continue;
+                }
+
+                var nextId = _project.NextContourId();
+                foreach (var contour in contours)
+                {
+                    contour.Id = nextId++;
+                    if (string.IsNullOrEmpty(contour.Layer))
+                    {
+                        contour.Layer = layer;
+                    }
+                }
+
+                _project.Contours.AddRange(contours);
+                added.AddRange(contours.Select(c => c.Id));
+                _project.SourceFile ??= path;
+                if (ProjectPath is null && _project.Contours.Count == contours.Count)
+                {
+                    _project.Name = Path.GetFileNameWithoutExtension(path);
+                }
+
+                var kind = note.Length > 0 ? $" ({note})" : "";
+                Messages.Add(Loc.T($"{layer}{kind}: добавлено контуров {contours.Count}.", $"{layer}{kind}: contours added: {contours.Count}."));
+                foreach (var warning in warnings)
+                {
+                    Messages.Add($"{layer}: {warning}");
                 }
             }
-
-            _project.Contours.AddRange(contours);
-            RefreshLayers();
-            _project.SourceFile ??= path;
-            if (ProjectPath is null && _project.Contours.Count == contours.Count)
+            catch (Exception ex)
             {
-                _project.Name = Path.GetFileNameWithoutExtension(path);
+                _dialogs.ShowError(Loc.T($"Не удалось прочитать {layer}:\n{ex.Message}", $"Could not read {layer}:\n{ex.Message}"));
             }
-
-            // The new contours are selected so that an operation can be added right away.
-            SelectedContourIds.Clear();
-            SelectedContourIds.UnionWith(contours.Select(c => c.Id));
-            Messages.Add(Loc.T($"{layer}: добавлено контуров {contours.Count}.", $"{layer}: contours added: {contours.Count}."));
-            foreach (var warning in warnings)
-            {
-                Messages.Add(warning);
-            }
-
-            OnPropertyChanged(nameof(Title));
-            OnSelectionChanged();
-            OnProjectChanged();
-            Regenerate();
-            ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex)
+
+        if (added.Count == 0)
         {
-            _dialogs.ShowError(Loc.T($"Не удалось прочитать файл:\n{ex.Message}", $"Could not read the file:\n{ex.Message}"));
+            return;
         }
+
+        RefreshLayers();
+        // The new contours are selected so that an operation can be added right away.
+        SelectedContourIds.Clear();
+        SelectedContourIds.UnionWith(added);
+        OnPropertyChanged(nameof(Title));
+        OnSelectionChanged();
+        OnProjectChanged();
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Mirrors the whole drawing left-right, e.g. to mill the bottom copper layer.</summary>
@@ -637,6 +706,85 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void AddLaserVector() =>
         AddOperation(new LaserVectorOperation { Name = NewName("Лазер", "Laser") }, LaserTool());
+
+    /// <summary>Settings of the power × speed test card.</summary>
+    public LaserTestGridViewModel LaserTest { get; } = new();
+
+    /// <summary>Sheet and gaps for laying out parts.</summary>
+    public NestingViewModel Nesting { get; } = new();
+
+    /// <summary>Fills the sheet size and gap from the machine and the largest cutter (before the first layout).</summary>
+    [RelayCommand]
+    private void SuggestNestingSheet()
+    {
+        var cutter = _project.Tools.Where(t => t.Kind != ToolKind.Laser).Select(t => t.Diameter).DefaultIfEmpty(0).Max();
+        Nesting.SuggestSheet(_project.Machine.WorkAreaX, _project.Machine.WorkAreaY, cutter > 0 ? cutter + 2 : 0);
+    }
+
+    /// <summary>
+    /// Lays out the selected parts (or all) on the sheet: each closed outer contour with everything inside it,
+    /// turned when allowed, with copies; operations get the copies too.
+    /// </summary>
+    [RelayCommand]
+    private void NestParts()
+    {
+        var result = PathForge.Core.Machining.Nesting.Arrange(_project, SelectedContourIds.ToList(), Nesting.Model);
+        foreach (var text in Texts)
+        {
+            text.Refresh();
+        }
+
+        foreach (var operation in Operations)
+        {
+            operation.RefreshSummary();
+        }
+
+        Messages.Add(Loc.T(
+            $"Раскладка: на листе {Nesting.SheetWidth:0.#}×{Nesting.SheetHeight:0.#} мм деталей {result.Placed}, заполнено {result.UsedPercent:0} % листа.",
+            $"Layout: {result.Placed} parts on the {Nesting.SheetWidth:0.#}×{Nesting.SheetHeight:0.#} mm sheet, {result.UsedPercent:0} % of the sheet used."));
+        foreach (var warning in result.Warnings)
+        {
+            Messages.Add(warning);
+        }
+
+        RefreshLayers();
+        OnSelectionChanged();
+        OnProjectChanged();
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Adds a test card: squares burned with every combination of power (rows) and speed (columns), with the
+    /// values burned next to them. Placed to the right of the drawing.
+    /// </summary>
+    [RelayCommand]
+    private void AddLaserTestGrid()
+    {
+        var laser = LaserTool();
+        var drawing = _project.DrawingBounds();
+        var settings = LaserTest.Model;
+        settings.X = drawing.IsEmpty ? 0 : drawing.MaxX + 10;
+        settings.Y = drawing.IsEmpty ? 0 : drawing.MinY;
+        var grid = LaserTestGrid.Build(settings, laser?.Id ?? "", _project.NextContourId());
+        _project.Contours.AddRange(grid.Contours);
+        foreach (var operation in grid.Operations)
+        {
+            _project.Operations.Add(operation);
+            Operations.Add(OperationViewModel.Create(operation, OnProjectChanged));
+        }
+
+        SelectedOperation = Operations[^1];
+        RefreshLayers();
+        Messages.Add(Loc.T(
+            $"Тест-сетка: {settings.PowerSteps}×{settings.SpeedSteps} квадратов, мощность растёт снизу вверх, скорость — слева направо. " +
+            "Выберите лучший квадрат и перенесите его мощность и скорость в свою операцию.",
+            $"Test card: {settings.PowerSteps}×{settings.SpeedSteps} squares, power grows from bottom to top, speed from left to right. " +
+            "Pick the best square and copy its power and speed into your operation."));
+        OnProjectChanged();
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     [RelayCommand]
     private void AddLaserRaster()

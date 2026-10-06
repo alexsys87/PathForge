@@ -4,16 +4,22 @@ using PathForge.Core.Localization;
 namespace PathForge.Core.Text;
 
 /// <summary>
-/// Glyph outlines from a CFF table (OpenType fonts with PostScript outlines, usually .otf), written from the
-/// CFF and Type 2 charstring specifications: name-keyed and CID-keyed fonts, local and global subroutines,
-/// all path operators including flex. Hints are skipped; widths come from the hmtx table.
+/// Glyph outlines from a CFF or CFF2 table (OpenType fonts with PostScript outlines, usually .otf), written from
+/// the CFF, CFF2 and Type 2 charstring specifications: name-keyed and CID-keyed fonts, local and global
+/// subroutines, all path operators including flex, and for CFF2 the variation operators (blend, vsindex).
+/// Hints are skipped; widths come from the hmtx table (and HVAR).
 /// </summary>
 internal sealed class CffOutlines
 {
     private const int MaxSubrDepth = 10;
-    private const int MaxStack = 48;
 
     private readonly byte[] _data;
+    private readonly bool _cff2;
+    private readonly int _maxStack;
+
+    /// <summary>CFF2: variation store of the blend operator and the default vsindex of each font dictionary.</summary>
+    private readonly ItemVariationStore? _store;
+    private readonly List<int> _defaultVsIndex = new();
     private readonly List<(int Start, int End)> _charStrings;
     private readonly List<(int Start, int End)> _globalSubrs;
     private readonly List<List<(int Start, int End)>> _localSubrs = new();
@@ -21,9 +27,63 @@ internal sealed class CffOutlines
     /// <summary>Index into <see cref="_localSubrs"/> per glyph (CID fonts); null for name-keyed fonts.</summary>
     private readonly byte[]? _fdSelect;
 
+    /// <summary>CFF2 table at a location of the design space (normalized coordinates, empty = default).</summary>
+    public CffOutlines(byte[] data, int offset, int length, double[] coords)
+    {
+        _data = data;
+        _cff2 = true;
+        _maxStack = 513;
+        var end = offset + length;
+        if (length < 5 || data[offset] != 2)
+        {
+            throw new FormatException(Loc.T("Неподдерживаемая версия таблицы CFF2.", "Unsupported CFF2 table version."));
+        }
+
+        var headerSize = data[offset + 2];
+        var topLength = U16(offset + 3);
+        var top = ReadDict(offset + headerSize, offset + headerSize + topLength);
+        ReadIndex(offset + headerSize + topLength, out _globalSubrs);
+        if (!top.TryGetValue(17, out var charStringsOffset))
+        {
+            throw new FormatException(Loc.T("В шрифте CFF2 нет контуров (CharStrings).", "The CFF2 font has no outlines (CharStrings)."));
+        }
+
+        ReadIndex(offset + (int)charStringsOffset[0], out _charStrings);
+        if (top.TryGetValue(24, out var storeOffset))
+        {
+            // The store is preceded by its length.
+            _store = new ItemVariationStore(new FontData(data), offset + (int)storeOffset[0] + 2, coords);
+        }
+
+        if (!top.TryGetValue(1236, out var fdArrayOffset))
+        {
+            throw new FormatException(Loc.T("В шрифте CFF2 нет FDArray.", "The CFF2 font has no FDArray."));
+        }
+
+        ReadIndex(offset + (int)fdArrayOffset[0], out var fontDicts);
+        foreach (var (start, stop) in fontDicts)
+        {
+            var (subrs, vsindex) = ReadPrivate(offset, ReadDict(start, stop));
+            _localSubrs.Add(subrs);
+            _defaultVsIndex.Add(vsindex);
+        }
+
+        if (_localSubrs.Count == 0)
+        {
+            _localSubrs.Add(new List<(int, int)>());
+            _defaultVsIndex.Add(0);
+        }
+
+        if (top.TryGetValue(1237, out var fdSelectOffset) && fontDicts.Count > 1)
+        {
+            _fdSelect = ReadFdSelect(offset + (int)fdSelectOffset[0], _charStrings.Count, end);
+        }
+    }
+
     public CffOutlines(byte[] data, int offset, int length)
     {
         _data = data;
+        _maxStack = 48;
         var end = offset + length;
         if (length < 4 || data[offset] != 1)
         {
@@ -86,19 +146,23 @@ internal sealed class CffOutlines
         }
 
         var fd = _fdSelect is null ? 0 : Math.Min(_fdSelect[glyph], _localSubrs.Count - 1);
-        var machine = new Interpreter(this, _localSubrs[fd], paths);
+        var machine = new Interpreter(this, _localSubrs[fd], paths, fd < _defaultVsIndex.Count ? _defaultVsIndex[fd] : 0);
         var (start, stop) = _charStrings[glyph];
         machine.Run(start, stop, 0);
         machine.ClosePath();
         return paths;
     }
 
-    private List<(int Start, int End)> ReadPrivateSubrs(int cffOffset, Dictionary<int, List<double>> dict)
+    private List<(int Start, int End)> ReadPrivateSubrs(int cffOffset, Dictionary<int, List<double>> dict) =>
+        ReadPrivate(cffOffset, dict).Subrs;
+
+    /// <summary>Local subroutines and (CFF2) the default variation data index of a private dictionary.</summary>
+    private (List<(int Start, int End)> Subrs, int VsIndex) ReadPrivate(int cffOffset, Dictionary<int, List<double>> dict)
     {
         var subrs = new List<(int, int)>();
         if (!dict.TryGetValue(18, out var privateEntry) || privateEntry.Count < 2)
         {
-            return subrs;
+            return (subrs, 0);
         }
 
         var size = (int)privateEntry[0];
@@ -109,7 +173,8 @@ internal sealed class CffOutlines
             ReadIndex(privateStart + (int)subrsOffset[0], out subrs);
         }
 
-        return subrs;
+        var vsindex = privateDict.TryGetValue(22, out var vs) && vs.Count > 0 ? (int)vs[0] : 0;
+        return (subrs, vsindex);
     }
 
     private byte[] ReadFdSelect(int position, int glyphCount, int end)
@@ -119,6 +184,22 @@ internal sealed class CffOutlines
         if (format == 0)
         {
             Array.Copy(_data, position + 1, result, 0, Math.Min(glyphCount, end - position - 1));
+        }
+        else if (format == 4)
+        {
+            // CFF2: 32-bit glyph ranges, 16-bit font dictionary numbers.
+            var ranges = (int)U32(position + 1);
+            for (var r = 0; r < ranges; r++)
+            {
+                var record = position + 5 + r * 6;
+                var first = (int)U32(record);
+                var fd = U16(record + 4);
+                var next = (int)U32(record + 6);
+                for (var g = first; g < next && g < glyphCount; g++)
+                {
+                    result[g] = (byte)Math.Min(fd, 255);
+                }
+            }
         }
         else if (format == 3)
         {
@@ -143,18 +224,19 @@ internal sealed class CffOutlines
         return result;
     }
 
-    /// <summary>Reads an INDEX structure; returns the position after it.</summary>
+    /// <summary>Reads an INDEX structure (16-bit count in CFF, 32-bit in CFF2); returns the position after it.</summary>
     private int ReadIndex(int position, out List<(int Start, int End)> items)
     {
         items = new List<(int, int)>();
-        var count = U16(position);
+        var countSize = _cff2 ? 4 : 2;
+        var count = _cff2 ? (int)U32(position) : U16(position);
         if (count == 0)
         {
-            return position + 2;
+            return position + countSize;
         }
 
-        var offSize = _data[position + 2];
-        var offsets = position + 3;
+        var offSize = _data[position + countSize];
+        var offsets = position + countSize + 1;
         var dataStart = offsets + (count + 1) * offSize - 1;
         for (var i = 0; i < count; i++)
         {
@@ -183,8 +265,9 @@ internal sealed class CffOutlines
         while (position < end)
         {
             int b0 = _data[position++];
-            if (b0 <= 21)
+            if (b0 <= 27)
             {
+                // 22 vsindex and 23 blend are CFF2 operators; the other values up to 27 are reserved.
                 var op = b0 == 12 ? 1200 + _data[position++] : b0;
                 result[op] = operands;
                 operands = new List<double>();
@@ -258,6 +341,8 @@ internal sealed class CffOutlines
 
     private int U16(int position) => (_data[position] << 8) | _data[position + 1];
 
+    private uint U32(int position) => (uint)((_data[position] << 24) | (_data[position + 1] << 16) | (_data[position + 2] << 8) | _data[position + 3]);
+
     private static int Bias(int count) => count < 1240 ? 107 : count < 33900 ? 1131 : 32768;
 
     /// <summary>Type 2 charstring interpreter producing glyph paths.</summary>
@@ -273,12 +358,17 @@ internal sealed class CffOutlines
         private int _stems;
         private bool _widthDone;
         private bool _ended;
+        private int _vsIndex;
+        private double[]? _scalars;
 
-        public Interpreter(CffOutlines font, List<(int Start, int End)> localSubrs, List<GlyphPath> paths)
+        public Interpreter(CffOutlines font, List<(int Start, int End)> localSubrs, List<GlyphPath> paths, int vsIndex = 0)
         {
             _font = font;
             _localSubrs = localSubrs;
             _paths = paths;
+            _vsIndex = vsIndex;
+            // CFF2 charstrings carry no width.
+            _widthDone = font._cff2;
         }
 
         public void ClosePath()
@@ -487,6 +577,18 @@ internal sealed class CffOutlines
 
                     case 11: // return
                         return;
+                    case 15 when _font._cff2: // vsindex
+                        if (_stack.Count > 0)
+                        {
+                            _vsIndex = (int)_stack[^1];
+                            _scalars = null;
+                        }
+
+                        _stack.Clear();
+                        break;
+                    case 16 when _font._cff2: // blend
+                        Blend();
+                        break;
                     case 14: // endchar
                         Width(_stack.Count == 1 || _stack.Count == 5);
                         ClosePath();
@@ -563,6 +665,42 @@ internal sealed class CffOutlines
             _stack.Clear();
         }
 
+        /// <summary>
+        /// CFF2 blend: n default values followed by n × k deltas (k regions of the current variation data) and n;
+        /// leaves the n values interpolated to the font's location on the stack.
+        /// </summary>
+        private void Blend()
+        {
+            if (_stack.Count == 0)
+            {
+                return;
+            }
+
+            var n = (int)_stack[^1];
+            _stack.RemoveAt(_stack.Count - 1);
+            _scalars ??= _font._store?.SubtableScalars(_vsIndex) ?? Array.Empty<double>();
+            var k = _scalars.Length;
+            var first = _stack.Count - n * (k + 1);
+            if (n < 0 || first < 0)
+            {
+                _stack.Clear();
+                return;
+            }
+
+            for (var i = 0; i < n; i++)
+            {
+                var value = _stack[first + i];
+                for (var j = 0; j < k; j++)
+                {
+                    value += _stack[first + n + i * k + j] * _scalars[j];
+                }
+
+                _stack[first + i] = value;
+            }
+
+            _stack.RemoveRange(first + n, n * k);
+        }
+
         private int Number(byte[] data, int position, int b0)
         {
             double value;
@@ -590,7 +728,7 @@ internal sealed class CffOutlines
                 position += 4;
             }
 
-            if (_stack.Count < MaxStack)
+            if (_stack.Count < _font._maxStack)
             {
                 _stack.Add(value);
             }

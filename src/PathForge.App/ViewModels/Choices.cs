@@ -104,6 +104,19 @@ public static class Choices
         new Choice<LaserVectorMode>(LaserVectorMode.FillAndLine, "Заливка и обводка", "Fill and outline"),
     };
 
+    public static IReadOnlyList<Choice<KerfCompensation>> KerfCompensations { get; } = new[]
+    {
+        new Choice<KerfCompensation>(KerfCompensation.None, "Нет — точно по линии", "None — exactly on the line"),
+        new Choice<KerfCompensation>(KerfCompensation.Parts, "Детали в размер", "Parts to size"),
+        new Choice<KerfCompensation>(KerfCompensation.Openings, "Отверстия в размер", "Openings to size"),
+    };
+
+    public static IReadOnlyList<Choice<RasterModulation>> RasterModulations { get; } = new[]
+    {
+        new Choice<RasterModulation>(RasterModulation.Power, "Мощностью", "By power"),
+        new Choice<RasterModulation>(RasterModulation.Speed, "Скоростью", "By speed"),
+    };
+
     public static IReadOnlyList<Choice<RasterMode>> RasterModes { get; } = new[]
     {
         new Choice<RasterMode>(RasterMode.Grayscale, "Оттенки серого (мощность по яркости)", "Grayscale (power by brightness)"),

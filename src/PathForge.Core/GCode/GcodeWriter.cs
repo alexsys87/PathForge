@@ -122,10 +122,10 @@ public sealed class GcodeWriter
                     Rapid(t.X, t.Y, t.Z);
                     break;
                 case MoveKind.Plunge:
-                    Feed(t.X, t.Y, t.Z, toolpath.Tool.PlungeRate, moves[k].Power);
+                    Feed(t.X, t.Y, t.Z, moves[k].FeedOr(toolpath.Tool.PlungeRate), moves[k].Power);
                     break;
                 default:
-                    Feed(t.X, t.Y, t.Z, toolpath.Tool.FeedRate, moves[k].Power);
+                    Feed(t.X, t.Y, t.Z, moves[k].FeedOr(toolpath.Tool.FeedRate), moves[k].Power);
                     break;
             }
 
@@ -160,9 +160,11 @@ public sealed class GcodeWriter
     {
         var z = _current.Z;
         var power = moves[k].Power;
+        var ownFeed = moves[k].Feed;
+        feed = moves[k].FeedOr(feed);
         var end = k;
         while (end < moves.Count && moves[end].Kind == MoveKind.Cut && Math.Abs(moves[end].Target.Z - z) < 1e-9 &&
-               (moves[end].Power.Equals(power)))
+               moves[end].Power.Equals(power) && moves[end].Feed.Equals(ownFeed))
         {
             end++;
         }

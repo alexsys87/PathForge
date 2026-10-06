@@ -28,7 +28,8 @@ public sealed class GerberResult
 
 /// <summary>
 /// Reader for Gerber RS-274X (and the extended X2 format, whose attributes are ignored):
-/// apertures C/R/O/P and macros, linear and circular interpolation, regions, flashes and polarity.
+/// apertures C/R/O/P and macros, linear and circular interpolation, regions, flashes, polarity and
+/// step-and-repeat blocks (%SR, panels of several boards).
 /// Written from the public format specification.
 /// </summary>
 public static partial class GerberReader
@@ -140,6 +141,9 @@ public static partial class GerberReader
     [GeneratedRegex(@"([GXYIJDM])([+-]?[\d.]+)")]
     private static partial Regex WordRegex();
 
+    [GeneratedRegex(@"^SRX(\d+)Y(\d+)I([+-]?[\d.]+)J([+-]?[\d.]+)$")]
+    private static partial Regex StepRepeatRegex();
+
     private sealed class State
     {
         private readonly GerberMode _mode;
@@ -152,6 +156,11 @@ public static partial class GerberReader
         private readonly List<Segment> _outlineSegments = new();
         private readonly List<ImportedPath> _outlinePaths = new();
         private readonly HashSet<string> _reported = new();
+
+        // Open step-and-repeat block: objects are collected and placed once per copy when the block closes.
+        private (int CountX, int CountY, Vec2 Step)? _repeat;
+        private readonly List<(Paths64 Shape, bool Dark)> _repeatObjects = new();
+        private int _repeatOutlineStart;
 
         private Paths64 _image = new();
         private Paths64 _batch = new();
@@ -220,10 +229,7 @@ public static partial class GerberReader
             }
             else if (command.StartsWith("SR", StringComparison.Ordinal))
             {
-                if (command != "SR" && command != "SRX1Y1I0J0" && command != "SRX1Y1I0.0J0.0")
-                {
-                    Warn(Loc.T("Повтор блока (%SR) не поддерживается: размножьте плату в программе проектирования.", "Step and repeat (%SR) is not supported: panelize the board in your PCB design program."));
-                }
+                StepRepeat(command);
             }
             else if (command.StartsWith("IPNEG", StringComparison.Ordinal))
             {
@@ -605,11 +611,95 @@ public static partial class GerberReader
             return false;
         }
 
+        /// <summary>
+        /// %SR closes the open block (its objects are placed at every copy) and, with more than one copy, opens a
+        /// new one: X/Y — number of copies, I/J — distance between them.
+        /// </summary>
+        private void StepRepeat(string command)
+        {
+            FlushStroke();
+            EndRepeat();
+            if (command == "SR")
+            {
+                return;
+            }
+
+            var m = StepRepeatRegex().Match(command);
+            if (!m.Success)
+            {
+                Warn(Loc.T($"Не удалось разобрать повтор блока: %{command}%", $"Could not parse the step and repeat: %{command}%"));
+                return;
+            }
+
+            var countX = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            var countY = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            var step = new Vec2(
+                double.Parse(m.Groups[3].Value, NumberStyles.Float, CultureInfo.InvariantCulture) * _scale,
+                double.Parse(m.Groups[4].Value, NumberStyles.Float, CultureInfo.InvariantCulture) * _scale);
+            if (countX < 1 || countY < 1)
+            {
+                Warn(Loc.T($"Неверное число копий в повторе блока: %{command}%", $"Invalid number of copies in the step and repeat: %{command}%"));
+                return;
+            }
+
+            if (countX * countY > 1)
+            {
+                _repeat = (countX, countY, step);
+                _repeatOutlineStart = _outlinePaths.Count;
+            }
+        }
+
+        private void EndRepeat()
+        {
+            if (_repeat is not { } repeat)
+            {
+                return;
+            }
+
+            _repeat = null;
+            var objects = _repeatObjects.ToList();
+            _repeatObjects.Clear();
+            var outlines = _outlinePaths.Skip(_repeatOutlineStart).ToList();
+            var dark = _dark;
+            for (var iy = 0; iy < repeat.CountY; iy++)
+            {
+                for (var ix = 0; ix < repeat.CountX; ix++)
+                {
+                    var offset = new Vec2(ix * repeat.Step.X, iy * repeat.Step.Y);
+                    // The block is placed copy after copy, each with the polarities of its objects.
+                    foreach (var (shape, objectDark) in objects)
+                    {
+                        _dark = objectDark;
+                        Add(ClipperBridge.Translate(shape, offset));
+                    }
+
+                    if (ix == 0 && iy == 0)
+                    {
+                        continue; // the outline of the first copy is already there
+                    }
+
+                    var move = Affine2.Translation(offset.X, offset.Y);
+                    foreach (var path in outlines)
+                    {
+                        _outlinePaths.Add(new ImportedPath(path.Layer, path.Segments.Select(s => s.Transform(move)).ToList()));
+                    }
+                }
+            }
+
+            _dark = dark;
+        }
+
         /// <summary>Adds an object to the image; objects of the same polarity are batched for speed.</summary>
         private void Add(Paths64 shape)
         {
             if (shape.Count == 0)
             {
+                return;
+            }
+
+            if (_repeat is not null)
+            {
+                _repeatObjects.Add((shape, _dark));
                 return;
             }
 
@@ -636,6 +726,7 @@ public static partial class GerberReader
         public void Finish()
         {
             FlushStroke();
+            EndRepeat();
             if (_mode == GerberMode.Outline)
             {
                 Result.Contours.AddRange(ContourBuilder.Build(_outlinePaths, 0.02));

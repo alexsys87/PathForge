@@ -26,6 +26,7 @@
     </Window.InputBindings>
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
         <!-- Shared fields of every operation -->
         <DataTemplate x:Key="CommonOperationFields" DataType="{x:Type vm:OperationViewModel}">
             <Grid>
@@ -193,6 +194,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Текст', En='Text'}" VerticalAlignment="Top" />
                 <TextBox Grid.Row="0" Grid.Column="1" MinHeight="54" AcceptsReturn="True" TextWrapping="Wrap"
@@ -227,6 +230,29 @@
                 </StackPanel>
                 <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Слой', En='Layer'}" />
                 <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding Layer}" ToolTip="{l:Tr 'Слой чертежа, в который попадут буквы', En='The drawing layer the letters go to'}" />
+                <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="{l:Tr 'По дуге, радиус мм', En='On an arc, radius mm'}" />
+                <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding ArcRadius}"
+                         ToolTip="{l:Tr 'Текст по окружности этого радиуса; 0 — по прямой. Плюс — по верху окружности, буквы наружу (центр на радиус ниже точки X, Y). Минус — по низу, буквы стоят прямо и смотрят к центру (центр выше точки). Так делают круглые печати и надписи по краю тарелки; с выравниванием «по центру» надпись симметрична.', En='Text along a circle of this radius; 0 — straight. Plus — over the top of the circle, letters outwards (the centre is the radius below X, Y). Minus — along the bottom, letters upright facing the centre (the centre is above the point). This is how round stamps and plate rims are lettered; with “centre” alignment the text is symmetric.'}" />
+                <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Visibility="{Binding IsVariable, Converter={StaticResource BoolToVisible}}" Margin="0,4,0,0">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Вариативный шрифт', En='Variable font'}" />
+                    <DockPanel Margin="0,0,0,3">
+                        <TextBlock Width="130" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Начертание', En='Style'}" />
+                        <ComboBox ItemsSource="{Binding Instances}" DisplayMemberPath="Name" SelectedItem="{Binding Instance}"
+                                  ToolTip="{l:Tr 'Готовые начертания шрифта (Light, Bold…): выставляют все оси разом. Оси ниже можно двигать и между ними.', En='Ready-made styles of the font (Light, Bold…): set every axis at once. The axes below can also be moved in between.'}" />
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Axes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,3">
+                                    <TextBlock Width="130" DockPanel.Dock="Left" Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+                                    <TextBox Width="60" DockPanel.Dock="Right" Margin="4,0,0,0" Text="{Binding Value, Delay=300}" ToolTip="{l:Tr 'Значение оси', En='Axis value'}" />
+                                    <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding Value, Delay=300}" VerticalAlignment="Center"
+                                            ToolTip="{l:Tr 'Положение на оси вариативного шрифта: например, насыщенность (wght) или ширина (wdth) букв', En='Position on the variable font axis: for example the weight (wght) or width (wdth) of the letters'}" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </Grid>
         </DataTemplate>
 
@@ -341,6 +367,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Контуры', En='Contours'}" />
                     <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,3">
@@ -364,6 +392,12 @@
                     <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding FillSpacing}" ToolTip="{l:Tr 'Расстояние между линиями штриховки: меньше — плотнее гравировка', En='Distance between hatch lines: smaller means a denser engraving'}" />
                     <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Угол заливки, °', En='Fill angle, °'}" />
                     <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding FillAngle}" ToolTip="{l:Tr 'Угол линий штриховки в градусах', En='Angle of the hatch lines in degrees'}" />
+                    <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина реза', En='Kerf'}" />
+                    <ComboBox Grid.Row="8" Grid.Column="1" ItemsSource="{x:Static vm:Choices.KerfCompensations}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Kerf}"
+                              ToolTip="{l:Tr 'Луч выжигает полоску шириной 0,1–0,3 мм, и деталь выходит меньше, а отверстие больше. «Детали в размер» — наружные контуры отодвигаются наружу, отверстия внутрь на половину ширины реза; «Отверстия в размер» — наоборот (вставки, пазы под шип). Только для замкнутых контуров при резке по линии.', En='The beam burns away a strip 0.1–0.3 mm wide, so a part comes out smaller and a hole larger. “Parts to size” moves outer contours out and holes in by half the kerf; “Openings to size” does the opposite (inlays, slots for tenons). Only for closed contours burned on the line.'}" />
+                    <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина реза, мм', En='Kerf width, mm'}" />
+                    <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding KerfWidth}"
+                             ToolTip="{l:Tr 'Вырежьте квадрат 20 мм, измерьте его: ширина реза = 20 − размер. Обычно 0,1–0,2 мм для диодного лазера.', En='Cut a 20 mm square and measure it: kerf = 20 − size. Usually 0.1–0.2 mm for a diode laser.'}" />
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Text="{l:Tr 'Начните с пробы на обрезке: фанера 3 мм режется лазером 5 Вт примерно за 3–6 проходов при 100 % и 150–250 мм/мин, лазером 10 Вт — за 1–2 прохода при 100 % и 200–300 мм/мин (с обдувом). Работайте в защитных очках и с вытяжкой.', En='Start with a test on scrap: 3 mm plywood is cut by a 5 W laser in about 3–6 passes at 100 % and 150–250 mm/min, by a 10 W laser in 1–2 passes at 100 % and 200–300 mm/min (with air assist). Wear safety glasses and use an exhaust.'}" />
@@ -385,6 +419,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -418,6 +454,12 @@
                     <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Speed}" ToolTip="{l:Tr 'Скорость строк гравировки, мм/мин', En='Speed of the engraving lines, mm/min'}" />
                     <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Перебег, мм', En='Overscan, mm'}" />
                     <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Overscan}" ToolTip="{l:Tr 'Заезд за края картинки: там лазер разгоняется и выключается', En='Travel past the picture edges: the laser accelerates and switches off there'}" />
+                    <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Оттенки', En='Shades'}" />
+                    <ComboBox Grid.Row="11" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterModulations}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Modulation}"
+                              ToolTip="{l:Tr 'Мощностью — тёмное выжигается сильнее при постоянной скорости. Скоростью — мощность постоянная (макс.), тёмное идёт медленнее: для диодных лазеров, у которых мощность плохо следует за S (на малых значениях не жжёт, потом сразу сильно).', En='By power — dark areas get more power at constant speed. By speed — the power is constant (max), dark areas go slower: for diode lasers whose power follows S poorly (nothing at low values, then suddenly too much).'}" />
+                    <TextBlock Grid.Row="12" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Скорость мин., мм/мин', En='Min speed, mm/min'}" />
+                    <TextBox Grid.Row="12" Grid.Column="1" Text="{Binding SpeedMin}"
+                             ToolTip="{l:Tr 'Только для оттенков скоростью: скорость самых тёмных точек. «Скорость» выше — для самых светлых выжигаемых.', En='Only for shades by speed: the speed of the darkest spots. “Speed” above is for the lightest burnt ones.'}" />
                     <StackPanel Grid.Row="10" Grid.Column="1">
                         <CheckBox Content="{l:Tr 'Инверсия (выжигать светлое)', En='Invert (burn light areas)'}" IsChecked="{Binding Invert}" ToolTip="{l:Tr 'Выжигать светлые места вместо тёмных', En='Burn the light areas instead of the dark ones'}" />
                         <CheckBox Content="{l:Tr 'В обе стороны', En='Bidirectional'}" IsChecked="{Binding Bidirectional}" ToolTip="{l:Tr 'Гравировать в обе стороны: вдвое быстрее, но возможен сдвиг строк', En='Engrave in both directions: twice as fast, but the lines may shift'}" />
@@ -434,6 +476,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -500,6 +544,10 @@
                     <TextBlock Grid.Row="17" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование уровней', En='Level cut direction'}" />
                     <ComboBox Grid.Row="17" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" ToolTip="{l:Tr 'Направление движения фрезы: попутное режет чище, встречное надёжнее на рыхлом материале', En='Tool travel direction: climb cuts cleaner, conventional is safer on soft material'}" />
+                    <TextBlock Grid.Row="18" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Уровни круче, °', En='Levels steeper than, °'}" />
+                    <TextBox Grid.Row="18" Grid.Column="1" Text="{Binding SteepAngle}" ToolTip="{l:Tr 'Waterline только там, где поверхность круче этого угла (от горизонтали); пологие места остаются строкам. 0 — уровни везде. Обычно 30–45° вместе с чистовой «Строки и уровни».', En='Waterline only where the surface is steeper than this angle (from the horizontal); gentle areas are left to the lines. 0 — levels everywhere. Usually 30–45° with the “Lines and levels” finishing.'}" />
+                    <CheckBox Grid.Row="19" Grid.Column="1" Content="{l:Tr 'Только внутри контуров', En='Only inside the contours'}" IsChecked="{Binding LimitToContours}"
+                              ToolTip="{l:Tr 'Обрабатывать рельеф только внутри назначенных операции замкнутых контуров (центр фрезы не выходит за контур, вложенные контуры — отверстия). Выделите контуры и нажмите «Назначить выделенные».', En='Machine the relief only inside the closed contours assigned to the operation (the tool centre stays inside, nested contours are holes). Select contours and press “Assign selected”.'}" />
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Text="{l:Tr 'Расчёт учитывает форму фрезы (сферическая, гравёр, концевая), поэтому она не врезается в соседние склоны. Черновые проходы идут по уровням шага по глубине инструмента.', En='The calculation takes the tool shape into account (ball nose, V-bit, end mill), so it does not gouge neighbouring slopes. Roughing passes follow the levels of the tool step-down.'}" />
@@ -569,6 +617,8 @@
                     <MenuItem Header="{l:Tr 'Рельеф из картинки…', En='Relief from a picture…'}" Command="{Binding AddImageReliefCommand}" />
                 </MenuItem>
                 <MenuItem Header="{l:Tr 'Печатная _плата', En='_PCB'}">
+                    <MenuItem Header="{l:Tr 'Добавить файлы платы (несколько сразу)…', En='Add PCB files (several at once)…'}" Command="{Binding ImportPcbFilesCommand}"
+                              ToolTip="{l:Tr 'Выберите сразу все файлы платы (Gerber и сверловку): медь, контур и отверстия определятся сами по атрибутам X2 или по именам файлов, маска, шелкография и паста будут пропущены. Каждый файл станет отдельным слоем.', En='Select all the board files at once (Gerber and drills): copper, outline and holes are recognised by the X2 attributes or by the file names; mask, silk screen and paste are skipped. Each file becomes its own layer.'}" />
                     <MenuItem Header="{l:Tr 'Добавить Gerber: медь…', En='Add Gerber: copper…'}" Command="{Binding ImportGerberCopperCommand}" />
                     <MenuItem Header="{l:Tr 'Добавить Gerber: контур платы…', En='Add Gerber: board outline…'}" Command="{Binding ImportGerberOutlineCommand}" />
                     <MenuItem Header="{l:Tr 'Добавить сверловку (Excellon)…', En='Add drill file (Excellon)…'}" Command="{Binding ImportExcellonCommand}" />
@@ -663,7 +713,8 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <WrapPanel Grid.Row="0">
+                        <StackPanel Grid.Row="0">
+                        <WrapPanel>
                             <Button Content="{l:Tr '+ Контур', En='+ Profile'}" ToolTip="{l:Tr 'Добавить операцию «Контур»: фреза идёт вдоль выделенных контуров снаружи, внутри или по линии, в несколько проходов по глубине, с перемычками. Для вырезания деталей и отверстий.', En='Add a “Profile” operation: the tool follows the selected contours outside, inside or on the line, in several depth passes, with tabs. For cutting out parts and holes.'}" Command="{Binding AddProfileCommand}" />
                             <Button Content="{l:Tr '+ Карман', En='+ Pocket'}" ToolTip="{l:Tr 'Добавить операцию «Карман»: выборка материала внутри выделенных замкнутых контуров на заданную глубину. Вложенные контуры остаются островами.', En='Add a “Pocket” operation: clears the material inside the selected closed contours to the given depth. Nested contours stay as islands.'}" Command="{Binding AddPocketCommand}" />
                             <Button Content="{l:Tr '+ Сверление', En='+ Drill'}" ToolTip="{l:Tr 'Добавить операцию «Сверление»: сверлится центр каждой выделенной окружности, сразу или с шагом (выводом стружки).', En='Add a “Drilling” operation: drills the centre of every selected circle, at once or with pecking.'}" Command="{Binding AddDrillCommand}" />
@@ -674,6 +725,81 @@
                             <Button Content="{l:Tr '+ Рельеф (картинка)', En='+ Relief (picture)'}" ToolTip="{l:Tr 'Создать 3D-рельеф из картинки: светлое — выше, тёмное — глубже (можно инвертировать). Обработка сферической фрезой.', En='Create a 3D relief from a picture: light is high, dark is deep (can be inverted). Machined with a ball nose.'}" Command="{Binding AddImageReliefCommand}" />
                             <Button Content="{l:Tr '+ Рельеф (STL)', En='+ Relief (STL)'}" ToolTip="{l:Tr 'Загрузить 3D-модель STL и создать операцию «Рельеф 3D»: обработка поверхности строками сферической фрезой с черновыми проходами.', En='Load an STL 3D model and create a “3D relief” operation: surface machining in lines with a ball nose, with roughing passes.'}" Command="{Binding ImportStlCommand}" />
                         </WrapPanel>
+                        <Expander Header="{l:Tr 'Раскладка деталей на листе', En='Lay out parts on a sheet'}" Margin="0,2,0,0" DataContext="{Binding Nesting}"
+                                  ToolTip="{l:Tr 'Разложить детали по листу заготовки плотно, с зазором между ними. Деталь — замкнутый наружный контур вместе со всем, что внутри (отверстия, гравировка, текст).', En='Lay the parts out on the stock sheet tightly, with a gap between them. A part is a closed outer contour together with everything inside it (holes, engraving, text).'}">
+                            <StackPanel>
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="{l:Tr 'Лист X × Y, мм', En='Sheet X × Y, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SheetWidth}" ToolTip="{l:Tr 'Ширина листа (по X). Лист начинается в нуле чертежа.', En='Sheet width (along X). The sheet starts at the drawing origin.'}" />
+                                    <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding SheetHeight}" ToolTip="{l:Tr 'Высота листа (по Y)', En='Sheet height (along Y)'}" />
+                                    <TextBlock Grid.Row="1" Text="{l:Tr 'Зазор, мм', En='Gap, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Spacing}" ToolTip="{l:Tr 'Расстояние между деталями: не меньше диаметра фрезы (лучше +1–2 мм), для лазера — 1–2 мм', En='Distance between the parts: at least the cutter diameter (better +1–2 mm), 1–2 mm for a laser'}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{l:Tr 'от края', En='edge'}" VerticalAlignment="Center" Margin="6,0" />
+                                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Margin}" ToolTip="{l:Tr 'Отступ от краёв листа (крепёж, неровный край)', En='Distance from the sheet edges (clamps, a rough edge)'}" />
+                                    <TextBlock Grid.Row="2" Text="{l:Tr 'Копий', En='Copies'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Copies}" ToolTip="{l:Tr 'Сколько экземпляров каждой детали разложить; операции получат все копии', En='How many copies of each part to lay out; the operations get all copies'}" />
+                                    <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Margin="6,0,0,0" VerticalAlignment="Center" Content="{l:Tr 'Поворачивать', En='Rotate'}" IsChecked="{Binding AllowRotation}"
+                                              ToolTip="{l:Tr 'Разрешить поворот деталей на 90°, 180°, 270° для плотной раскладки (выключите для фанеры с волокнами или рисунка). Детали с текстом не поворачиваются.', En='Allow turning the parts by 90°, 180°, 270° for a tighter layout (turn off for wood grain or a pattern). Parts with text are not turned.'}" />
+                                </Grid>
+                                <WrapPanel Margin="0,3,0,0">
+                                    <Button Content="{l:Tr 'Разложить', En='Lay out'}"
+                                            ToolTip="{l:Tr 'Разложить выделенные детали (или все, если ничего не выделено). Отменить — Ctrl+Z.', En='Lay out the selected parts (or all when nothing is selected). Undo with Ctrl+Z.'}"
+                                            Command="{Binding DataContext.NestPartsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <Button Content="{l:Tr 'Размер со станка', En='Size from the machine'}"
+                                            ToolTip="{l:Tr 'Взять размер листа из рабочего поля станка, а зазор — по самой большой фрезе + 2 мм.', En='Take the sheet size from the machine work area and the gap from the largest cutter + 2 mm.'}"
+                                            Command="{Binding DataContext.SuggestNestingSheetCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="{l:Tr 'Тест лазера: мощность × скорость', En='Laser test: power × speed'}" Margin="0,2,0,0" DataContext="{Binding LaserTest}"
+                                  ToolTip="{l:Tr 'Сетка квадратов, выжженных с разной мощностью (ряды снизу вверх) и скоростью (столбцы слева направо), с подписями значений. Вырежьте её на обрезке своего материала и выберите лучший квадрат.', En='A grid of squares burned with different power (rows, bottom to top) and speed (columns, left to right), with the values burned next to them. Burn it on a scrap of your material and pick the best square.'}">
+                            <StackPanel>
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{l:Tr 'от', En='from'}" Foreground="{DynamicResource MutedTextBrush}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{l:Tr 'до', En='to'}" Foreground="{DynamicResource MutedTextBrush}" />
+                                <TextBlock Grid.Row="0" Grid.Column="3" Text="{l:Tr 'шагов', En='steps'}" Foreground="{DynamicResource MutedTextBrush}" />
+                                <TextBlock Grid.Row="1" Text="{l:Tr 'Мощность, %', En='Power, %'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PowerMinPercent}" ToolTip="{l:Tr 'Мощность нижнего ряда', En='Power of the bottom row'}" />
+                                <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding PowerMaxPercent}" ToolTip="{l:Tr 'Мощность верхнего ряда', En='Power of the top row'}" />
+                                <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding PowerSteps}" ToolTip="{l:Tr 'Сколько рядов', En='How many rows'}" />
+                                <TextBlock Grid.Row="2" Text="{l:Tr 'Скорость, мм/мин', En='Speed, mm/min'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SpeedMin}" ToolTip="{l:Tr 'Скорость левого столбца', En='Speed of the left column'}" />
+                                <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding SpeedMax}" ToolTip="{l:Tr 'Скорость правого столбца', En='Speed of the right column'}" />
+                                <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding SpeedSteps}" ToolTip="{l:Tr 'Сколько столбцов', En='How many columns'}" />
+                                <TextBlock Grid.Row="3" Text="{l:Tr 'Квадрат, мм', En='Square, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding CellSize}" ToolTip="{l:Tr 'Сторона квадрата', En='Side of a square'}" />
+                                <CheckBox Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" Content="{l:Tr 'Рез (контур)', En='Cut (outline)'}" IsChecked="{Binding Cutting}" VerticalAlignment="Center"
+                                          ToolTip="{l:Tr 'Выключено — квадраты заливаются (тест гравировки). Включено — квадраты вырезаются по контуру (тест резки: прорезало ли насквозь).', En='Off — the squares are filled (engraving test). On — the squares are cut along their outline (cutting test: did it cut through).'}" />
+                            </Grid>
+                            <Button HorizontalAlignment="Left" Content="{l:Tr '+ Тест-сетка лазера', En='+ Laser test card'}" Margin="0,3,0,0"
+                                    ToolTip="{l:Tr 'Добавить тест-сетку с этими настройками справа от чертежа: каждый квадрат — своя операция с подписью мощности и скорости.', En='Add the test card with these settings to the right of the drawing: each square is its own operation, labelled with its power and speed.'}"
+                                    Command="{Binding DataContext.AddLaserTestGridCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </StackPanel>
+                        </Expander>
+                        </StackPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Operations}" SelectedItem="{Binding SelectedOperation}" ToolTip="{l:Tr 'Список операций: галочка включает/выключает операцию, клик открывает её настройки', En='List of operations: the check box enables or disables an operation, a click opens its settings'}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:OperationViewModel}">
@@ -983,6 +1109,8 @@
                             </DockPanel>
                             <WrapPanel Margin="0,4,0,0">
                                 <Button Content="{l:Tr '▶ Старт', En='▶ Start'}" FontWeight="SemiBold" ToolTip="{l:Tr 'Запустить программу на станке. Перед стартом проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза.', En='Start the program on the machine. Before starting check: the stock is clamped, X/Y/Z zero is set, the right tool is in the spindle.'}" Command="{Binding StartJobCommand}" IsEnabled="{Binding CanStartJob}" />
+                                <Button Content="{l:Tr 'Проверить ($C)', En='Check ($C)'}" Command="{Binding CheckProgramCommand}" IsEnabled="{Binding CanStartJob}"
+                                        ToolTip="{l:Tr 'Прогнать программу через режим проверки GRBL ($C): плата разбирает каждую строку со своими настройками (мягкие пределы, поддерживаемые команды), но станок не двигается и шпиндель не включается. Ошибочные строки появятся в журнале, итог — в сообщениях. В конце GRBL выходит из режима и перезапускается.', En='Run the program through GRBL check mode ($C): the board parses every line with its own settings (soft limits, supported commands), but the machine does not move and the spindle stays off. Faulty lines appear in the log, the summary in the messages. At the end GRBL leaves the mode and restarts.'}" />
                                 <Button Content="{l:Tr '❚❚ Пауза', En='❚❚ Pause'}" ToolTip="{l:Tr 'Плавно остановить подачу (feed hold). Положение сохраняется, «Продолжить» — ехать дальше.', En='Stop the feed smoothly (feed hold). The position is kept; “Resume” continues.'}" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" />
                                 <Button Content="{l:Tr 'Продолжить', En='Resume'}" ToolTip="{l:Tr 'Продолжить программу после паузы, смены инструмента (M0) или ошибки в строке (ошибочная строка пропускается).', En='Continue the program after a pause, a tool change (M0) or a line error (the failed line is skipped).'}" Command="{Binding ResumeCommand}" IsEnabled="{Binding CanResume}" />
                                 <Button Content="{l:Tr '■ Стоп', En='■ Stop'}" ToolTip="{l:Tr 'Прервать программу: станок плавно тормозит, затем GRBL сбрасывается и шпиндель останавливается. Положение не теряется.', En='Abort the program: the machine decelerates, then GRBL is reset and the spindle stops. The position is kept.'}" Command="{Binding StopCommand}" IsEnabled="{Binding IsJobActive}" />
@@ -1200,6 +1328,18 @@
                                             <TextBlock Text="{Binding StatsText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
                                         </StackPanel>
                                     </DockPanel>
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <CheckBox Content="{l:Tr 'Траектория текущей операции', En='Path of the current operation'}" IsChecked="{Binding ShowPath}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                                  ToolTip="{l:Tr 'Показать поверх заготовки траекторию операции, которая сейчас выполняется (голубые линии): видно, куда фреза пойдёт дальше.', En='Show the toolpath of the operation being machined over the stock (light blue lines): you see where the tool goes next.'}" />
+                                        <CheckBox Content="{l:Tr 'Сравнить с моделью, допуск, мм', En='Compare with the model, tolerance, mm'}" IsChecked="{Binding ShowComparison}" IsEnabled="{Binding HasModel}" VerticalAlignment="Center"
+                                                  ToolTip="{l:Tr 'Раскрасить заготовку по отличию от 3D-модели рельефа (картинка или STL): зелёный — в допуске, синий — остался материал (недорез: фреза не достала или крупный шаг), красный — срезано лишнее (зарез). Доступно, если в проекте есть рельеф.', En='Colour the stock by its difference from the relief 3D model (picture or STL): green — within tolerance, blue — material left (the tool could not reach or the step is large), red — cut too deep (gouge). Available when the project has a relief.'}" />
+                                        <TextBox Width="50" Margin="4,0,0,0" Text="{Binding ComparisonTolerance}" IsEnabled="{Binding ShowComparison}" ToolTip="{l:Tr 'Отклонение, которое считается допустимым', En='Deviation counted as acceptable'}" />
+                                        <CheckBox Content="{l:Tr 'Карта высот, увеличение ×', En='Height map, exaggeration ×'}" IsChecked="{Binding ShowHeightMap}" IsEnabled="{Binding HasHeightMap}" VerticalAlignment="Center" Margin="12,0,0,0"
+                                                  ToolTip="{l:Tr 'Показать снятую щупом карту высот платы (вкладка «Пульт» → «Карта высот») цветной полупрозрачной поверхностью над заготовкой: синее — ниже, красное — выше. Неровности в сотые доли миллиметра растянуты по высоте в заданное число раз.', En='Show the height map probed on the board (“Control” tab → “Height map”) as a coloured see-through surface over the stock: blue is lower, red is higher. Unevenness of hundredths of a millimetre is stretched vertically by the given factor.'}" />
+                                        <TextBox Width="50" Margin="4,0,0,0" Text="{Binding HeightMapScale}" IsEnabled="{Binding ShowHeightMap}" ToolTip="{l:Tr 'Во сколько раз растянуть высоты карты', En='How many times to stretch the map heights'}" />
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding HeightMapText}" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" />
+                                    <TextBlock Text="{Binding ComparisonText}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
                                     <ItemsControl ItemsSource="{Binding Issues}" Margin="0,2,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>

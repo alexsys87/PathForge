@@ -8,15 +8,23 @@ public readonly record struct GlyphPoint(double X, double Y, bool OnCurve);
 
 /// <summary>
 /// Reader for OpenType fonts (.ttf, .ttc, .otf), written from the OpenType specification: character map,
-/// metrics, TrueType outlines (including composite glyphs), CFF outlines (see <see cref="CffOutlines"/>)
-/// and pair kerning (GPOS or the older kern table). Hinting and variable fonts are not supported.
+/// metrics, TrueType outlines (including composite glyphs), CFF and CFF2 outlines (see <see cref="CffOutlines"/>),
+/// pair kerning (GPOS or the older kern table) and variable fonts (fvar, avar, gvar, HVAR, CFF2 blend: pick a
+/// location with <see cref="WithVariation"/>). Hinting is not supported.
 /// </summary>
 public sealed class TrueTypeFont
 {
     private const int MaxCompositeDepth = 8;
 
     private readonly byte[] _data;
+    private readonly int _directoryOffset;
     private readonly Dictionary<string, (int Offset, int Length)> _tables;
+    private readonly FontDesignSpace? _designSpace;
+
+    /// <summary>Normalized location in the design space; null at the default location (or for static fonts).</summary>
+    private readonly double[]? _coords;
+    private readonly GlyphVariations? _gvar;
+    private readonly HorizontalVariations? _hvar;
     private readonly int _numGlyphs;
     private readonly bool _longLoca;
     private readonly int _numberOfHMetrics;
@@ -28,9 +36,10 @@ public sealed class TrueTypeFont
     private Dictionary<(int Left, int Right), int>? _legacyKerning;
     private List<List<int>>? _kernLookups;
 
-    private TrueTypeFont(byte[] data, int directoryOffset)
+    private TrueTypeFont(byte[] data, int directoryOffset, IReadOnlyDictionary<string, double>? variation = null)
     {
         _data = data;
+        _directoryOffset = directoryOffset;
         var version = U32(directoryOffset);
         var isCff = version == Tag("OTTO");
         if (!isCff && version != 0x00010000 && version != Tag("true"))
@@ -62,16 +71,43 @@ public sealed class TrueTypeFont
             }
         }
 
+        if (_tables.TryGetValue("fvar", out var fvar))
+        {
+            _designSpace = new FontDesignSpace(new FontData(data), fvar.Offset,
+                _tables.TryGetValue("avar", out var avar) ? avar.Offset : null, ReadName);
+            var location = variation ?? new Dictionary<string, double>();
+            var coords = _designSpace.Normalize(location);
+            Variation = _designSpace.Axes.ToDictionary(a => a.Tag, a => location.TryGetValue(a.Tag, out var v) ? Math.Clamp(v, a.Minimum, a.Maximum) : a.Default);
+            if (coords.Any(c => c != 0))
+            {
+                _coords = coords;
+                if (_tables.TryGetValue("gvar", out var gvar))
+                {
+                    _gvar = new GlyphVariations(new FontData(data), gvar.Offset, coords);
+                }
+
+                if (_tables.TryGetValue("HVAR", out var hvar))
+                {
+                    _hvar = new HorizontalVariations(new FontData(data), hvar.Offset, coords);
+                }
+            }
+        }
+
         if (isCff)
         {
-            if (!_tables.TryGetValue("CFF ", out var cff))
+            if (_tables.TryGetValue("CFF ", out var cff))
             {
-                throw new NotSupportedException(_tables.ContainsKey("CFF2")
-                    ? Loc.T("Вариативные шрифты (CFF2) не поддерживаются — выберите обычный .otf или .ttf.", "Variable fonts (CFF2) are not supported — choose a regular .otf or .ttf.")
-                    : Loc.T("В шрифте нет таблицы контуров CFF.", "The font has no CFF outline table."));
+                _cff = new CffOutlines(data, cff.Offset, cff.Length);
             }
-
-            _cff = new CffOutlines(data, cff.Offset, cff.Length);
+            else if (_tables.TryGetValue("CFF2", out var cff2))
+            {
+                // Variable PostScript outlines: the blend operators take the location.
+                _cff = new CffOutlines(data, cff2.Offset, cff2.Length, _designSpace is null ? Array.Empty<double>() : _designSpace.Normalize(Variation));
+            }
+            else
+            {
+                throw new NotSupportedException(Loc.T("В шрифте нет таблицы контуров CFF.", "The font has no CFF outline table."));
+            }
         }
         else if (!_tables.ContainsKey("glyf") || !_tables.ContainsKey("loca"))
         {
@@ -118,6 +154,22 @@ public sealed class TrueTypeFont
     public string SubfamilyName { get; }
 
     public int GlyphCount => _numGlyphs;
+
+    /// <summary>The font is variable: its shape can be changed along <see cref="Axes"/>.</summary>
+    public bool IsVariable => _designSpace is { Axes.Count: > 0 };
+
+    /// <summary>Design axes of a variable font (empty for static fonts).</summary>
+    public IReadOnlyList<FontAxis> Axes => _designSpace?.Axes ?? (IReadOnlyList<FontAxis>)Array.Empty<FontAxis>();
+
+    /// <summary>Named styles of a variable font.</summary>
+    public IReadOnlyList<FontInstance> Instances => _designSpace?.Instances ?? (IReadOnlyList<FontInstance>)Array.Empty<FontInstance>();
+
+    /// <summary>Location of this font object in the design space (axis tag → user value); empty for static fonts.</summary>
+    public IReadOnlyDictionary<string, double> Variation { get; } = new Dictionary<string, double>();
+
+    /// <summary>The same font at another location of its design space (missing axes keep their default).</summary>
+    public TrueTypeFont WithVariation(IReadOnlyDictionary<string, double> variation) =>
+        IsVariable ? new TrueTypeFont(_data, _directoryOffset, variation) : this;
 
     public string DisplayName =>
         string.IsNullOrEmpty(SubfamilyName) || SubfamilyName is "Regular" or "Normal" ? FamilyName : $"{FamilyName} {SubfamilyName}";
@@ -166,7 +218,38 @@ public sealed class TrueTypeFont
         var hmtx = _tables["hmtx"];
         var index = Math.Min(glyph, _numberOfHMetrics - 1);
         var offset = hmtx.Offset + index * 4;
-        return offset + 2 <= hmtx.Offset + hmtx.Length ? U16(offset) : 0;
+        var advance = offset + 2 <= hmtx.Offset + hmtx.Length ? U16(offset) : 0;
+        if (_hvar is not null)
+        {
+            advance += (int)Math.Round(_hvar.AdvanceDelta(glyph));
+        }
+        else if (_gvar is not null && glyph >= 0 && glyph < _numGlyphs)
+        {
+            // Without HVAR the advance follows the second phantom point minus the first.
+            var count = OutlinePointCount(glyph);
+            var (dx, _) = _gvar.Deltas(glyph, count + 4);
+            advance += (int)Math.Round(dx[count + 1] - dx[count]);
+        }
+
+        return Math.Max(0, advance);
+    }
+
+    /// <summary>Points of a glyph in gvar terms: outline points of a simple glyph, one per component of a composite.</summary>
+    private int OutlinePointCount(int glyph)
+    {
+        var (offset, length) = GlyphLocation(glyph);
+        if (length < 10)
+        {
+            return 0;
+        }
+
+        var contours = I16(offset);
+        if (contours >= 0)
+        {
+            return contours == 0 ? 0 : U16(offset + 10 + (contours - 1) * 2) + 1;
+        }
+
+        return ReadComponents(offset + 10).Count;
     }
 
     /// <summary>The font has PostScript (CFF) outlines instead of TrueType ones.</summary>
@@ -243,11 +326,11 @@ public sealed class TrueTypeFont
         var numberOfContours = I16(offset);
         if (numberOfContours >= 0)
         {
-            ReadSimpleGlyph(offset, numberOfContours, contours);
+            ReadSimpleGlyph(glyph, offset, numberOfContours, contours);
         }
         else
         {
-            ReadCompositeGlyph(offset + 10, contours, depth);
+            ReadCompositeGlyph(glyph, offset + 10, contours, depth);
         }
     }
 
@@ -275,7 +358,7 @@ public sealed class TrueTypeFont
         return (glyf.Offset + start, end - start);
     }
 
-    private void ReadSimpleGlyph(int offset, int numberOfContours, List<List<GlyphPoint>> contours)
+    private void ReadSimpleGlyph(int glyph, int offset, int numberOfContours, List<List<GlyphPoint>> contours)
     {
         var p = offset + 10;
         var endPoints = new int[numberOfContours];
@@ -313,6 +396,9 @@ public sealed class TrueTypeFont
         var ys = new int[pointCount];
         p = ReadCoordinates(p, flags, xs, shortBit: 0x02, sameBit: 0x10);
         ReadCoordinates(p, flags, ys, shortBit: 0x04, sameBit: 0x20);
+        var (dx, dy) = _gvar is null
+            ? (new double[pointCount], new double[pointCount])
+            : _gvar.Deltas(glyph, pointCount + 4, xs, ys, endPoints);
 
         var start = 0;
         foreach (var end in endPoints)
@@ -325,7 +411,7 @@ public sealed class TrueTypeFont
             var contour = new List<GlyphPoint>(end - start + 1);
             for (var i = start; i <= end; i++)
             {
-                contour.Add(new GlyphPoint(xs[i], ys[i], (flags[i] & 0x01) != 0));
+                contour.Add(new GlyphPoint(xs[i] + dx[i], ys[i] + dy[i], (flags[i] & 0x01) != 0));
             }
 
             if (contour.Count >= 2)
@@ -361,16 +447,20 @@ public sealed class TrueTypeFont
         return p;
     }
 
-    private void ReadCompositeGlyph(int p, List<List<GlyphPoint>> contours, int depth)
+    private const int ArgsAreXyValues = 0x0002;
+
+    /// <summary>One component of a composite glyph: glyph, placement arguments and 2×2 transform.</summary>
+    private readonly record struct Component(int Flags, int Glyph, int Arg1, int Arg2, double A, double B, double C, double D);
+
+    private List<Component> ReadComponents(int p)
     {
         const int ArgsAreWords = 0x0001;
-        const int ArgsAreXyValues = 0x0002;
         const int HaveScale = 0x0008;
         const int MoreComponents = 0x0020;
         const int HaveXyScale = 0x0040;
         const int HaveTwoByTwo = 0x0080;
-        const int ScaledComponentOffset = 0x0800;
 
+        var components = new List<Component>();
         int flags;
         do
         {
@@ -413,16 +503,36 @@ public sealed class TrueTypeFont
                 p += 8;
             }
 
+            components.Add(new Component(flags, glyph, arg1, arg2, a, b, c, d));
+        }
+        while ((flags & MoreComponents) != 0);
+
+        return components;
+    }
+
+    private void ReadCompositeGlyph(int glyph, int p, List<List<GlyphPoint>> contours, int depth)
+    {
+        const int ScaledComponentOffset = 0x0800;
+
+        var components = ReadComponents(p);
+        // In a variable font each component offset is a "point" that moves with the location.
+        var (deltaX, deltaY) = _gvar is null
+            ? (new double[components.Count], new double[components.Count])
+            : _gvar.Deltas(glyph, components.Count + 4);
+
+        for (var index = 0; index < components.Count; index++)
+        {
+            var (flags, child, arg1, arg2, a, b, c, d) = components[index];
             var component = new List<List<GlyphPoint>>();
-            AppendOutline(glyph, component, depth + 1);
+            AppendOutline(child, component, depth + 1);
 
             GlyphPoint Map(GlyphPoint q) => q with { X = a * q.X + c * q.Y, Y = b * q.X + d * q.Y };
 
             double dx, dy;
             if ((flags & ArgsAreXyValues) != 0)
             {
-                dx = arg1;
-                dy = arg2;
+                dx = arg1 + deltaX[index];
+                dy = arg2 + deltaY[index];
                 if ((flags & ScaledComponentOffset) != 0)
                 {
                     (dx, dy) = (a * dx + c * dy, b * dx + d * dy);
@@ -432,11 +542,11 @@ public sealed class TrueTypeFont
             {
                 // Point matching: point arg2 of the component lands on point arg1 of the glyph built so far.
                 var parent = contours.SelectMany(x => x).ToList();
-                var child = component.SelectMany(x => x).Select(Map).ToList();
-                if (arg1 < parent.Count && arg2 < child.Count)
+                var points = component.SelectMany(x => x).Select(Map).ToList();
+                if (arg1 < parent.Count && arg2 < points.Count)
                 {
-                    dx = parent[arg1].X - child[arg2].X;
-                    dy = parent[arg1].Y - child[arg2].Y;
+                    dx = parent[arg1].X - points[arg2].X;
+                    dy = parent[arg1].Y - points[arg2].Y;
                 }
                 else
                 {
@@ -461,7 +571,6 @@ public sealed class TrueTypeFont
                 contours.Add(mapped);
             }
         }
-        while ((flags & MoreComponents) != 0);
     }
 
     private (int Offset, int Format, bool Symbol) FindCharacterMap()

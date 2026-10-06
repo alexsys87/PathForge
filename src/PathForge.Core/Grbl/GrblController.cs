@@ -74,6 +74,10 @@ public sealed class GrblController : IDisposable
     private bool _stopRequested;
     private long _lastReceived;
 
+    /// <summary>The program is streamed in GRBL's check mode ($C): parsed, but nothing moves.</summary>
+    private bool _checkMode;
+    private readonly List<string> _checkErrors = new();
+
     public GrblController(IGrblTransport transport, int rxBufferSize = DefaultRxBufferSize)
     {
         _transport = transport;
@@ -292,8 +296,29 @@ public sealed class GrblController : IDisposable
 
     public void Home() => SendCommand("$H");
 
+    /// <summary>Program is being checked in GRBL's check mode rather than run.</summary>
+    public bool IsChecking
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _checkMode;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks a program with GRBL's check mode ($C): GRBL parses every line with its real settings (soft limits,
+    /// supported commands, feeds) without moving or switching anything on, and reports each faulty line. The lines
+    /// are streamed as in a job but errors do not stop it; at the end check mode is left again (GRBL resets).
+    /// </summary>
+    public void CheckProgram(IReadOnlyList<GrblLine> program) => StartJob(program, check: true);
+
     /// <summary>Starts streaming a prepared program. The machine must be idle.</summary>
-    public void StartJob(IReadOnlyList<GrblLine> program)
+    public void StartJob(IReadOnlyList<GrblLine> program) => StartJob(program, check: false);
+
+    private void StartJob(IReadOnlyList<GrblLine> program, bool check)
     {
         lock (_lock)
         {
@@ -323,7 +348,19 @@ public sealed class GrblController : IDisposable
             AcknowledgedCommands = 0;
             JobMessage = "";
             Job = GrblJobState.Running;
-            Write(GrblLogKind.Info, Loc.T($"Старт программы: {TotalCommands} строк.", $"Program start: {TotalCommands} lines."));
+            _checkMode = check;
+            _checkErrors.Clear();
+            if (check)
+            {
+                // GRBL handles the lines in order: everything after "$C" is only checked.
+                Send("$C", -1);
+                Write(GrblLogKind.Info, Loc.T($"Проверка программы в режиме $C: {TotalCommands} строк. Станок не двигается.", $"Checking the program in $C mode: {TotalCommands} lines. The machine does not move."));
+            }
+            else
+            {
+                Write(GrblLogKind.Info, Loc.T($"Старт программы: {TotalCommands} строк.", $"Program start: {TotalCommands} lines."));
+            }
+
             Pump();
             Changed?.Invoke();
         }
@@ -574,8 +611,14 @@ public sealed class GrblController : IDisposable
             AcknowledgedCommands++;
             if (error is { } code)
             {
-                Write(GrblLogKind.Error, Loc.T($"Строка {line.SourceLine} «{line.Text}»: {GrblMessages.Error(code)}", $"Line {line.SourceLine} “{line.Text}”: {GrblMessages.Error(code)}"));
-                if (Job is GrblJobState.Running or GrblJobState.Paused)
+                var text = Loc.T($"Строка {line.SourceLine} «{line.Text}»: {GrblMessages.Error(code)}", $"Line {line.SourceLine} “{line.Text}”: {GrblMessages.Error(code)}");
+                Write(GrblLogKind.Error, text);
+                if (_checkMode)
+                {
+                    // Checking: note the line and go on with the next one.
+                    _checkErrors.Add(text);
+                }
+                else if (Job is GrblJobState.Running or GrblJobState.Paused)
                 {
                     // Lines already in GRBL's buffer keep running: hold the machine and let the operator decide.
                     Realtime(FeedHold);
@@ -601,6 +644,24 @@ public sealed class GrblController : IDisposable
         }
 
         Pump();
+        if (_checkMode && Job == GrblJobState.Running && _next >= _program.Count && _pending.Count == 0)
+        {
+            FinishCheck();
+        }
+    }
+
+    /// <summary>Every line was answered in check mode: report and leave the mode (GRBL resets on "$C").</summary>
+    private void FinishCheck()
+    {
+        _checkMode = false;
+        var errors = _checkErrors.ToList();
+        _checkErrors.Clear();
+        var message = errors.Count == 0
+            ? Loc.T($"Проверка ($C) пройдена: {AcknowledgedCommands} строк без ошибок.", $"Check ($C) passed: {AcknowledgedCommands} lines without errors.")
+            : Loc.T($"Проверка ($C): ошибок {errors.Count} из {AcknowledgedCommands} строк. ", $"Check ($C): {errors.Count} errors in {AcknowledgedCommands} lines. ") +
+              string.Join("; ", errors.Take(5)) + (errors.Count > 5 ? " …" : "");
+        FinishJob(errors.Count == 0, message);
+        Send("$C", -1);
     }
 
     private void OnAlarm(int code)
@@ -707,7 +768,8 @@ public sealed class GrblController : IDisposable
                 }
 
                 _next++;
-                if (line.StopAfter)
+                // In check mode nothing moves: stops for a tool change are simply passed.
+                if (line.StopAfter && !_checkMode)
                 {
                     JobMessage = line.Comment.Length > 0 ? line.Comment : Loc.T("Остановка программы (M0)", "Program stop (M0)");
                     _drainAndWait = true;
@@ -716,7 +778,7 @@ public sealed class GrblController : IDisposable
                 }
             }
 
-            if (_next >= _program.Count && !_drainAndWait)
+            if (_next >= _program.Count && !_drainAndWait && !_checkMode)
             {
                 _drainAndWait = true;
                 _atEnd = true;
@@ -804,6 +866,9 @@ public sealed class GrblController : IDisposable
 
     private void FinishJob(bool success, string message)
     {
+        // An aborted check (alarm, reset, lost connection) ends check mode too: GRBL leaves it on reset.
+        _checkMode = false;
+        _checkErrors.Clear();
         Job = GrblJobState.None;
         JobMessage = "";
         _program = new List<GrblLine>();
