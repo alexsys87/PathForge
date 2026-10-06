@@ -14,7 +14,8 @@ public static partial class ToolpathGenerator
     /// <summary>Value outside the map: always below every level, so all contours close.</summary>
     private const float Outside = -1e9f;
 
-    private static void CutWaterlines(ReliefOperation operation, HeightMap tip, OperationContext context)
+    /// <param name="mask">Cells where waterlines may run (contour limit, steep areas); null = everywhere.</param>
+    private static void CutWaterlines(ReliefOperation operation, HeightMap tip, bool[]? mask, OperationContext context)
     {
         var step = Math.Max(0.01, operation.WaterlineStepZ);
         var lowest = tip.Z.Min();
@@ -45,12 +46,28 @@ public static partial class ToolpathGenerator
                 }
             }
 
-            while (loops.Count > 0)
+            // Closed rings, and open pieces where a mask cuts the rings.
+            var pieces = new List<(List<Vec2> Points, bool Closed)>();
+            foreach (var loop in loops)
             {
-                var (index, ring) = Nearest(loops, writer.Position.XY);
-                loops.RemoveAt(index);
-                var start = Polyline.RotateToNearest(ring, writer.Position.XY);
-                var path = start.Append(start[0]).Select(p => new Vec3(p, z)).ToList();
+                if (mask is null || loop.All(p => InMask(mask, tip, p)))
+                {
+                    pieces.Add((loop, true));
+                    continue;
+                }
+
+                pieces.AddRange(SplitByMask(loop, p => InMask(mask, tip, p))
+                    .Where(run => Polyline.Length(run, closed: false) >= minLength)
+                    .Select(run => (run, false)));
+            }
+
+            while (pieces.Count > 0)
+            {
+                var index = NearestPiece(pieces, writer.Position.XY);
+                var (points, closed) = pieces[index];
+                pieces.RemoveAt(index);
+                var start = closed ? Polyline.RotateToNearest(points, writer.Position.XY) : points;
+                var path = (closed ? start.Append(start[0]) : start).Select(p => new Vec3(p, z)).ToList();
                 path = Simplify(path, 0.002);
 
                 writer.TravelTo(path[0].XY);
@@ -64,6 +81,61 @@ public static partial class ToolpathGenerator
                 writer.Retract();
             }
         }
+    }
+
+    private static int NearestPiece(List<(List<Vec2> Points, bool Closed)> pieces, Vec2 from)
+    {
+        var best = 0;
+        var bestDistance = double.MaxValue;
+        for (var i = 0; i < pieces.Count; i++)
+        {
+            var (points, closed) = pieces[i];
+            var distance = closed ? points.Min(p => p.DistanceTo(from)) : points[0].DistanceTo(from);
+            if (distance < bestDistance)
+            {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The parts of a closed ring whose points pass <paramref name="inside"/>, as open polylines in ring order
+    /// (a part running over the ring's start point stays in one piece).
+    /// </summary>
+    internal static List<List<Vec2>> SplitByMask(List<Vec2> ring, Func<Vec2, bool> inside)
+    {
+        var runs = new List<List<Vec2>>();
+        var first = ring.FindIndex(p => !inside(p));
+        if (first < 0)
+        {
+            runs.Add(ring.Append(ring[0]).ToList());
+            return runs;
+        }
+
+        List<Vec2>? run = null;
+        for (var k = 1; k <= ring.Count; k++)
+        {
+            var p = ring[(first + k) % ring.Count];
+            if (inside(p))
+            {
+                run ??= new List<Vec2>();
+                run.Add(p);
+            }
+            else if (run is not null)
+            {
+                if (run.Count >= 2)
+                {
+                    runs.Add(run);
+                }
+
+                run = null;
+            }
+        }
+
+        return runs;
     }
 
     /// <summary>

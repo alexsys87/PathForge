@@ -362,6 +362,18 @@ public sealed class ReliefOperation : Operation
     /// <summary>Cutting direction of the waterline contours.</summary>
     public CutDirection Direction { get; set; } = CutDirection.Climb;
 
+    /// <summary>
+    /// Machine only inside the selected closed contours (the tool centre stays inside them); the rest of the
+    /// relief is left untouched. Off: the whole relief rectangle.
+    /// </summary>
+    public bool LimitToContours { get; set; }
+
+    /// <summary>
+    /// Waterline only where the surface is steeper than this angle (degrees from the horizontal); the gentle
+    /// parts are left to the parallel lines. 0 = waterline everywhere.
+    /// </summary>
+    public double SteepAngle { get; set; }
+
     [JsonIgnore]
     public double HeightMm
     {

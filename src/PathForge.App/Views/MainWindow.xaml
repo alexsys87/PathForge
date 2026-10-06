@@ -452,6 +452,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Название', En='Name'}" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" ToolTip="{l:Tr 'Название операции — только для вас; в G-code оно не попадает', En='Operation name — just for you; it is not written to the G-code'}" />
@@ -500,6 +502,10 @@
                     <TextBlock Grid.Row="17" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование уровней', En='Level cut direction'}" />
                     <ComboBox Grid.Row="17" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" ToolTip="{l:Tr 'Направление движения фрезы: попутное режет чище, встречное надёжнее на рыхлом материале', En='Tool travel direction: climb cuts cleaner, conventional is safer on soft material'}" />
+                    <TextBlock Grid.Row="18" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Уровни круче, °', En='Levels steeper than, °'}" />
+                    <TextBox Grid.Row="18" Grid.Column="1" Text="{Binding SteepAngle}" ToolTip="{l:Tr 'Waterline только там, где поверхность круче этого угла (от горизонтали); пологие места остаются строкам. 0 — уровни везде. Обычно 30–45° вместе с чистовой «Строки и уровни».', En='Waterline only where the surface is steeper than this angle (from the horizontal); gentle areas are left to the lines. 0 — levels everywhere. Usually 30–45° with the “Lines and levels” finishing.'}" />
+                    <CheckBox Grid.Row="19" Grid.Column="1" Content="{l:Tr 'Только внутри контуров', En='Only inside the contours'}" IsChecked="{Binding LimitToContours}"
+                              ToolTip="{l:Tr 'Обрабатывать рельеф только внутри назначенных операции замкнутых контуров (центр фрезы не выходит за контур, вложенные контуры — отверстия). Выделите контуры и нажмите «Назначить выделенные».', En='Machine the relief only inside the closed contours assigned to the operation (the tool centre stays inside, nested contours are holes). Select contours and press “Assign selected”.'}" />
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Text="{l:Tr 'Расчёт учитывает форму фрезы (сферическая, гравёр, концевая), поэтому она не врезается в соседние склоны. Черновые проходы идут по уровням шага по глубине инструмента.', En='The calculation takes the tool shape into account (ball nose, V-bit, end mill), so it does not gouge neighbouring slopes. Roughing passes follow the levels of the tool step-down.'}" />

@@ -61,7 +61,10 @@ public static partial class ToolpathGenerator
             if (operation is ReliefOperation relief)
             {
                 var reliefWriter = new PathWriter(position, project.Machine.SafeZ);
-                GenerateRelief(relief, new OperationContext(project.Machine, operation, tool, reliefWriter, result.Warnings, label));
+                var boundary = relief.LimitToContours
+                    ? relief.ContourIds.Where(contours.ContainsKey).Select(id => contours[id]).ToList()
+                    : new List<Contour>();
+                GenerateRelief(relief, boundary, new OperationContext(project.Machine, operation, tool, reliefWriter, result.Warnings, label));
                 reliefWriter.Retract();
                 if (reliefWriter.Moves.Count > 0)
                 {

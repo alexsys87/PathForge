@@ -515,6 +515,18 @@ public sealed class ReliefOperationViewModel : OperationViewModel
         set => Set(_model.Direction, value, v => _model.Direction = v);
     }
 
+    public bool LimitToContours
+    {
+        get => _model.LimitToContours;
+        set => Set(_model.LimitToContours, value, v => _model.LimitToContours = v);
+    }
+
+    public double SteepAngle
+    {
+        get => _model.SteepAngle;
+        set => Set(_model.SteepAngle, Math.Clamp(value, 0, 89), v => _model.SteepAngle = v);
+    }
+
     public void ReplaceImage(GrayImage image)
     {
         Set(_model.Image, image, v => _model.Image = v, nameof(SourceInfo));

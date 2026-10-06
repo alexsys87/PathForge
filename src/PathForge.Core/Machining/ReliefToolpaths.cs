@@ -8,7 +8,8 @@ public static partial class ToolpathGenerator
 {
     private const int MaxReliefCells = 4_000_000;
 
-    private static void GenerateRelief(ReliefOperation operation, OperationContext context)
+    /// <param name="boundary">Contours that limit the machined area (<see cref="ReliefOperation.LimitToContours"/>); empty = no limit.</param>
+    private static void GenerateRelief(ReliefOperation operation, IReadOnlyList<Contour> boundary, OperationContext context)
     {
         var tool = context.Tool;
         var hasSource = operation.Source == ReliefSource.Image
@@ -33,6 +34,7 @@ public static partial class ToolpathGenerator
             ? HeightMap.FromImage(operation, columns, rows)
             : HeightMap.FromMesh(operation, columns, rows);
         var toolTip = surface.DropCutter(ToolRadius(tool), ToolProfile(tool));
+        var area = AreaMask(operation, boundary, toolTip, context);
 
         if (tool.Kind is ToolKind.EndMill or ToolKind.Drill)
         {
@@ -52,29 +54,189 @@ public static partial class ToolpathGenerator
             foreach (var level in PassDepths(startZ, operation.Depth, tool.StepDown))
             {
                 var lift = operation.RoughAllowance;
-                var pass = RasterPass(operation, toolTip, roughStep, cell => Math.Min(startZ, Math.Max(level, startZ + cell + lift)));
+                var pass = RasterPass(operation, toolTip, roughStep, cell => Math.Min(startZ, Math.Max(level, startZ + cell + lift)), area);
                 // Skip levels that would only cut air.
-                if (pass.All(p => p.Z >= previous - 1e-3))
+                if (pass.All(run => run.All(p => p.Z >= previous - 1e-3)))
                 {
                     previous = level;
                     continue;
                 }
 
-                CutRaster(pass, operation, context);
+                pass.ForEach(run => CutRaster(run, operation, context));
                 previous = level;
             }
         }
 
         if (operation.Finishing != ReliefFinishing.Waterline)
         {
-            var finish = RasterPass(operation, toolTip, Math.Max(resolution, operation.StepOverMm), cell => startZ + cell);
-            CutRaster(finish, operation, context);
+            var finish = RasterPass(operation, toolTip, Math.Max(resolution, operation.StepOverMm), cell => startZ + cell, area);
+            finish.ForEach(run => CutRaster(run, operation, context));
         }
 
         if (operation.Finishing != ReliefFinishing.Parallel)
         {
-            CutWaterlines(operation, toolTip, context);
+            var levels = area;
+            if (operation.SteepAngle > 0)
+            {
+                // Overlap the parallel lines by one step so that no strip is left between the two strategies.
+                var steep = SteepMask(toolTip, operation.SteepAngle, (int)Math.Ceiling(Math.Max(resolution, operation.StepOverMm) / toolTip.CellSize));
+                levels = area is null ? steep : steep.Zip(area, (a, b) => a && b).ToArray();
+            }
+
+            CutWaterlines(operation, toolTip, levels, context);
         }
+    }
+
+    /// <summary>
+    /// Cells whose centre lies inside the boundary contours (even-odd: nested contours are holes), or null when
+    /// the whole relief is machined.
+    /// </summary>
+    private static bool[]? AreaMask(ReliefOperation operation, IReadOnlyList<Contour> boundary, HeightMap grid, OperationContext context)
+    {
+        if (!operation.LimitToContours)
+        {
+            return null;
+        }
+
+        var rings = boundary.Where(c => c.IsClosed).Select(c => c.Flatten(FlattenTolerance)).Where(r => r.Count >= 3).ToList();
+        if (rings.Count == 0)
+        {
+            context.Warnings.Add(Loc.T(
+                $"{context.Label}: для ограничения области выберите замкнутые контуры — обработан весь рельеф.",
+                $"{context.Label}: select closed contours to limit the area — the whole relief was machined."));
+            return null;
+        }
+
+        var mask = new bool[grid.Columns * grid.Rows];
+        var crossings = new List<double>();
+        for (var r = 0; r < grid.Rows; r++)
+        {
+            // Scanline through the cell centres: inside between pairs of crossings.
+            var y = grid.CellY(r);
+            crossings.Clear();
+            foreach (var ring in rings)
+            {
+                for (var i = 0; i < ring.Count; i++)
+                {
+                    var a = ring[i];
+                    var b = ring[(i + 1) % ring.Count];
+                    if ((a.Y <= y) != (b.Y <= y))
+                    {
+                        crossings.Add(a.X + (y - a.Y) / (b.Y - a.Y) * (b.X - a.X));
+                    }
+                }
+            }
+
+            crossings.Sort();
+            for (var k = 0; k + 1 < crossings.Count; k += 2)
+            {
+                var c0 = Math.Max(0, (int)Math.Ceiling((crossings[k] - grid.OriginX) / grid.CellSize - 0.5));
+                var c1 = Math.Min(grid.Columns - 1, (int)Math.Floor((crossings[k + 1] - grid.OriginX) / grid.CellSize - 0.5));
+                for (var c = c0; c <= c1; c++)
+                {
+                    mask[r * grid.Columns + c] = true;
+                }
+            }
+        }
+
+        if (!mask.Any(m => m))
+        {
+            context.Warnings.Add(Loc.T(
+                $"{context.Label}: выбранные контуры не пересекают рельеф — обрабатывать нечего.",
+                $"{context.Label}: the selected contours do not overlap the relief — nothing to machine."));
+        }
+
+        return mask;
+    }
+
+    /// <summary>Cells where the tool-tip surface is steeper than <paramref name="angle"/> degrees, grown by <paramref name="grow"/> cells.</summary>
+    internal static bool[] SteepMask(HeightMap tip, double angle, int grow)
+    {
+        var limit = Math.Tan(Math.Clamp(angle, 0, 89.9) * Math.PI / 180);
+        var columns = tip.Columns;
+        var rows = tip.Rows;
+        var steep = new bool[columns * rows];
+        for (var r = 0; r < rows; r++)
+        {
+            for (var c = 0; c < columns; c++)
+            {
+                var c0 = Math.Max(0, c - 1);
+                var c1 = Math.Min(columns - 1, c + 1);
+                var r0 = Math.Max(0, r - 1);
+                var r1 = Math.Min(rows - 1, r + 1);
+                var gx = c1 == c0 ? 0 : (tip[c1, r] - tip[c0, r]) / ((c1 - c0) * tip.CellSize);
+                var gy = r1 == r0 ? 0 : (tip[c, r1] - tip[c, r0]) / ((r1 - r0) * tip.CellSize);
+                steep[r * columns + c] = gx * gx + gy * gy >= limit * limit;
+            }
+        }
+
+        if (grow <= 0)
+        {
+            return steep;
+        }
+
+        // Grow the steep area (square neighbourhood, separable: rows then columns).
+        var rowsGrown = new bool[steep.Length];
+        for (var r = 0; r < rows; r++)
+        {
+            var last = int.MinValue / 2;
+            for (var c = 0; c < columns; c++)
+            {
+                if (steep[r * columns + c])
+                {
+                    last = c;
+                }
+
+                rowsGrown[r * columns + c] = c - last <= grow;
+            }
+
+            last = int.MaxValue / 2;
+            for (var c = columns - 1; c >= 0; c--)
+            {
+                if (steep[r * columns + c])
+                {
+                    last = c;
+                }
+
+                rowsGrown[r * columns + c] |= last - c <= grow;
+            }
+        }
+
+        var grown = new bool[steep.Length];
+        for (var c = 0; c < columns; c++)
+        {
+            var last = int.MinValue / 2;
+            for (var r = 0; r < rows; r++)
+            {
+                if (rowsGrown[r * columns + c])
+                {
+                    last = r;
+                }
+
+                grown[r * columns + c] = r - last <= grow;
+            }
+
+            last = int.MaxValue / 2;
+            for (var r = rows - 1; r >= 0; r--)
+            {
+                if (rowsGrown[r * columns + c])
+                {
+                    last = r;
+                }
+
+                grown[r * columns + c] |= last - r <= grow;
+            }
+        }
+
+        return grown;
+    }
+
+    /// <summary>The mask cell under a point (points on the grid edge belong to the nearest cell).</summary>
+    private static bool InMask(bool[] mask, HeightMap grid, Vec2 p)
+    {
+        var c = Math.Clamp((int)Math.Floor((p.X - grid.OriginX) / grid.CellSize), 0, grid.Columns - 1);
+        var r = Math.Clamp((int)Math.Floor((p.Y - grid.OriginY) / grid.CellSize), 0, grid.Rows - 1);
+        return mask[r * grid.Columns + c];
     }
 
     private static double ToolRadius(Tool tool) => Math.Max(tool.Diameter, tool.TipDiameter) / 2;
@@ -96,8 +258,9 @@ public static partial class ToolpathGenerator
     /// <summary>
     /// Zigzag raster over the grid: lines along the chosen axis spaced by <paramref name="step"/>,
     /// joined along the edge. Every point takes its Z from <paramref name="height"/> of the tool-tip map.
+    /// With a <paramref name="mask"/> the raster breaks into separate runs over the allowed cells.
     /// </summary>
-    private static List<Vec3> RasterPass(ReliefOperation operation, HeightMap tip, double step, Func<double, double> height)
+    private static List<List<Vec3>> RasterPass(ReliefOperation operation, HeightMap tip, double step, Func<double, double> height, bool[]? mask)
     {
         var alongX = operation.Axis == RasterAxis.X;
         var lineCount = alongX ? tip.Rows : tip.Columns;
@@ -114,13 +277,26 @@ public static partial class ToolpathGenerator
             lines.Add(lineCount - 1);
         }
 
-        Vec3 Point(int along, int across)
+        var runs = new List<List<Vec3>>();
+        var points = new List<Vec3>();
+
+        void Point(int along, int across)
         {
             var (c, r) = alongX ? (along, across) : (across, along);
-            return new Vec3(tip.CellX(c), tip.CellY(r), height(tip[c, r]));
+            if (mask is not null && !mask[r * tip.Columns + c])
+            {
+                if (points.Count > 0)
+                {
+                    runs.Add(Simplify(points, 0.002));
+                    points = new List<Vec3>();
+                }
+
+                return;
+            }
+
+            points.Add(new Vec3(tip.CellX(c), tip.CellY(r), height(tip[c, r])));
         }
 
-        var points = new List<Vec3>();
         for (var i = 0; i < lines.Count; i++)
         {
             var forward = i % 2 == 0;
@@ -130,17 +306,22 @@ public static partial class ToolpathGenerator
                 var edge = forward ? 0 : pointCount - 1;
                 for (var k = lines[i - 1] + 1; k < lines[i]; k++)
                 {
-                    points.Add(Point(edge, k));
+                    Point(edge, k);
                 }
             }
 
             for (var j = 0; j < pointCount; j++)
             {
-                points.Add(Point(forward ? j : pointCount - 1 - j, lines[i]));
+                Point(forward ? j : pointCount - 1 - j, lines[i]);
             }
         }
 
-        return Simplify(points, 0.002);
+        if (points.Count > 0)
+        {
+            runs.Add(Simplify(points, 0.002));
+        }
+
+        return runs;
     }
 
     /// <summary>Drops points that lie on the straight line between their neighbours (within the tolerance).</summary>
