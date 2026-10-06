@@ -94,6 +94,42 @@ public class SampleTests
         Assert.All(gcode.Split('\n'), l => Assert.True(l.Length <= 80));
     }
 
+    [Theory]
+    [InlineData(LaserPcbClearing.Isolation)]
+    [InlineData(LaserPcbClearing.All)]
+    public void Demo_board_by_laser_burns_the_paint_around_the_copper(LaserPcbClearing clearing)
+    {
+        var folder = Path.Combine(AppContext.BaseDirectory, "samples", "pcb-demo");
+        var copper = GerberReader.ReadFile(Path.Combine(folder, "demo-F_Cu.gbr"), GerberMode.Copper);
+        var outline = GerberReader.ReadFile(Path.Combine(folder, "demo-Edge_Cuts.gbr"), GerberMode.Outline);
+        var drill = ExcellonReader.ReadFile(Path.Combine(folder, "demo.drl"));
+        var project = CamProject.CreateDefault();
+        MachineProfiles.Cnc3018Laser.ApplyTo(project.Machine);
+        var id = 1;
+        foreach (var contour in copper.Contours.Concat(outline.Contours).Concat(drill.ToContours()))
+        {
+            contour.Id = id++;
+            project.Contours.Add(contour);
+        }
+
+        var laser = ToolPresets.Cnc3018.First(p => p.Template.Kind == ToolKind.Laser).Create(1);
+        project.Tools.Add(laser);
+        // Everything selected: the outline is told apart as the board, the holes leave etched centre marks in the pads.
+        project.Operations.Add(new LaserPcbOperation
+        {
+            Name = "Laser PCB", ToolId = laser.Id, Clearing = clearing, ContourIds = project.Contours.Select(c => c.Id).ToList(),
+            BoardContourIds = { copper.Contours.Count + 1 },
+        });
+
+        var result = ToolpathGenerator.Generate(project);
+        var gcode = GcodeWriter.Write(project.Name, result, project.Machine);
+
+        Assert.Empty(result.Warnings);
+        Assert.Single(result.Toolpaths);
+        Assert.Contains("M4 S0", gcode);
+        Assert.All(gcode.Split('\n'), l => Assert.True(l.Length <= 80));
+    }
+
     [Fact]
     public void Altium_style_demo_board_matches_the_kicad_one()
     {

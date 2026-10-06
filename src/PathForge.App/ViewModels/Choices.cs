@@ -111,6 +111,12 @@ public static class Choices
         new Choice<KerfCompensation>(KerfCompensation.Openings, "Отверстия в размер", "Openings to size"),
     };
 
+    public static IReadOnlyList<Choice<LaserPcbClearing>> LaserPcbClearings { get; } = new[]
+    {
+        new Choice<LaserPcbClearing>(LaserPcbClearing.Isolation, "Полоса вокруг меди (быстрее)", "Strip around the copper (faster)"),
+        new Choice<LaserPcbClearing>(LaserPcbClearing.All, "Вся лишняя медь (чище)", "All excess copper (cleaner)"),
+    };
+
     public static IReadOnlyList<Choice<RasterModulation>> RasterModulations { get; } = new[]
     {
         new Choice<RasterModulation>(RasterModulation.Power, "Мощностью", "By power"),

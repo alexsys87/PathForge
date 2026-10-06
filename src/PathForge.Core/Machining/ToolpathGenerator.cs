@@ -36,7 +36,7 @@ public static partial class ToolpathGenerator
                 continue;
             }
 
-            if (operation is LaserVectorOperation or LaserRasterOperation || tool.Kind == ToolKind.Laser)
+            if (operation is LaserVectorOperation or LaserRasterOperation or LaserPcbOperation || tool.Kind == ToolKind.Laser)
             {
                 if (GenerateLaser(operation, tool, contours, position, label, result) is { } laserEnd)
                 {

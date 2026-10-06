@@ -16,7 +16,7 @@ public static partial class ToolpathGenerator
             return null;
         }
 
-        if (operation is not (LaserVectorOperation or LaserRasterOperation))
+        if (operation is not (LaserVectorOperation or LaserRasterOperation or LaserPcbOperation))
         {
             result.Warnings.Add(Loc.T($"{label}: лазер нельзя использовать во фрезерной операции — добавьте лазерную операцию.", $"{label}: a laser cannot be used in a milling operation — add a laser operation."));
             return null;
@@ -41,6 +41,10 @@ public static partial class ToolpathGenerator
             case LaserRasterOperation raster:
                 speed = raster.Speed;
                 GenerateLaserRaster(raster, writer, result.Warnings, label);
+                break;
+            case LaserPcbOperation pcb:
+                speed = pcb.Speed;
+                GenerateLaserPcb(pcb, tool, contours, writer, result.Warnings, label);
                 break;
         }
 
@@ -151,18 +155,30 @@ public static partial class ToolpathGenerator
         List<string> warnings, string label)
     {
         var closed = contours.Where(c => c.IsClosed).ToList();
-        var result = new List<(Vec2, Vec2)>();
         if (closed.Count == 0)
         {
             warnings.Add(Loc.T($"{label}: заливка возможна только внутри замкнутых контуров.", $"{label}: fill is only possible inside closed contours."));
-            return result;
+            return new List<(Vec2, Vec2)>();
         }
 
+        return HatchRings(closed.Select(c => (IReadOnlyList<Vec2>)c.Flatten(FlattenTolerance)), spacing, angleDeg, warnings, label);
+    }
+
+    /// <summary>Parallel lines inside rings combined with the even-odd rule, in zigzag order.</summary>
+    internal static List<(Vec2 From, Vec2 To)> HatchRings(IEnumerable<IReadOnlyList<Vec2>> worldRings, double spacing, double angleDeg,
+        List<string> warnings, string label)
+    {
+        var result = new List<(Vec2, Vec2)>();
         spacing = Math.Max(0.01, spacing);
         // Work in a frame where the hatch lines are horizontal.
         var toLocal = Affine2.Rotation(-angleDeg * Math.PI / 180);
         var toWorld = Affine2.Rotation(angleDeg * Math.PI / 180);
-        var rings = closed.Select(c => (IReadOnlyList<Vec2>)c.Flatten(FlattenTolerance).Select(toLocal.Apply).ToList()).ToList();
+        var rings = worldRings.Select(r => (IReadOnlyList<Vec2>)r.Select(toLocal.Apply).ToList()).ToList();
+        if (rings.Count == 0)
+        {
+            return result;
+        }
+
         var region = ClipperBridge.EvenOddRegion(rings);
         var bounds = rings.Aggregate(Bounds2.Empty, (b, r) => b.Union(Bounds2.Of(r)));
 

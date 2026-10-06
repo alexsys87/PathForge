@@ -60,9 +60,7 @@ public static class PcbFileDetector
 
         // Classic names: Protel/Altium extensions, KiCad and EasyEDA layer names.
         var lower = name.ToLowerInvariant();
-        if (extension is ".gko" or ".gm1" or ".gml" or ".gmo" ||
-            lower.Contains("edge_cuts") || lower.Contains("edge.cuts") || lower.Contains("boardoutline") ||
-            lower.Contains("outline") || lower.Contains("profile"))
+        if (IsOutlineFileName(name))
         {
             return (PcbFileKind.Outline, "");
         }
@@ -84,6 +82,15 @@ public static class PcbFileDetector
         return (PcbFileKind.Skipped, Loc.T(
             "не удалось определить слой по имени — добавьте его отдельной командой (медь или контур)",
             "could not tell the layer from the name — add it with its own command (copper or outline)"));
+    }
+
+    /// <summary>The file name is the usual one of a board outline (Altium .GKO / .GM1, KiCad Edge_Cuts, EasyEDA BoardOutline…).</summary>
+    public static bool IsOutlineFileName(string fileName)
+    {
+        var lower = Path.GetFileName(fileName).ToLowerInvariant();
+        return Path.GetExtension(lower) is ".gko" or ".gm1" or ".gml" or ".gmo" ||
+               lower.Contains("edge_cuts") || lower.Contains("edge.cuts") || lower.Contains("boardoutline") ||
+               lower.Contains("outline") || lower.Contains("profile");
     }
 
     /// <summary>Value of the X2 attribute <c>%TF.FileFunction,…*%</c>, or null.</summary>
