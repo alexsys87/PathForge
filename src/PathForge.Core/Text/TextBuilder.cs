@@ -29,6 +29,13 @@ public static class TextBuilder
             return new TextOutline(new List<List<Vec2>>(), missing);
         }
 
+        if (item.Variation.Count > 0 && font.IsVariable)
+        {
+            font = font.WithVariation(item.Variation);
+        }
+
+        var bend = ArcMapping(item, tolerance);
+
         var scale = item.HeightMm / Math.Max(1, font.CapHeight);
         var lineHeight = (font.Ascender - font.Descender + font.LineGap) * scale;
         if (lineHeight <= 0)
@@ -74,6 +81,11 @@ public static class TextBuilder
                 foreach (var path in font.GetPaths(glyphs[i]))
                 {
                     var ring = path.Flatten(p => new Vec2(originX + p.X * scale, baseline + p.Y * scale), tolerance);
+                    if (bend is not null)
+                    {
+                        ring = bend(ring);
+                    }
+
                     if (ring.Count >= 3)
                     {
                         polygons.Add(ring);
@@ -101,12 +113,82 @@ public static class TextBuilder
             }
         }
 
-        // Reading order: letter by letter, line by line.
-        rings = rings
-            .OrderByDescending(r => Math.Round(r.Max(p => p.Y) / lineHeight))
-            .ThenBy(r => r.Min(p => p.X))
-            .ToList();
+        // Reading order: letter by letter, line by line (along the arc: by the angle around the centre).
+        rings = item.ArcRadius == 0
+            ? rings.OrderByDescending(r => Math.Round(r.Max(p => p.Y) / lineHeight)).ThenBy(r => r.Min(p => p.X)).ToList()
+            : rings.OrderBy(r => ReadingAngle(item, r)).ToList();
         return new TextOutline(rings, missing);
+    }
+
+    /// <summary>
+    /// Bends a laid-out ring around the arc of <see cref="TextItem.ArcRadius"/>: the baseline becomes the circle,
+    /// distance along the baseline becomes arc length, height above it the distance from the circle.
+    /// Long straight edges are split first so that they follow the curve within the tolerance.
+    /// </summary>
+    private static Func<List<Vec2>, List<Vec2>>? ArcMapping(TextItem item, double tolerance)
+    {
+        if (item.ArcRadius == 0)
+        {
+            return null;
+        }
+
+        var radius = Math.Abs(item.ArcRadius);
+        var top = item.ArcRadius > 0;
+        var center = new Vec2(item.X, top ? item.Y - radius : item.Y + radius);
+        // Chord error of a piece of length L on radius R is L² / 8R.
+        var maxPiece = Math.Max(0.05, Math.Sqrt(8 * radius * Math.Max(1e-4, tolerance)));
+
+        Vec2 Map(Vec2 p)
+        {
+            var along = p.X - item.X;
+            var up = p.Y - item.Y;
+            var angle = top ? Math.PI / 2 - along / radius : -Math.PI / 2 + along / radius;
+            var distance = top ? radius + up : radius - up;
+            return new Vec2(center.X + distance * Math.Cos(angle), center.Y + distance * Math.Sin(angle));
+        }
+
+        return ring =>
+        {
+            var result = new List<Vec2>(ring.Count * 2);
+            for (var i = 0; i < ring.Count; i++)
+            {
+                var a = ring[i];
+                var b = ring[(i + 1) % ring.Count];
+                var pieces = Math.Max(1, (int)Math.Ceiling(a.DistanceTo(b) / maxPiece));
+                for (var k = 0; k < pieces; k++)
+                {
+                    result.Add(Map(Vec2.Lerp(a, b, (double)k / pieces)));
+                }
+            }
+
+            return result;
+        };
+    }
+
+    /// <summary>Position of a ring along an arc text, increasing in reading direction.</summary>
+    private static double ReadingAngle(TextItem item, List<Vec2> ring)
+    {
+        var radius = Math.Abs(item.ArcRadius);
+        var center = new Vec2(item.X, item.ArcRadius > 0 ? item.Y - radius : item.Y + radius);
+        var c = ring.Aggregate(Vec2.Zero, (s, p) => s + p) / ring.Count;
+        var angle = Math.Atan2(c.Y - center.Y, c.X - center.X);
+        // Over the top the text runs clockwise from the left, under the bottom counter-clockwise.
+        return item.ArcRadius > 0 ? -NormalizeAngle(angle - Math.PI / 2) : NormalizeAngle(angle + Math.PI / 2);
+    }
+
+    private static double NormalizeAngle(double a)
+    {
+        while (a <= -Math.PI)
+        {
+            a += 2 * Math.PI;
+        }
+
+        while (a > Math.PI)
+        {
+            a -= 2 * Math.PI;
+        }
+
+        return a;
     }
 
     /// <summary>

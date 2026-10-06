@@ -131,14 +131,15 @@ public class OpenTypeTests
     }
 
     [Fact]
-    public void Variable_cff2_fonts_are_refused_clearly()
+    public void A_cff_table_labelled_cff2_is_refused_clearly()
     {
+        // Variable CFF2 fonts are read (see VariableFontTests); a CFF 1 table under the CFF2 tag is an error.
         var data = File.ReadAllBytes(FontPath("pf-test-cff.otf"));
         var directory = System.Text.Encoding.ASCII.GetString(data, 0, 300);
         var tag = directory.IndexOf("CFF ", StringComparison.Ordinal);
         data[tag + 3] = (byte)'2';
 
-        var error = Assert.Throws<NotSupportedException>(() => TrueTypeFont.Load(data));
+        var error = Assert.Throws<FormatException>(() => TrueTypeFont.Load(data));
         Assert.Contains("CFF2", error.Message);
     }
 

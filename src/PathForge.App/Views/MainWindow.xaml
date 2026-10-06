@@ -26,6 +26,7 @@
     </Window.InputBindings>
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
         <!-- Shared fields of every operation -->
         <DataTemplate x:Key="CommonOperationFields" DataType="{x:Type vm:OperationViewModel}">
             <Grid>
@@ -193,6 +194,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Текст', En='Text'}" VerticalAlignment="Top" />
                 <TextBox Grid.Row="0" Grid.Column="1" MinHeight="54" AcceptsReturn="True" TextWrapping="Wrap"
@@ -227,6 +230,29 @@
                 </StackPanel>
                 <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Слой', En='Layer'}" />
                 <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding Layer}" ToolTip="{l:Tr 'Слой чертежа, в который попадут буквы', En='The drawing layer the letters go to'}" />
+                <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="{l:Tr 'По дуге, радиус мм', En='On an arc, radius mm'}" />
+                <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding ArcRadius}"
+                         ToolTip="{l:Tr 'Текст по окружности этого радиуса; 0 — по прямой. Плюс — по верху окружности, буквы наружу (центр на радиус ниже точки X, Y). Минус — по низу, буквы стоят прямо и смотрят к центру (центр выше точки). Так делают круглые печати и надписи по краю тарелки; с выравниванием «по центру» надпись симметрична.', En='Text along a circle of this radius; 0 — straight. Plus — over the top of the circle, letters outwards (the centre is the radius below X, Y). Minus — along the bottom, letters upright facing the centre (the centre is above the point). This is how round stamps and plate rims are lettered; with “centre” alignment the text is symmetric.'}" />
+                <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Visibility="{Binding IsVariable, Converter={StaticResource BoolToVisible}}" Margin="0,4,0,0">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Вариативный шрифт', En='Variable font'}" />
+                    <DockPanel Margin="0,0,0,3">
+                        <TextBlock Width="130" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Начертание', En='Style'}" />
+                        <ComboBox ItemsSource="{Binding Instances}" DisplayMemberPath="Name" SelectedItem="{Binding Instance}"
+                                  ToolTip="{l:Tr 'Готовые начертания шрифта (Light, Bold…): выставляют все оси разом. Оси ниже можно двигать и между ними.', En='Ready-made styles of the font (Light, Bold…): set every axis at once. The axes below can also be moved in between.'}" />
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Axes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,3">
+                                    <TextBlock Width="130" DockPanel.Dock="Left" Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+                                    <TextBox Width="60" DockPanel.Dock="Right" Margin="4,0,0,0" Text="{Binding Value, Delay=300}" ToolTip="{l:Tr 'Значение оси', En='Axis value'}" />
+                                    <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding Value, Delay=300}" VerticalAlignment="Center"
+                                            ToolTip="{l:Tr 'Положение на оси вариативного шрифта: например, насыщенность (wght) или ширина (wdth) букв', En='Position on the variable font axis: for example the weight (wght) or width (wdth) of the letters'}" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </Grid>
         </DataTemplate>
 

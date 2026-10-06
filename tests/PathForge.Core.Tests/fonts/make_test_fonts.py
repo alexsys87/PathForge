@@ -3,6 +3,11 @@
 pf-test-cff.otf  - CFF outlines: lines, cubic curves, a hole, local and global subroutines, hint masks,
                    flex, GPOS kerning with a glyph pair (format 1) and a class pair (format 2).
 pf-test-kern.ttf - TrueType outlines with the older 'kern' table.
+pf-test-var.ttf  - variable TrueType font (fvar, avar, gvar, HVAR): weight axis 100…900 with the default at 100,
+                   avar maps 500 to the design value 300; 'H' grows from 600 to 1000 units wide, 'O' changes its
+                   off-curve ring and hole (IUP-inferred deltas), 'Q' is a composite of 'O' moving by 100 units.
+pf-test-var-nohvar.ttf - the same without HVAR: advance widths come from the gvar phantom points.
+pf-test-var-cff2.otf - variable CFF2 font with the same weight axis (blend operators) and HVAR.
 
 All glyphs are simple shapes drawn here; the fonts contain nothing from other fonts.
 """
@@ -132,8 +137,91 @@ def build_kern_ttf(path):
     fb.save(path)
 
 
+VAR_ORDER = [".notdef", "space", "H", "O", "Q"]
+VAR_CMAP = {0x20: "space", ord("H"): "H", ord("O"): "O", ord("Q"): "Q"}
+
+
+def var_master(path, bold, cff):
+    """Light (default) or Bold master of the variable test fonts."""
+    w = 1000 if bold else 600
+    advances = {".notdef": 500, "space": 250, "H": w + 100, "O": 800 if not bold else 900, "Q": 800 if not bold else 900}
+    fb = FontBuilder(1000, isTTF=not cff)
+    fb.setupGlyphOrder(VAR_ORDER)
+    fb.setupCharacterMap(VAR_CMAP)
+    if cff:
+        charstrings = {}
+        for name in VAR_ORDER:
+            pen = T2CharStringPen(advances[name], None)
+            if name == "H":
+                rect(pen, 0, 0, w, 700)
+            elif name in ("O", "Q"):
+                ring(pen, 400, 350, 350 if not bold else 400, False)
+                ring(pen, 400, 350, 150 if not bold else 100, True)
+            elif name == ".notdef":
+                rect(pen, 0, 0, 10, 10)
+            charstrings[name] = pen.getCharString()
+        fb.setupCFF("PFTestVar", {"FullName": "PF Test Var"}, charstrings, {})
+    else:
+        glyphs = {}
+        for name in VAR_ORDER:
+            pen = TTGlyphPen(glyphs)
+            if name == "H":
+                rect(pen, 0, 0, w, 700)
+            elif name == "O":
+                a, b = (100, 700) if not bold else (50, 750)
+                pen.qCurveTo((b, b), (a, b), (a, a), (b, a), None)
+                pen.closePath()
+                h0, h1 = (300, 500) if not bold else (350, 450)
+                pen.moveTo((h0, h0)); pen.lineTo((h0, h1)); pen.lineTo((h1, h1)); pen.lineTo((h1, h0)); pen.closePath()
+            elif name == ".notdef":
+                rect(pen, 0, 0, 10, 10)
+            if name == "Q":
+                pen.addComponent("O", (1, 0, 0, 1, 100 if bold else 0, 0))
+            glyphs[name] = pen.glyph()
+        fb.setupGlyf(glyphs)
+    fb.setupHorizontalMetrics({n: (advances[n], 0) for n in VAR_ORDER})
+    fb.setupHorizontalHeader(ascent=900, descent=-200)
+    fb.setupNameTable({"familyName": "PF Test Var", "styleName": "Bold" if bold else "Light"})
+    fb.setupOS2(sTypoAscender=900, sTypoDescender=-200, usWinAscent=900, usWinDescent=200, sCapHeight=700, version=2)
+    fb.setupPost()
+    fb.save(path)
+
+
+def build_variable(path, cff, keep_hvar=True):
+    import os
+    import tempfile
+    from fontTools.designspaceLib import DesignSpaceDocument, AxisDescriptor, SourceDescriptor, InstanceDescriptor
+    from fontTools import varLib
+    from fontTools.ttLib import TTFont
+    tmp = tempfile.mkdtemp()
+    ext = ".otf" if cff else ".ttf"
+    light, bold = os.path.join(tmp, "light" + ext), os.path.join(tmp, "bold" + ext)
+    var_master(light, False, cff)
+    var_master(bold, True, cff)
+    doc = DesignSpaceDocument()
+    axis = AxisDescriptor()
+    axis.tag, axis.name, axis.minimum, axis.default, axis.maximum = "wght", "Weight", 100, 100, 900
+    axis.map = [(100, 100), (500, 300), (900, 900)]
+    doc.addAxis(axis)
+    for file, value in ((light, 100), (bold, 900)):
+        source = SourceDescriptor()
+        source.path, source.location = file, {"Weight": value}
+        doc.addSource(source)
+    for style, value in (("Light", 100), ("Regular", 400), ("Bold", 900)):
+        instance = InstanceDescriptor()
+        instance.familyName, instance.styleName, instance.location = "PF Test Var", style, {"Weight": value}
+        doc.addInstance(instance)
+    font, _, _ = varLib.build(doc)
+    if not keep_hvar and "HVAR" in font:
+        del font["HVAR"]
+    font.save(path)
+
+
 if __name__ == "__main__":
     import os
     here = os.path.dirname(os.path.abspath(__file__))
     build_cff(os.path.join(here, "pf-test-cff.otf"))
     build_kern_ttf(os.path.join(here, "pf-test-kern.ttf"))
+    build_variable(os.path.join(here, "pf-test-var.ttf"), cff=False)
+    build_variable(os.path.join(here, "pf-test-var-nohvar.ttf"), cff=False, keep_hvar=False)
+    build_variable(os.path.join(here, "pf-test-var-cff2.otf"), cff=True)
