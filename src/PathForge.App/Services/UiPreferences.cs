@@ -13,6 +13,22 @@ public enum AppTheme
     Dark,
 }
 
+/// <summary>How the control panel talks to the machine.</summary>
+public enum MachineConnectionKind
+{
+    /// <summary>USB cable, COM port.</summary>
+    Serial,
+
+    /// <summary>Plain TCP stream (Grbl_Esp32 telnet, port 23).</summary>
+    Telnet,
+
+    /// <summary>WebSocket of the Grbl_Esp32 web interface (MKS DLC32: port 81, commands over HTTP).</summary>
+    WebSocket,
+
+    /// <summary>Serial-to-WebSocket bridge or FluidNC: commands are sent as WebSocket frames.</summary>
+    WebSocketBridge,
+}
+
 /// <summary>Interface language, colour theme and machine connection, kept between runs in %AppData%\PathForge\settings.json.</summary>
 public sealed class UiPreferences
 {
@@ -26,8 +42,8 @@ public sealed class UiPreferences
 
     public AppTheme Theme { get; set; } = AppTheme.Light;
 
-    /// <summary>The control panel connects over the network (telnet) instead of a COM port.</summary>
-    public bool MachineUseNetwork { get; set; }
+    /// <summary>How the control panel connects to the machine.</summary>
+    public MachineConnectionKind MachineConnection { get; set; }
 
     /// <summary>Address of the board for the network connection (192.168.4.1 is the MKS DLC32 in access point mode).</summary>
     public string MachineHost { get; set; } = "192.168.4.1";

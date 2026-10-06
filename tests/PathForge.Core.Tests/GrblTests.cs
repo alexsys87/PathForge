@@ -402,6 +402,27 @@ public class GrblTests
     }
 
     [Fact]
+    public void Streamed_jogs_stay_out_of_the_log_unless_rejected()
+    {
+        var (controller, board, _) = Connect();
+        var log = new List<GrblLogEntry>();
+        controller.Log += log.Add;
+
+        controller.Jog(3, 0, 0, 1200, quiet: true);
+        board.ProcessAll();
+        Assert.Equal("$J=G91G21X3F1200", board.Lines[^1]);
+        Assert.Empty(log);
+        Assert.Equal(0, controller.FailedCommands);
+
+        board.Responder = _ => "error:15";
+        controller.Jog(3, 0, 0, 1200, quiet: true);
+        board.ProcessAll();
+        Assert.Single(log, e => e.Kind == GrblLogKind.Error);
+        Assert.Equal(1, controller.FailedCommands);
+        Assert.False(controller.IsBusy);
+    }
+
+    [Fact]
     public void Jog_cancel_drops_queued_jogs()
     {
         var (controller, board, _) = Connect();

@@ -61,7 +61,7 @@ public sealed class GrblController : IDisposable
     private readonly IGrblTransport _transport;
     private readonly int _rxBufferSize;
     private readonly Queue<Pending> _pending = new();
-    private readonly Queue<string> _manual = new();
+    private readonly Queue<ManualCommand> _manual = new();
 
     private int _bufferUsed;
     private List<GrblLine> _program = new();
@@ -96,6 +96,9 @@ public sealed class GrblController : IDisposable
     public event Action<GrblJobResult>? JobFinished;
 
     public bool IsConnected { get; private set; }
+
+    /// <summary>Operator commands (jogs included) that GRBL rejected with an error, counted since connecting.</summary>
+    public int FailedCommands { get; private set; }
 
     /// <summary>The controller has sent at least one line: the link is known to work.</summary>
     public bool HasAnswered
@@ -170,7 +173,10 @@ public sealed class GrblController : IDisposable
     /// Queues a command line typed by the operator (or produced by the buttons). Lines are sent one after
     /// the other, each when the previous one was answered. A few real-time characters (?, !, ~) are sent at once.
     /// </summary>
-    public void SendCommand(string command)
+    public void SendCommand(string command) => SendCommand(command, quiet: false);
+
+    /// <param name="quiet">Not written to the log unless GRBL rejects it (streamed jog segments).</param>
+    private void SendCommand(string command, bool quiet)
     {
         command = command.Trim();
         if (command.Length == 0)
@@ -198,7 +204,7 @@ public sealed class GrblController : IDisposable
                 throw new InvalidOperationException(Loc.T($"Команда длиннее {GrblProgram.MaxLineLength} символов.", $"The command is longer than {GrblProgram.MaxLineLength} characters."));
             }
 
-            _manual.Enqueue(command);
+            _manual.Enqueue(new ManualCommand(command, quiet));
             if (Job == GrblJobState.ProgramStop)
             {
                 _manualDuringStop = true;
@@ -209,7 +215,9 @@ public sealed class GrblController : IDisposable
     }
 
     /// <summary>Relative jog in work millimetres; GRBL cancels it with <see cref="JogCancel"/>.</summary>
-    public void Jog(double dx, double dy, double dz, double feed)
+    /// <param name="feed">Path feed, mm/min.</param>
+    /// <param name="quiet">Leave the command out of the log (hold-to-move jogging sends many short segments).</param>
+    public void Jog(double dx, double dy, double dz, double feed, bool quiet = false)
     {
         var axes = "";
         if (dx != 0)
@@ -229,7 +237,7 @@ public sealed class GrblController : IDisposable
 
         if (axes.Length > 0)
         {
-            SendCommand($"$J=G91G21{axes}F{Format(Math.Max(1, feed))}");
+            SendCommand($"$J=G91G21{axes}F{Format(Math.Max(1, feed))}", quiet);
         }
     }
 
@@ -243,7 +251,7 @@ public sealed class GrblController : IDisposable
             }
 
             // Drop jogs that were not sent yet, then stop the running one.
-            var keep = _manual.Where(c => !c.StartsWith("$J=", StringComparison.Ordinal)).ToList();
+            var keep = _manual.Where(c => !c.Text.StartsWith("$J=", StringComparison.Ordinal)).ToList();
             _manual.Clear();
             keep.ForEach(_manual.Enqueue);
             Realtime(JogCancelCommand);
@@ -583,6 +591,7 @@ public sealed class GrblController : IDisposable
         else if (error is { } code)
         {
             Write(GrblLogKind.Error, $"{line.Text}: {GrblMessages.Error(code)}");
+            FailedCommands++;
             // A failed step makes the following commands of a sequence (probing, go to zero) meaningless.
             _manual.Clear();
         }
@@ -719,11 +728,14 @@ public sealed class GrblController : IDisposable
         if (CanSendCommands && _manual.Count > 0 && _pending.All(p => p.SourceLine > 0))
         {
             var command = _manual.Peek();
-            if (Fits(command.Length + 1))
+            if (Fits(command.Text.Length + 1))
             {
                 _manual.Dequeue();
-                Send(command, 0);
-                Write(GrblLogKind.Sent, command);
+                Send(command.Text, command.Quiet ? -1 : 0);
+                if (!command.Quiet)
+                {
+                    Write(GrblLogKind.Sent, command.Text);
+                }
             }
         }
     }
@@ -836,4 +848,6 @@ public sealed class GrblController : IDisposable
     private static string Format(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
     private sealed record Pending(string Text, int Length, int SourceLine);
+
+    private sealed record ManualCommand(string Text, bool Quiet);
 }
