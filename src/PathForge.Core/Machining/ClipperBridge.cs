@@ -84,6 +84,10 @@ internal static class ClipperBridge
         return open.Where(p => p.Count >= 2).Select(p => p.Select(q => new Vec2(q.X / Scale, q.Y / Scale)).ToList()).ToList();
     }
 
+    /// <summary>Moves a region by an offset in millimetres.</summary>
+    public static Paths64 Translate(Paths64 region, Vec2 offset) =>
+        Clipper.TranslatePaths(region, (long)Math.Round(offset.X * Scale), (long)Math.Round(offset.Y * Scale));
+
     /// <summary>Grows (positive delta) or shrinks (negative delta) a region with round corners.</summary>
     public static Paths64 Offset(Paths64 region, double delta) =>
         Clipper.InflatePaths(region, delta * Scale, JoinType.Round, EndType.Polygon, 2, ArcTolerance * Scale);

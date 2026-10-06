@@ -575,6 +575,8 @@
                     <MenuItem Header="{l:Tr 'Рельеф из картинки…', En='Relief from a picture…'}" Command="{Binding AddImageReliefCommand}" />
                 </MenuItem>
                 <MenuItem Header="{l:Tr 'Печатная _плата', En='_PCB'}">
+                    <MenuItem Header="{l:Tr 'Добавить файлы платы (несколько сразу)…', En='Add PCB files (several at once)…'}" Command="{Binding ImportPcbFilesCommand}"
+                              ToolTip="{l:Tr 'Выберите сразу все файлы платы (Gerber и сверловку): медь, контур и отверстия определятся сами по атрибутам X2 или по именам файлов, маска, шелкография и паста будут пропущены. Каждый файл станет отдельным слоем.', En='Select all the board files at once (Gerber and drills): copper, outline and holes are recognised by the X2 attributes or by the file names; mask, silk screen and paste are skipped. Each file becomes its own layer.'}" />
                     <MenuItem Header="{l:Tr 'Добавить Gerber: медь…', En='Add Gerber: copper…'}" Command="{Binding ImportGerberCopperCommand}" />
                     <MenuItem Header="{l:Tr 'Добавить Gerber: контур платы…', En='Add Gerber: board outline…'}" Command="{Binding ImportGerberOutlineCommand}" />
                     <MenuItem Header="{l:Tr 'Добавить сверловку (Excellon)…', En='Add drill file (Excellon)…'}" Command="{Binding ImportExcellonCommand}" />
