@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Net.Sockets;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -20,6 +21,9 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 {
     private const int MaxLogLines = 500;
 
+    /// <summary>A network link whose board has been silent this long is treated as lost (see <see cref="GrblController.CheckResponse(TimeSpan)"/>).</summary>
+    private static readonly TimeSpan NetworkAnswerTimeout = TimeSpan.FromSeconds(10);
+
     private static string GcodeFileFilter =>
         "G-code (*.nc;*.gcode;*.ngc;*.tap;*.txt)|*.nc;*.gcode;*.ngc;*.tap;*.txt|" + Loc.T("Все файлы", "All files") + " (*.*)|*.*";
 
@@ -30,6 +34,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private static string CurrentProjectText => Loc.T("Текущий проект", "Current project");
 
     private readonly IDialogService _dialogs;
+    private readonly UiPreferences _preferences;
     private readonly Func<MachineProgram?> _projectProgram;
     private readonly Func<double> _safeZ;
     private readonly Dispatcher _dispatcher;
@@ -43,16 +48,23 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private MachineProgram? _fileProgram;
     private LevelingProbe? _probe;
 
-    // Automatic reconnection after the COM port drops out of the system (USB unplugged, board reboot).
+    // The open connection, and automatic reconnection after it is lost (USB unplugged, board reboot, WiFi dropped).
+    private ConnectionTarget? _target;
+    private int _connectionGeneration;
     private DispatcherTimer? _reconnectTimer;
-    private string _reconnectPort = "";
+    private bool _reconnecting;
+    private bool _reconnectOpening;
     private HashSet<string> _reconnectKnownPorts = new(StringComparer.OrdinalIgnoreCase);
     private int _reconnectAttempts;
 
-    public MachineControlViewModel(IDialogService dialogs, Func<MachineProgram?> projectProgram, Func<double> safeZ,
+    public MachineControlViewModel(IDialogService dialogs, UiPreferences preferences, Func<MachineProgram?> projectProgram, Func<double> safeZ,
         Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds)
     {
         _dialogs = dialogs;
+        _preferences = preferences;
+        UseNetwork = preferences.MachineUseNetwork;
+        Host = preferences.MachineHost ?? "";
+        NetworkPort = preferences.MachineNetworkPort;
         _projectProgram = projectProgram;
         _safeZ = safeZ;
         _getMap = getMap;
@@ -63,6 +75,11 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         _pollTimer.Tick += (_, _) =>
         {
             _controller?.RequestStatus();
+            if (_target is { IsNetwork: true })
+            {
+                _controller?.CheckResponse(NetworkAnswerTimeout);
+            }
+
             if (_jobStarted is not null)
             {
                 Refresh();
@@ -90,9 +107,28 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     private int baudRate = 115200;
 
+    /// <summary>Connect over the network (telnet, e.g. MKS DLC32 over WiFi) instead of a COM port.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSerial))]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
+    private bool useNetwork;
+
+    /// <summary>IP address or host name of the board for the network connection.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
+    private string host = "192.168.4.1";
+
+    [ObservableProperty]
+    private int networkPort = TelnetTransport.DefaultPort;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDisconnected))]
     private bool isConnected;
+
+    /// <summary>A connection is being opened (a network address may take a few seconds to answer).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDisconnected))]
+    private bool isConnecting;
 
     [ObservableProperty]
     private string stateText = NotConnectedText;
@@ -176,7 +212,13 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     private Vec2? toolPosition;
 
-    public bool IsDisconnected => !IsConnected;
+    public bool IsDisconnected => !IsConnected && !IsConnecting;
+
+    public bool IsSerial
+    {
+        get => !UseNetwork;
+        set => UseNetwork = !value;
+    }
 
     // ---- Height map (auto-levelling) ---------------------------------------------------------
 
@@ -378,28 +420,69 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         SelectedPort = current is not null && Ports.Contains(current) ? current : Ports.LastOrDefault();
     }
 
-    private bool CanConnect() => !string.IsNullOrEmpty(SelectedPort);
+    private bool CanConnect() => UseNetwork ? !string.IsNullOrWhiteSpace(Host) : !string.IsNullOrEmpty(SelectedPort);
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
-    private void Connect()
+    private async Task ConnectAsync()
     {
-        if (IsConnected || SelectedPort is null)
+        if (IsConnected || IsConnecting || !CanConnect())
         {
             return;
         }
 
+        if (UseNetwork && NetworkPort is < 1 or > 65535)
+        {
+            _dialogs.ShowError(Loc.T("Порт telnet — число от 1 до 65535 (у MKS DLC32 — 23).", "The telnet port is a number from 1 to 65535 (23 on the MKS DLC32)."));
+            return;
+        }
+
+        var target = UseNetwork
+            ? new ConnectionTarget(true, Host.Trim(), NetworkPort)
+            : new ConnectionTarget(false, SelectedPort!, BaudRate);
+        var generation = _connectionGeneration;
+        IsConnecting = true;
+        StateText = Loc.T($"Подключение к {target.Describe()}…", $"Connecting to {target.Describe()}…");
+        IGrblTransport transport;
         try
         {
-            _controller = CreateController(SelectedPort, BaudRate);
-            IsConnected = true;
-            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T($"Подключено: {SelectedPort}, {BaudRate} бод. Ожидание ответа GRBL…", $"Connected: {SelectedPort}, {BaudRate} baud. Waiting for GRBL…")));
-            _pollTimer.Start();
-            Refresh();
+            // Off the UI thread: a network address that does not answer takes seconds to time out.
+            transport = await Task.Run(target.Open);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (IsConnectionError(ex))
         {
-            _dialogs.ShowError(Loc.T($"Не удалось открыть {SelectedPort}:\n{ex.Message}\n\nПорт может быть занят другой программой (Candle, Arduino IDE).", $"Could not open {SelectedPort}:\n{ex.Message}\n\nThe port may be used by another program (Candle, Arduino IDE)."));
+            IsConnecting = false;
+            Refresh();
+            _dialogs.ShowError(target.IsNetwork
+                ? Loc.T(
+                    $"Не удалось подключиться к {target.Describe()}:\n{ex.Message}\n\n" +
+                    "Проверьте IP-адрес платы (показан на её экране или в роутере), что компьютер в той же сети и что telnet " +
+                    "включён ($ESP130=ON). Плата принимает только одного telnet-клиента — закройте другие программы (LightBurn, LaserGRBL).",
+                    $"Could not connect to {target.Describe()}:\n{ex.Message}\n\n" +
+                    "Check the board IP address (shown on its screen or in the router), that the computer is on the same network and that " +
+                    "telnet is on ($ESP130=ON). The board accepts a single telnet client — close other programs (LightBurn, LaserGRBL).")
+                : Loc.T(
+                    $"Не удалось открыть {target.Address}:\n{ex.Message}\n\nПорт может быть занят другой программой (Candle, Arduino IDE).",
+                    $"Could not open {target.Address}:\n{ex.Message}\n\nThe port may be used by another program (Candle, Arduino IDE)."));
+            return;
         }
+
+        IsConnecting = false;
+        if (generation != _connectionGeneration)
+        {
+            // The panel was closed while connecting.
+            transport.Dispose();
+            return;
+        }
+
+        _target = target;
+        _controller = CreateController(transport);
+        IsConnected = true;
+        AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
+            $"Подключено: {target.Describe()}. Ожидание ответа GRBL…",
+            $"Connected: {target.Describe()}. Waiting for GRBL…")));
+        _pollTimer.Start();
+        SaveConnectionPreferences();
+        Refresh();
     }
 
     [RelayCommand]
@@ -414,10 +497,13 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T("Отключено.", "Disconnected.")));
     }
 
-    /// <summary>Creates a controller over the given serial port and wires its events to the panel.</summary>
-    private GrblController CreateController(string portName, int baudRate)
+    private static bool IsConnectionError(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or SocketException or TimeoutException;
+
+    /// <summary>Creates a controller over an opened connection and wires its events to the panel.</summary>
+    private GrblController CreateController(IGrblTransport transport)
     {
-        var controller = new GrblController(new SerialPortTransport(portName, baudRate));
+        var controller = new GrblController(transport);
         controller.Changed += QueueRefresh;
         controller.Log += entry => _dispatcher.BeginInvoke(() => AddLog(entry));
         controller.JobFinished += result => _dispatcher.BeginInvoke(() => OnJobFinished(result));
@@ -425,98 +511,151 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         return controller;
     }
 
+    private void SaveConnectionPreferences()
+    {
+        _preferences.MachineUseNetwork = UseNetwork;
+        _preferences.MachineHost = Host.Trim();
+        _preferences.MachineNetworkPort = NetworkPort;
+        _preferences.Save();
+    }
+
     /// <summary>
-    /// The COM port disappeared from the system (USB unplugged, board reboot): release the dead port and
-    /// keep trying to reopen it until it comes back or the user disconnects.
+    /// The connection was lost (USB unplugged, board reboot, WiFi dropped): release the dead connection and,
+    /// like Candle, keep trying to open it again until it comes back or the user disconnects.
     /// </summary>
     private void BeginReconnect()
     {
-        if (_reconnectTimer is not null)
+        if (_reconnectTimer is not null || _target is not { } target)
         {
             return;
         }
 
-        _reconnectPort = SelectedPort ?? "";
-        _reconnectKnownPorts = new HashSet<string>(SerialPortTransport.PortNames(), StringComparer.OrdinalIgnoreCase);
-        _reconnectAttempts = 0;
-
-        // The controller has already marked the connection as lost: release the dead port.
+        // The controller has already marked the connection as lost: release it.
         _controller?.Dispose();
         _controller = null;
 
-        AddLog(new GrblLogEntry(GrblLogKind.Error, Loc.T(
-            $"Связь потеряна. Жду возвращения порта {_reconnectPort}…",
-            $"Connection lost. Waiting for port {_reconnectPort} to come back…")));
+        if (!_reconnecting)
+        {
+            _reconnecting = true;
+            _reconnectAttempts = 0;
+            _reconnectKnownPorts = target.IsNetwork
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(SerialPortTransport.PortNames(), StringComparer.OrdinalIgnoreCase);
+            AddLog(new GrblLogEntry(GrblLogKind.Error, Loc.T(
+                $"Связь потеряна. Восстанавливаю подключение к {target.Describe()}…",
+                $"Connection lost. Reconnecting to {target.Describe()}…")));
+        }
 
-        _reconnectTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
+        // Otherwise a restored connection broke again before GRBL answered (e.g. the board still holds
+        // the old telnet client and dropped the new one): keep counting attempts without new log lines.
+        _reconnectTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(target.IsNetwork ? 2 : 1),
+        };
         _reconnectTimer.Tick += (_, _) => TryReconnect();
         _reconnectTimer.Start();
-        Refresh();
     }
 
-    private void TryReconnect()
+    private async void TryReconnect()
     {
-        if (_reconnectTimer is null)
+        if (_reconnectTimer is null || _reconnectOpening || _target is not { } target)
         {
             return;
         }
 
         _reconnectAttempts++;
-        var ports = SerialPortTransport.PortNames();
-        var name = _reconnectPort;
-        if (name.Length == 0 || !ports.Contains(name, StringComparer.OrdinalIgnoreCase))
+        if (!target.IsNetwork)
         {
-            // After a hard USB reset the port may come back under another number: accept a single new port.
-            var fresh = ports.Where(p => !_reconnectKnownPorts.Contains(p)).ToList();
-            if (fresh.Count == 1)
-            {
-                name = fresh[0];
-            }
-            else
+            if (FindReturnedPort(target.Address) is not { } name)
             {
                 StateText = Loc.T(
-                    $"Связь потеряна — порт {_reconnectPort} не найден, попытка {_reconnectAttempts}…",
-                    $"Connection lost — port {_reconnectPort} not found, attempt {_reconnectAttempts}…");
+                    $"Связь потеряна — порт {target.Address} не найден, попытка {_reconnectAttempts}…",
+                    $"Connection lost — port {target.Address} not found, attempt {_reconnectAttempts}…");
                 return;
             }
+
+            target = target with { Address = name };
         }
 
+        var generation = _connectionGeneration;
+        IGrblTransport transport;
+        _reconnectOpening = true;
         try
         {
-            _controller = CreateController(name, BaudRate);
-            _reconnectTimer.Stop();
-            _reconnectTimer = null;
-
-            if (!string.Equals(name, SelectedPort, StringComparison.OrdinalIgnoreCase))
-            {
-                RefreshPorts();
-                SelectedPort = name;
-            }
-
-            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
-                $"Связь восстановлена: {name}, {BaudRate} бод. Ожидание ответа GRBL…",
-                $"Connection restored: {name}, {BaudRate} baud. Waiting for GRBL…")));
-            Refresh();
+            transport = await Task.Run(target.Open);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (IsConnectionError(ex))
         {
-            // The port exists but the OS has not released it yet: keep waiting.
+            // Not back yet (port still held by the OS, board rebooting, network down): keep trying.
             StateText = Loc.T(
-                $"Связь потеряна — порт {name} найден, попытка {_reconnectAttempts}…",
-                $"Connection lost — port {name} found, attempt {_reconnectAttempts}…");
+                $"Связь потеряна — {target.Describe()}, попытка {_reconnectAttempts}: {ex.Message}",
+                $"Connection lost — {target.Describe()}, attempt {_reconnectAttempts}: {ex.Message}");
+            return;
         }
+        finally
+        {
+            _reconnectOpening = false;
+        }
+
+        if (generation != _connectionGeneration || _reconnectTimer is null)
+        {
+            // The user disconnected while the attempt was running.
+            transport.Dispose();
+            return;
+        }
+
+        _reconnectTimer.Stop();
+        _reconnectTimer = null;
+        _target = target;
+        _controller = CreateController(transport);
+        if (!target.IsNetwork && !string.Equals(target.Address, SelectedPort, StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshPorts();
+            SelectedPort = target.Address;
+        }
+
+        // "Restored" is logged by Refresh once GRBL answers.
+        Refresh();
+    }
+
+    /// <summary>The lost COM port if it is back; after a hard USB reset it may return under another number, so a single new port is accepted too.</summary>
+    private string? FindReturnedPort(string portName)
+    {
+        var ports = SerialPortTransport.PortNames();
+        if (ports.Contains(portName, StringComparer.OrdinalIgnoreCase))
+        {
+            return portName;
+        }
+
+        var fresh = ports.Where(p => !_reconnectKnownPorts.Contains(p)).ToList();
+        return fresh.Count == 1 ? fresh[0] : null;
     }
 
     private void CloseConnection()
     {
+        _connectionGeneration++;
         _reconnectTimer?.Stop();
         _reconnectTimer = null;
+        _reconnecting = false;
         _pollTimer.Stop();
         _controller?.Dispose();
         _controller = null;
+        _target = null;
         _jobStarted = null;
         IsConnected = false;
         Refresh();
+    }
+
+    /// <summary>What the panel connects to: a COM port with its baud rate, or a network address with its TCP port.</summary>
+    private sealed record ConnectionTarget(bool IsNetwork, string Address, int Number)
+    {
+        public IGrblTransport Open() => IsNetwork
+            ? new TelnetTransport(Address, Number)
+            : new SerialPortTransport(Address, Number);
+
+        public string Describe() => IsNetwork
+            ? $"{Address}:{Number} (telnet)"
+            : Loc.T($"{Address}, {Number} бод", $"{Address}, {Number} baud");
     }
 
     // ---- Machine ------------------------------------------------------------------------------
@@ -781,16 +920,28 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         var controller = _controller;
         if (controller is not null && !controller.IsConnected)
         {
-            // The connection was lost (cable, board reboot): try to restore it automatically.
+            // The connection was lost (cable, board reboot, network): try to restore it automatically.
             BeginReconnect();
             controller = null;
         }
 
+        if (controller is not null && _reconnecting && controller.HasAnswered && _target is { } restored)
+        {
+            _reconnecting = false;
+            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
+                $"Связь восстановлена: {restored.Describe()} (попыток: {_reconnectAttempts}).",
+                $"Connection restored: {restored.Describe()} (attempts: {_reconnectAttempts}).")));
+        }
+
         if (controller is null)
         {
-            StateText = _reconnectTimer is not null
-                ? Loc.T($"Связь потеряна — жду порт {_reconnectPort}…", $"Connection lost — waiting for port {_reconnectPort}…")
-                : NotConnectedText;
+            if (!IsConnecting)
+            {
+                StateText = _reconnectTimer is not null && _target is { } lost
+                    ? Loc.T($"Связь потеряна — переподключение к {lost.Describe()}…", $"Connection lost — reconnecting to {lost.Describe()}…")
+                    : NotConnectedText;
+            }
+
             VersionText = "";
             WorkX = WorkY = WorkZ = "—";
             MachineText = FeedText = OverridesText = "";

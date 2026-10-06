@@ -72,6 +72,7 @@ public sealed class GrblController : IDisposable
     private bool _manualDuringStop;
     private string _lastFeedWord = "";
     private bool _stopRequested;
+    private long _lastReceived;
 
     public GrblController(IGrblTransport transport, int rxBufferSize = DefaultRxBufferSize)
     {
@@ -80,6 +81,7 @@ public sealed class GrblController : IDisposable
         _transport.LineReceived += OnLine;
         _transport.Failed += OnFailed;
         IsConnected = true;
+        _transport.Start();
     }
 
     /// <summary>Status, job state or progress changed.</summary>
@@ -94,6 +96,18 @@ public sealed class GrblController : IDisposable
     public event Action<GrblJobResult>? JobFinished;
 
     public bool IsConnected { get; private set; }
+
+    /// <summary>The controller has sent at least one line: the link is known to work.</summary>
+    public bool HasAnswered
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _lastReceived != 0;
+            }
+        }
+    }
 
     public GrblStatus Status { get; private set; } = GrblStatus.Unknown;
 
@@ -412,6 +426,30 @@ public sealed class GrblController : IDisposable
         }
     }
 
+    /// <summary>
+    /// Declares the connection lost when the controller, which has answered before, has been silent for
+    /// <paramref name="timeout"/> although status reports are polled several times a second. Needed for
+    /// network links: TCP does not notice a dropped WiFi connection for minutes. Not checked during homing,
+    /// when GRBL does not answer status queries until the cycle is done.
+    /// </summary>
+    public void CheckResponse(TimeSpan timeout) => CheckResponse(timeout, Environment.TickCount64);
+
+    internal void CheckResponse(TimeSpan timeout, long now)
+    {
+        lock (_lock)
+        {
+            if (!IsConnected || _lastReceived == 0 || now - _lastReceived <= timeout.TotalMilliseconds ||
+                _pending.Any(p => p.Text.StartsWith("$H", StringComparison.Ordinal)))
+            {
+                return;
+            }
+
+            OnFailed(new TimeoutException(Loc.T(
+                $"нет ответа {timeout.TotalSeconds:0} с.",
+                $"no answer for {timeout.TotalSeconds:0} s.")));
+        }
+    }
+
     /// <summary>Feed override: +1 adds 10 %, -1 subtracts 10 %, 0 back to 100 %.</summary>
     public void FeedOverride(int direction) => Override(direction switch { > 0 => 0x91, < 0 => 0x92, _ => 0x90 });
 
@@ -431,16 +469,20 @@ public sealed class GrblController : IDisposable
 
     // ---- Receiving ----------------------------------------------------------------------------
 
-    private void OnLine(string raw)
-    {
-        var line = raw.Trim();
-        if (line.Length == 0)
-        {
-            return;
-        }
+    private void OnLine(string raw) => OnLine(raw, Environment.TickCount64);
 
+    internal void OnLine(string raw, long now)
+    {
         lock (_lock)
         {
+            // Any data, even an empty line, proves that the link is alive.
+            _lastReceived = Math.Max(now, 1);
+            var line = raw.Trim();
+            if (line.Length == 0)
+            {
+                return;
+            }
+
             if (line[0] == '<')
             {
                 if (GrblStatus.TryParse(line, Status, out var status))

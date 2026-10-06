@@ -753,8 +753,19 @@
                 <TabItem Header="{l:Tr 'Пульт', En='Control'}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="6,6,12,6" DataContext="{Binding Control}">
+                            <StackPanel.Resources>
+                                <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+                            </StackPanel.Resources>
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Подключение (GRBL)', En='Connection (GRBL)'}" Margin="0,0,0,4" />
-                            <DockPanel Margin="0,0,0,3">
+                            <WrapPanel Margin="0,0,0,3" IsEnabled="{Binding IsDisconnected}">
+                                <RadioButton GroupName="ConnectionKind" Content="{l:Tr 'USB (COM-порт)', En='USB (COM port)'}" Margin="0,0,12,0"
+                                             IsChecked="{Binding IsSerial}"
+                                             ToolTip="{l:Tr 'Подключение кабелем USB через COM-порт.', En='Connect with a USB cable through a COM port.'}" />
+                                <RadioButton GroupName="ConnectionKind" Content="{l:Tr 'Сеть (telnet)', En='Network (telnet)'}"
+                                             IsChecked="{Binding UseNetwork}"
+                                             ToolTip="{l:Tr 'Подключение по WiFi/сети к плате с Grbl_Esp32 (MKS DLC32, FluidNC) или к мосту COM↔WiFi: протокол GRBL поверх TCP, обычно порт 23.', En='Connect over WiFi/network to a Grbl_Esp32 board (MKS DLC32, FluidNC) or a serial-to-WiFi bridge: the GRBL protocol over TCP, usually port 23.'}" />
+                            </WrapPanel>
+                            <DockPanel Margin="0,0,0,3" Visibility="{Binding IsSerial, Converter={StaticResource BoolToVisibility}}">
                                 <Button DockPanel.Dock="Right" Content="↻" Padding="8,0"
                                         ToolTip="{l:Tr 'Заново найти COM-порты — после подключения станка по USB.', En='Look for COM ports again — after plugging the machine in by USB.'}"
                                         Command="{Binding RefreshPortsCommand}" IsEnabled="{Binding IsDisconnected}" />
@@ -762,8 +773,15 @@
                                           SelectedItem="{Binding BaudRate}" IsEnabled="{Binding IsDisconnected}" ToolTip="{l:Tr 'Скорость порта (обычно 115200)', En='Port speed (usually 115200)'}" />
                                 <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}" IsEnabled="{Binding IsDisconnected}" ToolTip="{l:Tr 'COM-порт станка; появляется после подключения USB', En='The machine COM port; it appears after plugging in the USB'}" />
                             </DockPanel>
+                            <DockPanel Margin="0,0,0,3" Visibility="{Binding UseNetwork, Converter={StaticResource BoolToVisibility}}" IsEnabled="{Binding IsDisconnected}">
+                                <TextBox Width="60" DockPanel.Dock="Right" Margin="4,0,0,0" Text="{Binding NetworkPort}"
+                                         ToolTip="{l:Tr 'TCP-порт telnet платы: у MKS DLC32 / Grbl_Esp32 — 23 (настройка $ESP131).', En='The board telnet TCP port: 23 on the MKS DLC32 / Grbl_Esp32 ($ESP131 setting).'}" />
+                                <TextBlock DockPanel.Dock="Right" Text="{l:Tr 'порт', En='port'}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="{l:Tr 'IP-адрес платы. MKS DLC32 в режиме точки доступа (сеть MKS_DLC) — 192.168.4.1; подключённая к роутеру — адрес, показанный на её экране или в списке устройств роутера.', En='IP address of the board. An MKS DLC32 in access point mode (network MKS_DLC) is 192.168.4.1; when joined to a router, use the address shown on its screen or in the router device list.'}" />
+                            </DockPanel>
                             <WrapPanel>
-                                <Button Content="{l:Tr 'Подключить', En='Connect'}" ToolTip="{l:Tr 'Открыть выбранный COM-порт и подключиться к GRBL. Плата перезагрузится и ответит версией прошивки. Закройте другие программы, которые держат порт.', En='Open the selected COM port and connect to GRBL. The board restarts and answers with its firmware version. Close other programs that hold the port.'}" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsDisconnected}" />
+                                <Button Content="{l:Tr 'Подключить', En='Connect'}" ToolTip="{l:Tr 'Открыть выбранный COM-порт или сетевое подключение и связаться с GRBL. Плата по USB обычно перезагружается и отвечает версией прошивки. Закройте другие программы, которые держат порт: плата по сети принимает только одного telnet-клиента. При обрыве связь восстанавливается автоматически.', En='Open the selected COM port or network connection and talk to GRBL. A USB board usually restarts and answers with its firmware version. Close other programs that hold the port: a network board accepts a single telnet client. A dropped connection is restored automatically.'}" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsDisconnected}" />
                                 <Button Content="{l:Tr 'Отключить', En='Disconnect'}" ToolTip="{l:Tr 'Закрыть соединение со станком или отменить автоматическое восстановление связи. Если программа выполняется, станок доработает уже принятые команды.', En='Close the connection to the machine or cancel automatic reconnection. If a program is running, the machine finishes the commands it has already received.'}" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}" />
                             </WrapPanel>
                             <TextBlock Text="{Binding VersionText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />

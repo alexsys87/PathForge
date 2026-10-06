@@ -24,11 +24,11 @@ public sealed partial class MainViewModel : ObservableObject
     private GenerationResult _generation = new();
     private bool _suppressChanges;
 
-    public MainViewModel(IDialogService dialogs, IAppearanceService appearance)
+    public MainViewModel(IDialogService dialogs, IAppearanceService appearance, UiPreferences preferences)
     {
         _dialogs = dialogs;
         _appearance = appearance;
-        Control = new MachineControlViewModel(dialogs, CurrentMachineProgram, () => _project.Machine.SafeZ,
+        Control = new MachineControlViewModel(dialogs, preferences, CurrentMachineProgram, () => _project.Machine.SafeZ,
             () => _project.LevelingMap,
             map =>
             {
