@@ -98,12 +98,31 @@ public static partial class ToolpathGenerator
             return null;
         }
 
-        var rings = boundary.Where(c => c.IsClosed).Select(c => c.Flatten(FlattenTolerance)).Where(r => r.Count >= 3).ToList();
-        if (rings.Count == 0)
+        var mask = BoundaryMask(boundary, grid);
+        if (mask is null)
         {
             context.Warnings.Add(Loc.T(
                 $"{context.Label}: для ограничения области выберите замкнутые контуры — обработан весь рельеф.",
                 $"{context.Label}: select closed contours to limit the area — the whole relief was machined."));
+            return null;
+        }
+
+        if (!mask.Any(m => m))
+        {
+            context.Warnings.Add(Loc.T(
+                $"{context.Label}: выбранные контуры не пересекают рельеф — обрабатывать нечего.",
+                $"{context.Label}: the selected contours do not overlap the relief — nothing to machine."));
+        }
+
+        return mask;
+    }
+
+    /// <summary>Cells whose centre is inside the closed contours (even-odd), or null when there are no closed contours.</summary>
+    internal static bool[]? BoundaryMask(IReadOnlyList<Contour> boundary, HeightMap grid)
+    {
+        var rings = boundary.Where(c => c.IsClosed).Select(c => c.Flatten(FlattenTolerance)).Where(r => r.Count >= 3).ToList();
+        if (rings.Count == 0)
+        {
             return null;
         }
 
@@ -139,14 +158,26 @@ public static partial class ToolpathGenerator
             }
         }
 
-        if (!mask.Any(m => m))
+        return mask;
+    }
+
+    /// <summary>The surface a relief operation aims at (heights ≤ 0 below its top), or null without a picture or model.</summary>
+    internal static HeightMap? ReliefSurface(ReliefOperation operation)
+    {
+        var hasSource = operation.Source == ReliefSource.Image
+            ? operation.Image.Width > 0 && operation.Image.Pixels.Length >= operation.Image.Width * operation.Image.Height
+            : operation.Mesh.TriangleCount > 0;
+        var resolution = Math.Max(0.02, operation.Resolution);
+        var columns = Math.Max(2, (int)Math.Round(operation.WidthMm / resolution));
+        var rows = Math.Max(2, (int)Math.Round(operation.HeightMm / resolution));
+        if (!hasSource || (long)columns * rows > MaxReliefCells)
         {
-            context.Warnings.Add(Loc.T(
-                $"{context.Label}: выбранные контуры не пересекают рельеф — обрабатывать нечего.",
-                $"{context.Label}: the selected contours do not overlap the relief — nothing to machine."));
+            return null;
         }
 
-        return mask;
+        return operation.Source == ReliefSource.Image
+            ? HeightMap.FromImage(operation, columns, rows)
+            : HeightMap.FromMesh(operation, columns, rows);
     }
 
     /// <summary>Cells where the tool-tip surface is steeper than <paramref name="angle"/> degrees, grown by <paramref name="grow"/> cells.</summary>

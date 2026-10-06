@@ -27,6 +27,8 @@ public sealed partial class SimulationViewModel : ObservableObject
     private readonly Stopwatch _clock = new();
     private readonly Stopwatch _sinceSurface = new();
     private StockSimulation? _simulation;
+    private ModelComparison? _comparison;
+    private float[]? _deviation;
     private HeightField? _surface;
     private int _version;
     private double _target;
@@ -87,6 +89,25 @@ public sealed partial class SimulationViewModel : ObservableObject
     [ObservableProperty]
     private string statsText = "";
 
+    /// <summary>Colour the stock by its difference from the relief model (left material, gouges).</summary>
+    [ObservableProperty]
+    private bool showComparison;
+
+    /// <summary>Differences up to this are shown as "on the model" (mm).</summary>
+    [ObservableProperty]
+    private double comparisonTolerance = 0.05;
+
+    /// <summary>The project has a relief (picture or STL) to compare with.</summary>
+    [ObservableProperty]
+    private bool hasModel;
+
+    [ObservableProperty]
+    private string comparisonText = "";
+
+    /// <summary>Draw the toolpath of the operation being machined over the stock.</summary>
+    [ObservableProperty]
+    private bool showPath = true;
+
     public string PlayLabel => IsPlaying ? Loc.T("❚❚ Пауза", "❚❚ Pause") : Loc.T("▶ Пуск", "▶ Play");
 
     /// <summary>Texts that are not recomputed by <see cref="MarkStale"/> follow the new language.</summary>
@@ -146,6 +167,10 @@ public sealed partial class SimulationViewModel : ObservableObject
         if (generation.Toolpaths.Count == 0)
         {
             _simulation = null;
+            _comparison = null;
+            _deviation = null;
+            HasModel = false;
+            ComparisonText = "";
             _surface = null;
             Frame = null;
             TimeText = "";
@@ -155,6 +180,10 @@ public sealed partial class SimulationViewModel : ObservableObject
         }
 
         _simulation = new StockSimulation(project, generation, maxCells: SelectedQuality.Value);
+        _comparison = new ModelComparison(project, generation, _simulation.Field);
+        HasModel = _comparison.HasModel;
+        _deviation = null;
+        ComparisonText = "";
         // The finished part is shown first; Start plays the machining from the beginning.
         _target = _simulation.TotalTime;
         SetPosition(1000);
@@ -202,6 +231,34 @@ public sealed partial class SimulationViewModel : ObservableObject
             _target = value / 1000 * _simulation.TotalTime;
             _timer.Start();
         }
+    }
+
+    partial void OnShowComparisonChanged(bool value) => RefreshSurface();
+
+    partial void OnComparisonToleranceChanged(double value)
+    {
+        if (value < 0.001)
+        {
+            ComparisonTolerance = 0.001;
+            return;
+        }
+
+        RefreshSurface();
+    }
+
+    partial void OnShowPathChanged(bool value) => RefreshSurface();
+
+    /// <summary>Redraws the stock with the current display options.</summary>
+    private void RefreshSurface()
+    {
+        if (_simulation is null)
+        {
+            return;
+        }
+
+        _surface = null;
+        _timer.Start();
+        Tick();
     }
 
     partial void OnSelectedQualityChanged(Choice<int> value)
@@ -252,11 +309,13 @@ public sealed partial class SimulationViewModel : ObservableObject
             _surface = simulation.Field.Downsample(DisplaySide);
             _version++;
             _sinceSurface.Restart();
+            UpdateComparison(_surface);
             UpdateTexts(simulation);
         }
 
         var tip = simulation.ToolPosition;
-        Frame = new SimulationFrame(_surface, _version, simulation.CurrentToolpath?.Tool, new Point3D(tip.X, tip.Y, tip.Z));
+        Frame = new SimulationFrame(_surface, _version, simulation.CurrentToolpath?.Tool, new Point3D(tip.X, tip.Y, tip.Z),
+            ShowComparison && HasModel ? _deviation : null, ComparisonTolerance, ShowPath ? simulation.CurrentToolpath : null);
         if (IsPlaying)
         {
             SetPosition(simulation.CurrentTime / Math.Max(1e-12, simulation.TotalTime) * 1000);
@@ -268,6 +327,23 @@ public sealed partial class SimulationViewModel : ObservableObject
             UpdateTexts(simulation);
             _timer.Stop();
         }
+    }
+
+    /// <summary>Difference from the model for the display surface and its summary.</summary>
+    private void UpdateComparison(HeightField display)
+    {
+        if (!ShowComparison || _comparison is not { HasModel: true } comparison)
+        {
+            _deviation = null;
+            ComparisonText = "";
+            return;
+        }
+
+        var result = comparison.Compare(ComparisonTolerance);
+        _deviation = ModelComparison.Downsample(comparison.Field, result.Deviation, display);
+        ComparisonText = Loc.T(
+            $"В допуске {result.WithinPercent:0.#} % · недорез {result.LeftoverPercent:0.#} % (до {result.MaxLeftover:0.###} мм) · зарез {result.GougePercent:0.#} % (до {result.MaxGouge:0.###} мм)",
+            $"Within tolerance {result.WithinPercent:0.#} % · material left {result.LeftoverPercent:0.#} % (up to {result.MaxLeftover:0.###} mm) · gouged {result.GougePercent:0.#} % (up to {result.MaxGouge:0.###} mm)");
     }
 
     private void UpdateTexts(StockSimulation simulation)

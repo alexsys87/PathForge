@@ -13,7 +13,11 @@ namespace PathForge.App.Controls;
 /// <param name="Surface">Stock heights; a new instance (or <paramref name="Version"/>) means the mesh must be rebuilt.</param>
 /// <param name="Version">Changes whenever the surface content changes.</param>
 /// <param name="Tool">Tool shown at <paramref name="ToolTip"/>, or null.</param>
-public sealed record SimulationFrame(HeightField Surface, int Version, Tool? Tool, Point3D ToolTip);
+/// <param name="Deviation">Difference from the model per surface cell (mm, NaN outside the model); colours the surface when set.</param>
+/// <param name="Tolerance">Deviation shown as "on the model" (mm).</param>
+/// <param name="Path">Toolpath drawn over the stock (the operation being machined), or null.</param>
+public sealed record SimulationFrame(HeightField Surface, int Version, Tool? Tool, Point3D ToolTip,
+    float[]? Deviation = null, double Tolerance = 0.05, Toolpath? Path = null);
 
 /// <summary>
 /// 3D view of the simulated stock. Left drag orbits, right or middle drag pans, the wheel zooms,
@@ -35,6 +39,11 @@ public sealed class SimulationView : Border
     private readonly GeometryModel3D _surfaceModel = new();
     private readonly GeometryModel3D _sidesModel = new();
     private readonly GeometryModel3D _toolModel = new();
+    private readonly GeometryModel3D _pathModel = new();
+    private readonly GeometryModel3D _overlayModel = new();
+    private Material? _comparisonMaterial;
+    private double _comparisonTolerance = double.NaN;
+    private Toolpath? _meshPath;
     private readonly TranslateTransform3D _toolTransform = new();
     private readonly Material _stockMaterial;
 
@@ -71,6 +80,14 @@ public sealed class SimulationView : Border
         scene.Children.Add(_surfaceModel);
         scene.Children.Add(_sidesModel);
         scene.Children.Add(_toolModel);
+        scene.Children.Add(_pathModel);
+        scene.Children.Add(_overlayModel);
+        var pathMaterial = new MaterialGroup();
+        pathMaterial.Children.Add(new DiffuseMaterial(Brushes.Black));
+        pathMaterial.Children.Add(new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(0x30, 0xE0, 0xFF))));
+        pathMaterial.Freeze();
+        _pathModel.Material = pathMaterial;
+        _pathModel.BackMaterial = pathMaterial;
         _viewport.Children.Add(new ModelVisual3D { Content = scene });
         _viewport.Camera = _camera;
         Child = _viewport;
@@ -179,12 +196,21 @@ public sealed class SimulationView : Border
             _surfaceModel.Geometry = null;
             _sidesModel.Geometry = null;
             _toolModel.Geometry = null;
+            _pathModel.Geometry = null;
+            _meshPath = null;
             return;
         }
 
-        if (old is null || !ReferenceEquals(old.Surface, frame.Surface) || old.Version != frame.Version)
+        if (old is null || !ReferenceEquals(old.Surface, frame.Surface) || old.Version != frame.Version ||
+            !ReferenceEquals(old.Deviation, frame.Deviation) || old.Tolerance != frame.Tolerance)
         {
-            BuildStock(frame.Surface);
+            BuildStock(frame.Surface, frame.Deviation, frame.Tolerance);
+        }
+
+        if (!ReferenceEquals(frame.Path, _meshPath))
+        {
+            _meshPath = frame.Path;
+            _pathModel.Geometry = frame.Path is null ? null : PathMesh(frame.Path, frame.Surface);
         }
 
         var stock = (frame.Surface.SizeX, frame.Surface.SizeY, frame.Surface.Top);
@@ -206,9 +232,21 @@ public sealed class SimulationView : Border
         _toolTransform.OffsetZ = frame.ToolTip.Z;
     }
 
-    /// <summary>Top surface as a grid of vertices; texture U is the depth (0 top … 1 bottom), V the laser burn.</summary>
-    private void BuildStock(HeightField field)
+    /// <summary>
+    /// Top surface as a grid of vertices; texture U is the depth (0 top … 1 bottom), V the laser burn.
+    /// With a deviation the surface is coloured by it instead (comparison with the model).
+    /// </summary>
+    private void BuildStock(HeightField field, float[]? deviation, double tolerance)
     {
+        var range = ComparisonRange(tolerance);
+        if (deviation is not null && (_comparisonMaterial is null || _comparisonTolerance != tolerance))
+        {
+            _comparisonMaterial = CreateComparisonMaterial(tolerance, range);
+            _comparisonTolerance = tolerance;
+        }
+
+        _surfaceModel.Material = deviation is null ? _stockMaterial : _comparisonMaterial;
+        _surfaceModel.BackMaterial = _surfaceModel.Material;
         var width = field.Width;
         var height = field.Height;
         var thickness = Math.Max(1e-6, field.Top - field.Bottom);
@@ -221,7 +259,16 @@ public sealed class SimulationView : Border
                 var center = field.CellCenter(i, j);
                 var z = Math.Max(field.Bottom, (double)field.Heights[j * width + i]);
                 positions.Add(new Point3D(center.X, center.Y, z));
-                texture.Add(new Point(Math.Clamp((field.Top - z) / thickness, 0, 1), field.Burn[j * width + i] / 255.0));
+                if (deviation is null)
+                {
+                    texture.Add(new Point(Math.Clamp((field.Top - z) / thickness, 0, 1), field.Burn[j * width + i] / 255.0));
+                }
+                else
+                {
+                    // Row 0 of the comparison texture: deviation from -range to +range; row 1: outside the model.
+                    var d = deviation[j * width + i];
+                    texture.Add(float.IsNaN(d) ? new Point(0.5, 0.9) : new Point(Math.Clamp(0.5 + d / (2 * range), 0.002, 0.998), 0.1));
+                }
             }
         }
 
@@ -255,6 +302,121 @@ public sealed class SimulationView : Border
         surface.Freeze();
         _surfaceModel.Geometry = surface;
         _sidesModel.Geometry = SideWalls(field, thickness);
+    }
+
+    /// <summary>Deviation shown at full colour strength (mm).</summary>
+    private static double ComparisonRange(double tolerance) => Math.Max(0.25, tolerance * 6);
+
+    /// <summary>
+    /// Colours of the comparison: green within the tolerance, blue where material is left (stronger the thicker),
+    /// red where the tool went too deep; the second row is the stock outside the model.
+    /// </summary>
+    private static Material CreateComparisonMaterial(double tolerance, double range)
+    {
+        const int Width = 256;
+        var pixels = new byte[Width * 2 * 4];
+        var within = Color.FromRgb(0x4C, 0xC0, 0x5A);
+        var gouge = Color.FromRgb(0xE0, 0x30, 0x30);
+        var left = Color.FromRgb(0x30, 0x70, 0xE0);
+        var pale = Color.FromRgb(0xD8, 0xD8, 0xD0);
+        for (var x = 0; x < Width; x++)
+        {
+            var d = ((x + 0.5) / Width - 0.5) * 2 * range;
+            var strength = Math.Clamp((Math.Abs(d) - tolerance) / Math.Max(1e-6, range - tolerance), 0, 1);
+            var color = Math.Abs(d) <= tolerance ? within : Mix(pale, d < 0 ? gouge : left, 0.35 + 0.65 * strength);
+            var o = x * 4;
+            pixels[o] = color.B;
+            pixels[o + 1] = color.G;
+            pixels[o + 2] = color.R;
+            pixels[o + 3] = 255;
+            var outside = Color.FromRgb(0x8A, 0x80, 0x74);
+            o = (Width + x) * 4;
+            pixels[o] = outside.B;
+            pixels[o + 1] = outside.G;
+            pixels[o + 2] = outside.R;
+            pixels[o + 3] = 255;
+        }
+
+        var bitmap = BitmapSource.Create(Width, 2, 96, 96, PixelFormats.Bgra32, null, pixels, Width * 4);
+        bitmap.Freeze();
+        var brush = new ImageBrush(bitmap) { ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, 1, 1) };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        brush.Freeze();
+        var material = new DiffuseMaterial(brush);
+        material.Freeze();
+        return material;
+    }
+
+    /// <summary>
+    /// The toolpath as thin glowing ribbons a little above the tool tip: flat for moves along the table,
+    /// upright for plunges. Very long paths are thinned out to keep the view responsive.
+    /// </summary>
+    private static MeshGeometry3D? PathMesh(Toolpath toolpath, HeightField field)
+    {
+        const int MaxSegments = 60_000;
+        var moves = toolpath.Moves;
+        if (moves.Count < 2)
+        {
+            return null;
+        }
+
+        var width = Math.Clamp(Math.Max(field.SizeX, field.SizeY) / 500, 0.08, 1.5);
+        var lift = width / 2;
+        var stride = Math.Max(1, moves.Count / MaxSegments);
+        var positions = new Point3DCollection();
+        var indices = new Int32Collection();
+        var from = moves[0].Target;
+        for (var k = stride; k < moves.Count; k += stride)
+        {
+            var to = moves[k].Target;
+            var kind = moves[k].Kind;
+            var segment = from;
+            from = to;
+            if (kind == MoveKind.Rapid)
+            {
+                continue;
+            }
+
+            var dx = to.X - segment.X;
+            var dy = to.Y - segment.Y;
+            var length = Math.Sqrt(dx * dx + dy * dy);
+            Vector3D side;
+            if (length > 1e-6)
+            {
+                side = new Vector3D(-dy / length * width / 2, dx / length * width / 2, 0);
+            }
+            else if (Math.Abs(to.Z - segment.Z) > 1e-6)
+            {
+                side = new Vector3D(width / 2, 0, 0);
+            }
+            else
+            {
+                continue;
+            }
+
+            var a = new Point3D(segment.X, segment.Y, segment.Z + lift);
+            var b = new Point3D(to.X, to.Y, to.Z + lift);
+            var start = positions.Count;
+            positions.Add(a - side);
+            positions.Add(a + side);
+            positions.Add(b + side);
+            positions.Add(b - side);
+            indices.Add(start);
+            indices.Add(start + 1);
+            indices.Add(start + 2);
+            indices.Add(start);
+            indices.Add(start + 2);
+            indices.Add(start + 3);
+        }
+
+        if (positions.Count == 0)
+        {
+            return null;
+        }
+
+        var mesh = new MeshGeometry3D { Positions = positions, TriangleIndices = indices };
+        mesh.Freeze();
+        return mesh;
     }
 
     /// <summary>The four sides and the bottom of the stock, following the edge of the surface.</summary>
