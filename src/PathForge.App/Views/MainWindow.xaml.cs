@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using PathForge.App.Services;
 using PathForge.App.ViewModels;
 
@@ -17,6 +20,31 @@ public partial class MainWindow : Window
         _viewModel.ZoomToFitRequested += (_, _) => Viewport.ZoomToFit();
         DataContext = _viewModel;
         Drop += OnFileDrop;
+
+        // Keyboard and joystick jogging works only while this window is active and the control panel is shown.
+        Activated += (_, _) => UpdateJogInputContext();
+        Deactivated += (_, _) => UpdateJogInputContext();
+        DependencyPropertyDescriptor.FromProperty(TabItem.IsSelectedProperty, typeof(TabItem))
+            .AddValueChanged(ControlTab, (_, _) => UpdateJogInputContext());
+        PreviewKeyDown += OnJogKey;
+        PreviewKeyUp += OnJogKey;
+    }
+
+    private void UpdateJogInputContext() => _viewModel.Control.SetJogInputContext(IsActive && ControlTab.IsSelected);
+
+    private void OnJogKey(object sender, KeyEventArgs e)
+    {
+        // Typing in a field (console, feeds) keeps the keys; shortcuts with Ctrl or Alt are left alone.
+        if (e.IsDown && (e.OriginalSource is TextBoxBase or PasswordBox ||
+                         (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) != 0))
+        {
+            return;
+        }
+
+        if (_viewModel.Control.HandleJogKey(e.Key, e.IsDown, e.IsRepeat))
+        {
+            e.Handled = true;
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)

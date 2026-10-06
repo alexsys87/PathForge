@@ -750,21 +750,16 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem Header="{l:Tr 'Пульт', En='Control'}">
+                <TabItem x:Name="ControlTab" Header="{l:Tr 'Пульт', En='Control'}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="6,6,12,6" DataContext="{Binding Control}">
                             <StackPanel.Resources>
                                 <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
                             </StackPanel.Resources>
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Подключение (GRBL)', En='Connection (GRBL)'}" Margin="0,0,0,4" />
-                            <WrapPanel Margin="0,0,0,3" IsEnabled="{Binding IsDisconnected}">
-                                <RadioButton GroupName="ConnectionKind" Content="{l:Tr 'USB (COM-порт)', En='USB (COM port)'}" Margin="0,0,12,0"
-                                             IsChecked="{Binding IsSerial}"
-                                             ToolTip="{l:Tr 'Подключение кабелем USB через COM-порт.', En='Connect with a USB cable through a COM port.'}" />
-                                <RadioButton GroupName="ConnectionKind" Content="{l:Tr 'Сеть (telnet)', En='Network (telnet)'}"
-                                             IsChecked="{Binding UseNetwork}"
-                                             ToolTip="{l:Tr 'Подключение по WiFi/сети к плате с Grbl_Esp32 (MKS DLC32, FluidNC) или к мосту COM↔WiFi: протокол GRBL поверх TCP, обычно порт 23.', En='Connect over WiFi/network to a Grbl_Esp32 board (MKS DLC32, FluidNC) or a serial-to-WiFi bridge: the GRBL protocol over TCP, usually port 23.'}" />
-                            </WrapPanel>
+                            <ComboBox Margin="0,0,0,3" IsEnabled="{Binding IsDisconnected}" ItemsSource="{Binding ConnectionKinds}"
+                                      SelectedValuePath="Kind" DisplayMemberPath="Name" SelectedValue="{Binding ConnectionKind}"
+                                      ToolTip="{l:Tr 'Как подключаться к станку. USB — кабелем через COM-порт. Telnet — по сети к плате Grbl_Esp32 (MKS DLC32), порт 23. WebSocket (MKS DLC32, Grbl_Esp32) — через веб-интерфейс платы: ответы по WebSocket на порту 81, команды по HTTP на порт 80; плата отдаёт ответы пачками раз в 0,5 с, поэтому для работы лучше telnet. WebSocket-мост — ESP8266 для LaserGRBL или FluidNC: команды прямо в WebSocket.', En='How to connect to the machine. USB — by cable through a COM port. Telnet — over the network to a Grbl_Esp32 board (MKS DLC32), port 23. WebSocket (MKS DLC32, Grbl_Esp32) — through the board web interface: answers over the WebSocket on port 81, commands over HTTP to port 80; the board sends answers in batches every 0.5 s, so telnet is better for work. WebSocket bridge — an ESP8266 for LaserGRBL or FluidNC: commands go into the WebSocket directly.'}" />
                             <DockPanel Margin="0,0,0,3" Visibility="{Binding IsSerial, Converter={StaticResource BoolToVisibility}}">
                                 <Button DockPanel.Dock="Right" Content="↻" Padding="8,0"
                                         ToolTip="{l:Tr 'Заново найти COM-порты — после подключения станка по USB.', En='Look for COM ports again — after plugging the machine in by USB.'}"
@@ -773,9 +768,9 @@
                                           SelectedItem="{Binding BaudRate}" IsEnabled="{Binding IsDisconnected}" ToolTip="{l:Tr 'Скорость порта (обычно 115200)', En='Port speed (usually 115200)'}" />
                                 <ComboBox ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}" IsEnabled="{Binding IsDisconnected}" ToolTip="{l:Tr 'COM-порт станка; появляется после подключения USB', En='The machine COM port; it appears after plugging in the USB'}" />
                             </DockPanel>
-                            <DockPanel Margin="0,0,0,3" Visibility="{Binding UseNetwork, Converter={StaticResource BoolToVisibility}}" IsEnabled="{Binding IsDisconnected}">
+                            <DockPanel Margin="0,0,0,3" Visibility="{Binding IsNetwork, Converter={StaticResource BoolToVisibility}}" IsEnabled="{Binding IsDisconnected}">
                                 <TextBox Width="60" DockPanel.Dock="Right" Margin="4,0,0,0" Text="{Binding NetworkPort}"
-                                         ToolTip="{l:Tr 'TCP-порт telnet платы: у MKS DLC32 / Grbl_Esp32 — 23 (настройка $ESP131).', En='The board telnet TCP port: 23 on the MKS DLC32 / Grbl_Esp32 ($ESP131 setting).'}" />
+                                         ToolTip="{l:Tr 'Порт платы. MKS DLC32 / Grbl_Esp32: telnet — 23 ($ESP131), WebSocket — 81 (порт веб-интерфейса $ESP121 + 1).', En='The board port. MKS DLC32 / Grbl_Esp32: telnet 23 ($ESP131), WebSocket 81 (web interface port $ESP121 + 1).'}" />
                                 <TextBlock DockPanel.Dock="Right" Text="{l:Tr 'порт', En='port'}" VerticalAlignment="Center" Margin="6,0,0,0" />
                                 <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="{l:Tr 'IP-адрес платы. MKS DLC32 в режиме точки доступа (сеть MKS_DLC) — 192.168.4.1; подключённая к роутеру — адрес, показанный на её экране или в списке устройств роутера.', En='IP address of the board. An MKS DLC32 in access point mode (network MKS_DLC) is 192.168.4.1; when joined to a router, use the address shown on its screen or in the router device list.'}" />
@@ -876,6 +871,43 @@
                                 <Button Grid.Row="0" Grid.Column="4" Content="Z+" ToolTip="{l:Tr 'Поднять фрезу (Z+) на выбранный шаг.', En='Raise the tool (Z+) by the selected step.'}" Command="{Binding JogCommand}" CommandParameter="Z+" />
                                 <Button Grid.Row="2" Grid.Column="4" Content="Z−" ToolTip="{l:Tr 'Опустить фрезу (Z−) на выбранный шаг. Возле заготовки берите шаг 0,1 или 0,01 мм.', En='Lower the tool (Z−) by the selected step. Near the stock use a 0.1 or 0.01 mm step.'}" Command="{Binding JogCommand}" CommandParameter="Z-" />
                             </Grid>
+
+                            <Border Margin="0,6,0,0" Padding="6,4" BorderThickness="1" CornerRadius="3" IsEnabled="{Binding IsConnected}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsJogInputEnabled}" Value="True">
+                                                <Setter Property="BorderBrush" Value="IndianRed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <WrapPanel>
+                                        <ToggleButton IsChecked="{Binding IsJogInputEnabled}" Padding="8,2"
+                                                      ToolTip="{l:Tr 'Включить перемещение станка с клавиатуры и джойстика. Включается только этой кнопкой — случайное нажатие клавиши станок не сдвинет. Работает, пока окно PathForge активно и открыта вкладка «Пульт»; выключается само при отключении станка и запуске программы. Клавиши: стрелки — X/Y, PgUp/PgDn — Z (или цифровой блок 4/6, 8/2, 9/3), Esc или пробел — стоп, +/− — шаг. Джойстик: левая ручка или крестовина — X/Y (скорость зависит от наклона), кнопки 5/6 (LB/RB) — Z вниз/вверх.', En='Turn on jogging with the keyboard and a joystick. Only this button turns it on — a key pressed by accident does not move the machine. Works while the PathForge window is active and the “Control” tab is open; turns itself off on disconnect and when a program starts. Keys: arrows — X/Y, PgUp/PgDn — Z (or the keypad 4/6, 8/2, 9/3), Esc or Space — stop, +/− — step. Joystick: left stick or D-pad — X/Y (speed follows the deflection), buttons 5/6 (LB/RB) — Z down/up.'}">
+                                            <ToggleButton.Style>
+                                                <Style TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                                                    <Setter Property="Content" Value="{l:Tr '⌨ Клавиатура и джойстик: выкл.', En='⌨ Keyboard and joystick: off'}" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter Property="Content" Value="{l:Tr '⌨ Клавиатура и джойстик: ВКЛЮЧЕНО', En='⌨ Keyboard and joystick: ON'}" />
+                                                            <Setter Property="Foreground" Value="IndianRed" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ToggleButton.Style>
+                                        </ToggleButton>
+                                        <CheckBox Margin="8,0,0,0" VerticalAlignment="Center" Content="{l:Tr 'Удержание', En='Hold to move'}" IsChecked="{Binding JogHoldToMove}"
+                                                  ToolTip="{l:Tr 'Включено: станок едет, пока клавиша нажата, и останавливается, как только её отпустите (скорость — подача XY / Z). Выключено: каждое нажатие сдвигает на выбранный шаг.', En='On: the machine moves while the key is held and stops as soon as it is released (speed — feed XY / Z). Off: each press moves by the selected step.'}" />
+                                    </WrapPanel>
+                                    <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"
+                                               Text="{l:Tr 'Стрелки — X/Y, PgUp/PgDn — Z, Esc/пробел — стоп, +/− — шаг.', En='Arrows — X/Y, PgUp/PgDn — Z, Esc/Space — stop, +/− — step.'}" />
+                                    <TextBlock FontSize="11" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Text="{Binding JoystickText}" />
+                                </StackPanel>
+                            </Border>
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Ноль заготовки', En='Work zero'}" />
                             <WrapPanel IsEnabled="{Binding CanControl}">

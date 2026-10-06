@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Net.Sockets;
+using System.Windows.Input;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -57,12 +58,21 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private HashSet<string> _reconnectKnownPorts = new(StringComparer.OrdinalIgnoreCase);
     private int _reconnectAttempts;
 
+    // Keyboard and joystick jogging.
+    private readonly WinmmJoystick _joystick = new();
+    private readonly ContinuousJog _continuousJog = new();
+    private readonly HashSet<Key> _heldKeys = new();
+    private readonly DispatcherTimer _jogTimer;
+    private bool _jogInputAllowed;
+    private bool _joystickArmed;
+    private int _failedCommandsSeen;
+
     public MachineControlViewModel(IDialogService dialogs, UiPreferences preferences, Func<MachineProgram?> projectProgram, Func<double> safeZ,
         Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds)
     {
         _dialogs = dialogs;
         _preferences = preferences;
-        UseNetwork = preferences.MachineUseNetwork;
+        ConnectionKind = preferences.MachineConnection;
         Host = preferences.MachineHost ?? "";
         NetworkPort = preferences.MachineNetworkPort;
         _projectProgram = projectProgram;
@@ -85,6 +95,8 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
                 Refresh();
             }
         };
+        _jogTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(ContinuousJog.TickMs) };
+        _jogTimer.Tick += (_, _) => JogTick();
         RefreshPorts();
     }
 
@@ -107,11 +119,15 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     private int baudRate = 115200;
 
-    /// <summary>Connect over the network (telnet, e.g. MKS DLC32 over WiFi) instead of a COM port.</summary>
+    /// <summary>USB (COM port), telnet or WebSocket (e.g. MKS DLC32 over WiFi).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSerial))]
+    [NotifyPropertyChangedFor(nameof(IsSerial), nameof(IsNetwork))]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
-    private bool useNetwork;
+    private MachineConnectionKind connectionKind;
+
+    /// <summary>Connection kinds for the list, named in the interface language.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<ConnectionKindOption> connectionKinds = ConnectionKindOption.All();
 
     /// <summary>IP address or host name of the board for the network connection.</summary>
     [ObservableProperty]
@@ -214,11 +230,9 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
     public bool IsDisconnected => !IsConnected && !IsConnecting;
 
-    public bool IsSerial
-    {
-        get => !UseNetwork;
-        set => UseNetwork = !value;
-    }
+    public bool IsSerial => ConnectionKind == MachineConnectionKind.Serial;
+
+    public bool IsNetwork => !IsSerial;
 
     // ---- Height map (auto-levelling) ---------------------------------------------------------
 
@@ -270,6 +284,9 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             ProgramSource = CurrentProjectText;
         }
 
+        ConnectionKinds = ConnectionKindOption.All();
+        // The list was replaced: let it select the current kind again.
+        OnPropertyChanged(nameof(ConnectionKind));
         RefreshLeveling();
         Refresh();
     }
@@ -420,7 +437,22 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         SelectedPort = current is not null && Ports.Contains(current) ? current : Ports.LastOrDefault();
     }
 
-    private bool CanConnect() => UseNetwork ? !string.IsNullOrWhiteSpace(Host) : !string.IsNullOrEmpty(SelectedPort);
+    private bool CanConnect() => IsNetwork ? !string.IsNullOrWhiteSpace(Host) : !string.IsNullOrEmpty(SelectedPort);
+
+    /// <summary>The port field follows the connection kind unless the user typed a port of their own.</summary>
+    partial void OnConnectionKindChanged(MachineConnectionKind oldValue, MachineConnectionKind newValue)
+    {
+        if (NetworkPort == DefaultNetworkPort(oldValue) || NetworkPort == 0)
+        {
+            NetworkPort = DefaultNetworkPort(newValue);
+        }
+    }
+
+    private static int DefaultNetworkPort(MachineConnectionKind kind) => kind switch
+    {
+        MachineConnectionKind.WebSocket or MachineConnectionKind.WebSocketBridge => WebSocketTransport.DefaultPort,
+        _ => TelnetTransport.DefaultPort,
+    };
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task ConnectAsync()
@@ -430,15 +462,17 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             return;
         }
 
-        if (UseNetwork && NetworkPort is < 1 or > 65535)
+        if (IsNetwork && NetworkPort is < 2 or > 65535)
         {
-            _dialogs.ShowError(Loc.T("Порт telnet — число от 1 до 65535 (у MKS DLC32 — 23).", "The telnet port is a number from 1 to 65535 (23 on the MKS DLC32)."));
+            _dialogs.ShowError(Loc.T(
+                "Сетевой порт — число от 2 до 65535 (у MKS DLC32: telnet — 23, WebSocket — 81).",
+                "The network port is a number from 2 to 65535 (MKS DLC32: telnet 23, WebSocket 81)."));
             return;
         }
 
-        var target = UseNetwork
-            ? new ConnectionTarget(true, Host.Trim(), NetworkPort)
-            : new ConnectionTarget(false, SelectedPort!, BaudRate);
+        var target = IsNetwork
+            ? new ConnectionTarget(ConnectionKind, Host.Trim(), NetworkPort)
+            : new ConnectionTarget(ConnectionKind, SelectedPort!, BaudRate);
         var generation = _connectionGeneration;
         IsConnecting = true;
         StateText = Loc.T($"Подключение к {target.Describe()}…", $"Connecting to {target.Describe()}…");
@@ -455,11 +489,13 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             _dialogs.ShowError(target.IsNetwork
                 ? Loc.T(
                     $"Не удалось подключиться к {target.Describe()}:\n{ex.Message}\n\n" +
-                    "Проверьте IP-адрес платы (показан на её экране или в роутере), что компьютер в той же сети и что telnet " +
-                    "включён ($ESP130=ON). Плата принимает только одного telnet-клиента — закройте другие программы (LightBurn, LaserGRBL).",
+                    "Проверьте IP-адрес платы (показан на её экране или в роутере) и что компьютер в той же сети. " +
+                    "Telnet должен быть включён ($ESP130=ON), WebSocket работает при включённом веб-интерфейсе ($ESP120=ON). " +
+                    "По telnet плата принимает только одного клиента — закройте другие программы (LightBurn, LaserGRBL).",
                     $"Could not connect to {target.Describe()}:\n{ex.Message}\n\n" +
-                    "Check the board IP address (shown on its screen or in the router), that the computer is on the same network and that " +
-                    "telnet is on ($ESP130=ON). The board accepts a single telnet client — close other programs (LightBurn, LaserGRBL).")
+                    "Check the board IP address (shown on its screen or in the router) and that the computer is on the same network. " +
+                    "Telnet must be on ($ESP130=ON), WebSocket works while the web interface is on ($ESP120=ON). " +
+                    "Over telnet the board accepts a single client — close other programs (LightBurn, LaserGRBL).")
                 : Loc.T(
                     $"Не удалось открыть {target.Address}:\n{ex.Message}\n\nПорт может быть занят другой программой (Candle, Arduino IDE).",
                     $"Could not open {target.Address}:\n{ex.Message}\n\nThe port may be used by another program (Candle, Arduino IDE)."));
@@ -513,7 +549,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
     private void SaveConnectionPreferences()
     {
-        _preferences.MachineUseNetwork = UseNetwork;
+        _preferences.MachineConnection = ConnectionKind;
         _preferences.MachineHost = Host.Trim();
         _preferences.MachineNetworkPort = NetworkPort;
         _preferences.Save();
@@ -646,16 +682,25 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         Refresh();
     }
 
-    /// <summary>What the panel connects to: a COM port with its baud rate, or a network address with its TCP port.</summary>
-    private sealed record ConnectionTarget(bool IsNetwork, string Address, int Number)
+    /// <summary>What the panel connects to: a COM port with its baud rate, or a network address with its port.</summary>
+    private sealed record ConnectionTarget(MachineConnectionKind Kind, string Address, int Number)
     {
-        public IGrblTransport Open() => IsNetwork
-            ? new TelnetTransport(Address, Number)
-            : new SerialPortTransport(Address, Number);
+        public bool IsNetwork => Kind != MachineConnectionKind.Serial;
 
-        public string Describe() => IsNetwork
-            ? $"{Address}:{Number} (telnet)"
-            : Loc.T($"{Address}, {Number} бод", $"{Address}, {Number} baud");
+        public IGrblTransport Open() => Kind switch
+        {
+            MachineConnectionKind.Telnet => new TelnetTransport(Address, Number),
+            MachineConnectionKind.WebSocket => new WebSocketTransport(Address, Number, WebSocketCommandRoute.Http),
+            MachineConnectionKind.WebSocketBridge => new WebSocketTransport(Address, Number, WebSocketCommandRoute.WebSocket),
+            _ => new SerialPortTransport(Address, Number),
+        };
+
+        public string Describe() => Kind switch
+        {
+            MachineConnectionKind.Telnet => $"{Address}:{Number} (telnet)",
+            MachineConnectionKind.WebSocket or MachineConnectionKind.WebSocketBridge => $"ws://{Address}:{Number}",
+            _ => Loc.T($"{Address}, {Number} бод", $"{Address}, {Number} baud"),
+        };
     }
 
     // ---- Machine ------------------------------------------------------------------------------
@@ -737,6 +782,232 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
         Run(c => c.SendCommand(command));
         ConsoleInput = "";
+    }
+
+    // ---- Keyboard and joystick ----------------------------------------------------------------
+
+    /// <summary>
+    /// The keyboard and a joystick move the machine. Off by default and switched on only by the button, so that
+    /// a key pressed by mistake never moves the machine; switched off again on disconnect and when a program starts.
+    /// </summary>
+    [ObservableProperty]
+    private bool isJogInputEnabled;
+
+    /// <summary>Keys move the machine while held down; otherwise each press moves one step.</summary>
+    [ObservableProperty]
+    private bool jogHoldToMove = true;
+
+    /// <summary>Joystick state for the panel.</summary>
+    [ObservableProperty]
+    private string joystickText = "";
+
+    /// <summary>
+    /// Keys and the joystick work only while the main window is active and the panel is shown (set by the window):
+    /// typing in another program or looking at another tab must not move the machine.
+    /// </summary>
+    public void SetJogInputContext(bool allowed)
+    {
+        _jogInputAllowed = allowed;
+        if (!allowed)
+        {
+            // Key-up events go to the other window: forget the keys, the next tick stops the motion.
+            _heldKeys.Clear();
+        }
+    }
+
+    /// <summary>A key pressed or released in the main window. Returns true when it was used for jogging.</summary>
+    public bool HandleJogKey(Key key, bool isDown, bool isRepeat)
+    {
+        if (!IsJogInputEnabled || !_jogInputAllowed)
+        {
+            return false;
+        }
+
+        switch (key)
+        {
+            case Key.Escape or Key.Space:
+                if (isDown)
+                {
+                    StopJogMotion();
+                }
+
+                return true;
+            case Key.Add or Key.OemPlus or Key.Subtract or Key.OemMinus:
+                if (isDown && !isRepeat)
+                {
+                    ChangeJogStep(key is Key.Add or Key.OemPlus ? 1 : -1);
+                }
+
+                return true;
+        }
+
+        if (KeyDirection(key) is not { } direction)
+        {
+            return false;
+        }
+
+        if (JogHoldToMove)
+        {
+            if (isDown)
+            {
+                _heldKeys.Add(key);
+            }
+            else
+            {
+                _heldKeys.Remove(key);
+            }
+
+            // React at once instead of waiting for the next tick.
+            JogTick();
+        }
+        else if (isDown && !isRepeat && CanControl && _controller is not null)
+        {
+            Run(c => c.Jog(direction.X * JogStep, direction.Y * JogStep, direction.Z * JogStep, direction.Z != 0 ? JogFeedZ : JogFeed));
+        }
+
+        return true;
+    }
+
+    partial void OnIsJogInputEnabledChanged(bool value)
+    {
+        if (!value)
+        {
+            StopJogInput();
+            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T("Управление с клавиатуры и джойстика выключено.", "Keyboard and joystick control is off.")));
+            return;
+        }
+
+        if (_controller is not { } controller || controller.Job is not (GrblJobState.None or GrblJobState.ProgramStop))
+        {
+            IsJogInputEnabled = false;
+            return;
+        }
+
+        _heldKeys.Clear();
+        _continuousJog.Reset();
+        _joystickArmed = false;
+        _failedCommandsSeen = controller.FailedCommands;
+        _jogTimer.Start();
+        AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
+            "Управление с клавиатуры и джойстика включено: стрелки — X/Y, PgUp/PgDn — Z, Esc или пробел — стоп.",
+            "Keyboard and joystick control is on: arrows — X/Y, PgUp/PgDn — Z, Esc or Space — stop.")));
+    }
+
+    private void StopJogInput()
+    {
+        _jogTimer.Stop();
+        _heldKeys.Clear();
+        if (_continuousJog.IsMoving)
+        {
+            _controller?.JogCancel();
+        }
+
+        _continuousJog.Reset();
+        JoystickText = "";
+    }
+
+    private void StopJogMotion()
+    {
+        _heldKeys.Clear();
+        _controller?.JogCancel();
+        _continuousJog.Reset();
+        // The joystick must come back to the centre before it moves the machine again.
+        _joystickArmed = false;
+    }
+
+    private void ChangeJogStep(int direction)
+    {
+        var index = JogSteps.ToList().FindIndex(s => s >= JogStep);
+        index = Math.Clamp((index < 0 ? JogSteps.Count - 1 : index) + direction, 0, JogSteps.Count - 1);
+        JogStep = JogSteps[index];
+    }
+
+    /// <summary>Arrows and PgUp/PgDn; with Num Lock on the numeric keypad gives the same layout (4/6, 8/2, 9/3) as in Candle.</summary>
+    private static JogVector? KeyDirection(Key key) => key switch
+    {
+        Key.Left or Key.NumPad4 => new JogVector(-1, 0, 0),
+        Key.Right or Key.NumPad6 => new JogVector(1, 0, 0),
+        Key.Up or Key.NumPad8 => new JogVector(0, 1, 0),
+        Key.Down or Key.NumPad2 => new JogVector(0, -1, 0),
+        Key.PageUp or Key.NumPad9 => new JogVector(0, 0, 1),
+        Key.PageDown or Key.NumPad3 => new JogVector(0, 0, -1),
+        _ => null,
+    };
+
+    private void JogTick()
+    {
+        if (_controller is not { } controller || !IsJogInputEnabled)
+        {
+            return;
+        }
+
+        var input = default(JogVector);
+        if (_jogInputAllowed)
+        {
+            // A key released while the focus was elsewhere never sends its key-up event.
+            _heldKeys.RemoveWhere(k => !Keyboard.IsKeyDown(k));
+            if (JogHoldToMove)
+            {
+                foreach (var key in _heldKeys)
+                {
+                    input += KeyDirection(key) ?? default;
+                }
+            }
+
+            var stick = _joystick.Read();
+            if (_joystickArmed)
+            {
+                input += stick;
+            }
+            else if (stick.IsZero)
+            {
+                _joystickArmed = true;
+            }
+        }
+
+        JoystickText = _joystick.Name is not { } name
+            ? Loc.T("Джойстик не найден.", "No joystick found.")
+            : _joystickArmed
+                ? Loc.T($"Джойстик: {name}.", $"Joystick: {name}.")
+                : Loc.T($"Джойстик: {name} — отпустите ручку в центр, чтобы начать.", $"Joystick: {name} — let the stick return to the centre to start.");
+
+        var status = controller.Status;
+        if (!controller.CanSendCommands || status.State is not (GrblState.Idle or GrblState.Jog))
+        {
+            // Alarm, hold, homing: jogs would only be rejected.
+            input = default;
+        }
+
+        if (controller.FailedCommands != _failedCommandsSeen)
+        {
+            // A jog was rejected (soft limits, alarm): stop until the input is released.
+            _failedCommandsSeen = controller.FailedCommands;
+            if (_continuousJog.IsMoving)
+            {
+                controller.JogCancel();
+                _continuousJog.Halt();
+            }
+        }
+
+        var action = _continuousJog.Update(input, JogFeed, JogFeedZ, Environment.TickCount64, controller.IsBusy, status.State == GrblState.Jog);
+        try
+        {
+            switch (action.Kind)
+            {
+                case JogActionKind.Cancel:
+                    controller.JogCancel();
+                    break;
+                case JogActionKind.Move:
+                    var segment = action.Segment;
+                    controller.Jog(segment.Dx, segment.Dy, segment.Dz, segment.Feed, quiet: true);
+                    break;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // The controller stopped accepting commands (connection lost, program started).
+            _continuousJog.Halt();
+        }
     }
 
     // ---- Program ------------------------------------------------------------------------------
@@ -874,7 +1145,11 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         return true;
     }
 
-    public void Dispose() => CloseConnection();
+    public void Dispose()
+    {
+        _jogTimer.Stop();
+        CloseConnection();
+    }
 
     // ---- Updating the view --------------------------------------------------------------------
 
@@ -931,6 +1206,12 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
                 $"Связь восстановлена: {restored.Describe()} (попыток: {_reconnectAttempts}).",
                 $"Connection restored: {restored.Describe()} (attempts: {_reconnectAttempts}).")));
+        }
+
+        if (IsJogInputEnabled && controller?.Job is not (GrblJobState.None or GrblJobState.ProgramStop))
+        {
+            // Disconnected or a program started: the keys must not move the machine any more.
+            IsJogInputEnabled = false;
         }
 
         if (controller is null)
@@ -1037,4 +1318,16 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     }
 
     private static string Format(double value) => value.ToString("0.000", CultureInfo.CurrentCulture);
+}
+
+/// <summary>A connection kind with its name for the list.</summary>
+public sealed record ConnectionKindOption(MachineConnectionKind Kind, string Name)
+{
+    public static IReadOnlyList<ConnectionKindOption> All() => new ConnectionKindOption[]
+    {
+        new(MachineConnectionKind.Serial, Loc.T("USB (COM-порт)", "USB (COM port)")),
+        new(MachineConnectionKind.Telnet, Loc.T("Сеть: telnet", "Network: telnet")),
+        new(MachineConnectionKind.WebSocket, Loc.T("Сеть: WebSocket (MKS DLC32, Grbl_Esp32)", "Network: WebSocket (MKS DLC32, Grbl_Esp32)")),
+        new(MachineConnectionKind.WebSocketBridge, Loc.T("Сеть: WebSocket-мост (ESP8266, FluidNC)", "Network: WebSocket bridge (ESP8266, FluidNC)")),
+    };
 }
