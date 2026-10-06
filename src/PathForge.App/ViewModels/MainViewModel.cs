@@ -707,6 +707,40 @@ public sealed partial class MainViewModel : ObservableObject
     private void AddLaserVector() =>
         AddOperation(new LaserVectorOperation { Name = NewName("Лазер", "Laser") }, LaserTool());
 
+    /// <summary>
+    /// PCB by laser on a painted blank. Selected contours on a board outline layer (by the file name) become the
+    /// board, the rest is copper (drill holes inside pads leave etched centre marks).
+    /// </summary>
+    [RelayCommand]
+    private void AddLaserPcb()
+    {
+        var selected = _project.Contours.Where(c => SelectedContourIds.Contains(c.Id)).ToList();
+        var board = selected.Where(c => PcbFileDetector.IsOutlineFileName(c.Layer)).Select(c => c.Id).ToList();
+        if (board.Count == selected.Count)
+        {
+            board.Clear();
+        }
+
+        var operation = new LaserPcbOperation { Name = NewName("Плата лазером", "Laser PCB"), BoardContourIds = board };
+        AddOperation(operation, LaserTool(), SelectedContourIds.Where(id => !board.Contains(id)));
+        if (board.Count > 0)
+        {
+            Messages.Add(Loc.T(
+                $"{operation.Name}: контур платы — {board.Count} шт. (слой контура), медь — {operation.ContourIds.Count} шт.",
+                $"{operation.Name}: board outline — {board.Count} (outline layer), copper — {operation.ContourIds.Count}."));
+        }
+    }
+
+    /// <summary>Makes the selected contours the board outline of the selected laser PCB operation.</summary>
+    [RelayCommand]
+    private void AssignBoardOutline()
+    {
+        if (SelectedOperation is LaserPcbOperationViewModel pcb)
+        {
+            pcb.SetBoardContours(SelectedContourIds);
+        }
+    }
+
     /// <summary>Settings of the power × speed test card.</summary>
     public LaserTestGridViewModel LaserTest { get; } = new();
 
@@ -892,13 +926,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Default name of a new operation: kind and number.</summary>
     private string NewName(string russian, string english) => $"{Loc.T(russian, english)} {Operations.Count + 1}";
 
-    private void AddOperation(Operation operation, Tool? preferredTool = null)
+    /// <param name="contours">Contours of the operation; null = the selected ones.</param>
+    private void AddOperation(Operation operation, Tool? preferredTool = null, IEnumerable<int>? contours = null)
     {
         // Small spindles (3018) suffer from straight plunges: ramp by default (not for drills and shallow engraving).
         operation.Entry = operation is ProfileOperation or PocketOperation ? EntryMode.Ramp : EntryMode.Plunge;
         var tool = preferredTool ?? SelectedTool?.Model ?? _project.Tools.FirstOrDefault(t => t.Kind != ToolKind.Drill) ?? _project.Tools.FirstOrDefault();
         operation.ToolId = tool?.Id ?? "";
-        operation.ContourIds = SelectedContourIds.OrderBy(i => i).ToList();
+        operation.ContourIds = (contours ?? SelectedContourIds).OrderBy(i => i).ToList();
         _project.Operations.Add(operation);
         var vm = OperationViewModel.Create(operation, OnProjectChanged);
         Operations.Add(vm);
@@ -1311,6 +1346,11 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateScene()
     {
         var operationContours = SelectedOperation?.Model.ContourIds.ToHashSet() ?? new HashSet<int>();
+        if (SelectedOperation?.Model is LaserPcbOperation pcb)
+        {
+            operationContours.UnionWith(pcb.BoardContourIds);
+        }
+
         var contours = new List<SceneContour>(_project.Contours.Count);
         var bounds = Bounds2.Empty;
         // Contours are shown in program coordinates so that the axis cross marks the work zero.

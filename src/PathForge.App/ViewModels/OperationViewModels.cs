@@ -86,6 +86,7 @@ public abstract class OperationViewModel : ModelWrapper
         IsolationOperation i => new IsolationOperationViewModel(i, changed),
         LaserVectorOperation l => new LaserVectorOperationViewModel(l, changed),
         LaserRasterOperation r => new LaserRasterOperationViewModel(r, changed),
+        LaserPcbOperation b => new LaserPcbOperationViewModel(b, changed),
         ReliefOperation r => new ReliefOperationViewModel(r, changed),
         VCarveOperation v => new VCarveOperationViewModel(v, changed),
         _ => throw new NotSupportedException(model.GetType().Name),
@@ -327,6 +328,101 @@ public sealed class LaserVectorOperationViewModel : OperationViewModel
     {
         get => _model.KerfWidth;
         set => Set(_model.KerfWidth, Math.Clamp(value, 0, 5), v => _model.KerfWidth = v);
+    }
+}
+
+public sealed class LaserPcbOperationViewModel : OperationViewModel
+{
+    private readonly LaserPcbOperation _model;
+
+    public LaserPcbOperationViewModel(LaserPcbOperation model, Action changed)
+        : base(model, changed)
+    {
+        _model = model;
+    }
+
+    public override string KindLabel => Loc.T("Плата лазером", "Laser PCB");
+
+    public override string Summary => Loc.T(
+        $"Плата лазером · {_model.PowerPercent:0}% · {_model.Speed:0} мм/мин · контуров меди: {_model.ContourIds.Count}",
+        $"Laser PCB · {_model.PowerPercent:0}% · {_model.Speed:0} mm/min · copper contours: {_model.ContourIds.Count}");
+
+    public LaserPcbClearing Clearing
+    {
+        get => _model.Clearing;
+        set
+        {
+            Set(_model.Clearing, value, v => _model.Clearing = v);
+            OnPropertyChanged(nameof(ClearsAll));
+            OnPropertyChanged(nameof(ClearsStrip));
+        }
+    }
+
+    /// <summary>Settings of each mode are shown only in that mode.</summary>
+    public bool ClearsAll => _model.Clearing == LaserPcbClearing.All;
+
+    public bool ClearsStrip => !ClearsAll;
+
+    public double IsolationWidth
+    {
+        get => _model.IsolationWidth;
+        set => Set(_model.IsolationWidth, Math.Clamp(value, 0.05, 20), v => _model.IsolationWidth = v);
+    }
+
+    public double Margin
+    {
+        get => _model.Margin;
+        set => Set(_model.Margin, Math.Clamp(value, 0, 50), v => _model.Margin = v);
+    }
+
+    public double PowerPercent
+    {
+        get => _model.PowerPercent;
+        set => Set(_model.PowerPercent, Math.Clamp(value, 0, 100), v => _model.PowerPercent = v);
+    }
+
+    public double Speed
+    {
+        get => _model.Speed;
+        set => Set(_model.Speed, Math.Max(1, value), v => _model.Speed = v);
+    }
+
+    public int Passes
+    {
+        get => _model.Passes;
+        set => Set(_model.Passes, Math.Clamp(value, 1, 20), v => _model.Passes = v);
+    }
+
+    public double LineSpacing
+    {
+        get => _model.LineSpacing;
+        set => Set(_model.LineSpacing, Math.Clamp(value, 0.01, 1), v => _model.LineSpacing = v);
+    }
+
+    public double FillAngle
+    {
+        get => _model.FillAngle;
+        set => Set(_model.FillAngle, value, v => _model.FillAngle = v);
+    }
+
+    public bool CrossHatch
+    {
+        get => _model.CrossHatch;
+        set => Set(_model.CrossHatch, value, v => _model.CrossHatch = v);
+    }
+
+    public double CopperOffset
+    {
+        get => _model.CopperOffset;
+        set => Set(_model.CopperOffset, Math.Clamp(value, -1, 1), v => _model.CopperOffset = v);
+    }
+
+    public int BoardContourCount => _model.BoardContourIds.Count;
+
+    public void SetBoardContours(IEnumerable<int> ids)
+    {
+        var list = ids.Distinct().OrderBy(i => i).ToList();
+        Set(_model.BoardContourIds, list, v => _model.BoardContourIds = v, nameof(BoardContourCount));
     }
 }
 

@@ -165,6 +165,10 @@ public static class Nesting
         {
             var extra = operation.ContourIds.Where(copyIds.ContainsKey).SelectMany(id => copyIds[id]).ToList();
             operation.ContourIds.AddRange(extra);
+            if (operation is LaserPcbOperation pcb)
+            {
+                pcb.BoardContourIds.AddRange(pcb.BoardContourIds.Where(copyIds.ContainsKey).SelectMany(id => copyIds[id]).ToList());
+            }
         }
 
         var sheet = Math.Max(1e-9, area.Width * area.Height);

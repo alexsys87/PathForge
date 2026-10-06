@@ -52,6 +52,7 @@ public enum LeadMode
 [JsonDerivedType(typeof(IsolationOperation), "isolation")]
 [JsonDerivedType(typeof(LaserVectorOperation), "laserVector")]
 [JsonDerivedType(typeof(LaserRasterOperation), "laserRaster")]
+[JsonDerivedType(typeof(LaserPcbOperation), "laserPcb")]
 [JsonDerivedType(typeof(ReliefOperation), "relief")]
 [JsonDerivedType(typeof(VCarveOperation), "vcarve")]
 public abstract class Operation
@@ -232,6 +233,66 @@ public sealed class LaserVectorOperation : Operation
 
     /// <summary>Width of the cut (mm): measure a cut square and subtract its size from the nominal one.</summary>
     public double KerfWidth { get; set; } = 0.15;
+}
+
+/// <summary>Which part of the paint the laser removes from a painted PCB blank.</summary>
+public enum LaserPcbClearing
+{
+    /// <summary>A strip of the given width around the copper (like milled isolation); the rest of the copper stays.</summary>
+    Isolation,
+
+    /// <summary>All the paint except over the copper: the board is etched clean, only tracks and pads stay.</summary>
+    All,
+}
+
+/// <summary>
+/// PCB made with a laser and etching: the copper blank is painted (black matte paint), the laser burns the
+/// paint away where the copper must go, the board is washed and etched. The paint stays over the selected copper
+/// contours. The beam spot is the laser tool's diameter: the beam centre stays half a spot away from the copper.
+/// </summary>
+public sealed class LaserPcbOperation : Operation
+{
+    public LaserPcbOperation()
+    {
+        Depth = 0;
+    }
+
+    public LaserPcbClearing Clearing { get; set; } = LaserPcbClearing.Isolation;
+
+    /// <summary>Width of the burned strip around the copper (mm), for <see cref="LaserPcbClearing.Isolation"/>.</summary>
+    public double IsolationWidth { get; set; } = 0.8;
+
+    /// <summary>
+    /// Closed board outline contours that limit <see cref="LaserPcbClearing.All"/>; empty = the copper bounds.
+    /// </summary>
+    public List<int> BoardContourIds { get; set; } = new();
+
+    /// <summary>Extra cleared margin beyond the board outline or the copper bounds (mm).</summary>
+    public double Margin { get; set; } = 1;
+
+    /// <summary>Laser power, percent of the maximum.</summary>
+    public double PowerPercent { get; set; } = 100;
+
+    /// <summary>Travel speed while burning (mm/min).</summary>
+    public double Speed { get; set; } = 1200;
+
+    /// <summary>The whole pattern is burned this many times (the second pass removes what the first one left).</summary>
+    public int Passes { get; set; } = 2;
+
+    /// <summary>Distance between neighbouring burned lines (mm); must not exceed the beam spot.</summary>
+    public double LineSpacing { get; set; } = 0.08;
+
+    /// <summary>Direction of the hatch lines when all the paint is removed (degrees from X).</summary>
+    public double FillAngle { get; set; }
+
+    /// <summary>Every second pass hatches at 90° to the first one: no stripes of paint left between lines.</summary>
+    public bool CrossHatch { get; set; } = true;
+
+    /// <summary>
+    /// Grows (positive) or shrinks (negative) the copper before burning (mm): positive makes up for the
+    /// etchant eating the track edges and for a beam wider than set.
+    /// </summary>
+    public double CopperOffset { get; set; }
 }
 
 public enum RasterMode
