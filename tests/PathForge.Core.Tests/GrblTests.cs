@@ -170,6 +170,39 @@ public class GrblTests
     }
 
     [Fact]
+    public void Check_mode_runs_through_errors_and_tool_changes_and_leaves_the_mode()
+    {
+        var (controller, board, results) = Connect();
+        var program = GrblProgram.Prepare("G0X1\nG1X2F100\nM0\nG5X1\nG1X3\n").Lines;
+        board.Responder = line => line == "G5X1" ? "error:20" : null;
+
+        controller.CheckProgram(program);
+        Assert.True(controller.IsChecking);
+        board.ProcessAll();
+
+        // "$C" first, every line (also past the M0 stop and the faulty line), "$C" again to leave the mode.
+        Assert.Equal(new[] { "$C", "G0X1", "G1X2F100", "G5X1", "G1X3", "$C" }, board.Lines);
+        Assert.False(controller.IsChecking);
+        Assert.Equal(GrblJobState.None, controller.Job);
+        var result = Assert.Single(results);
+        Assert.False(result.Success);
+        Assert.Contains("G5X1", result.Message);
+        Assert.DoesNotContain((byte)'!', board.Realtime);
+    }
+
+    [Fact]
+    public void Clean_check_reports_success()
+    {
+        var (controller, board, results) = Connect();
+
+        controller.CheckProgram(Program(50));
+        board.ProcessAll();
+
+        Assert.True(Assert.Single(results).Success);
+        Assert.Equal(52, board.Lines.Count);
+    }
+
+    [Fact]
     public void Tool_change_stops_the_stream_until_the_operator_resumes()
     {
         var project = new CamProject();

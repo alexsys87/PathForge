@@ -1042,26 +1042,72 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void StartJob()
     {
-        if (_controller is null)
+        if (_controller is null || PrepareProgram("run") is not { } job)
         {
             return;
         }
 
+        var stops = job.Lines.Count(l => l.StopAfter);
+        var message = Loc.T(
+                          $"Запустить «{job.Name}» ({job.CommandCount} строк)?\n\n" +
+                          "Проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза, руки и инструмент убраны.",
+                          $"Run “{job.Name}” ({job.CommandCount} lines)?\n\n" +
+                          "Check: the stock is clamped, X/Y/Z zero is set, the right tool is in the spindle, hands and tools are clear.") +
+                      (stops > 0
+                          ? Loc.T(
+                              $"\n\nОстановок для смены инструмента: {stops}. На них программа ждёт, пока вы не нажмёте «Продолжить».",
+                              $"\n\nTool change stops: {stops}. At each the program waits until you press “Resume”.")
+                          : "") +
+                      job.LevelingNote;
+        if (!_dialogs.Confirm(message))
+        {
+            return;
+        }
+
+        if (Run(c => c.StartJob(job.Lines)))
+        {
+            _jobStarted = DateTime.Now;
+            Refresh();
+        }
+    }
+
+    /// <summary>
+    /// Lets GRBL check the program in its check mode ($C): every line is parsed with the board's real settings
+    /// (soft limits, supported commands) but nothing moves and the spindle stays off. Faulty lines are listed.
+    /// </summary>
+    [RelayCommand]
+    private void CheckProgram()
+    {
+        if (_controller is null || PrepareProgram("check") is not { } job)
+        {
+            return;
+        }
+
+        if (Run(c => c.CheckProgram(job.Lines)))
+        {
+            _jobStarted = DateTime.Now;
+            Refresh();
+        }
+    }
+
+    /// <summary>Program text with the height map applied, split into GRBL lines; null (after a message) when it cannot be sent.</summary>
+    private PreparedJob? PrepareProgram(string purpose)
+    {
         var program = _fileProgram ?? _projectProgram();
         if (program is null)
         {
             _dialogs.ShowError(Loc.T("В проекте нет траекторий: добавьте операции и выберите контуры.", "The project has no toolpaths: add operations and select contours."));
-            return;
+            return null;
         }
 
         if (!program.IsGrblDialect &&
             !_dialogs.Confirm(Loc.T(
                 "Программа записана в общем формате G-code (смена инструмента T M6), а не для GRBL.\n" +
-                "Выберите формат GRBL на вкладке «Станок». Всё равно запустить?",
+                $"Выберите формат GRBL на вкладке «Станок». Всё равно {(purpose == "check" ? "проверить" : "запустить")}?",
                 "The program is written in generic G-code (tool change T M6), not for GRBL.\n" +
-                "Choose the GRBL format on the “Machine” tab. Run anyway?")))
+                $"Choose the GRBL format on the “Machine” tab. {(purpose == "check" ? "Check" : "Run")} anyway?")))
         {
-            return;
+            return null;
         }
 
         var gcode = program.Gcode;
@@ -1073,7 +1119,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
                 !_dialogs.Confirm(Loc.T("Поправка по карте высот:\n", "Height map correction:\n") + string.Join("\n", leveled.Warnings) +
                                   Loc.T("\n\nПродолжить?", "\n\nContinue?")))
             {
-                return;
+                return null;
             }
 
             gcode = leveled.Gcode;
@@ -1086,39 +1132,20 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         if (prepared.CommandCount == 0)
         {
             _dialogs.ShowError(Loc.T("В программе нет команд.", "The program has no commands."));
-            return;
+            return null;
         }
 
         if (prepared.Problems.Count > 0)
         {
             _dialogs.ShowError(Loc.T("Программу нельзя отправить в GRBL:\n", "The program cannot be sent to GRBL:\n") +
                                string.Join("\n", prepared.Problems.Take(10)));
-            return;
+            return null;
         }
 
-        var stops = prepared.Lines.Count(l => l.StopAfter);
-        var message = Loc.T(
-                          $"Запустить «{program.Name}» ({prepared.CommandCount} строк)?\n\n" +
-                          "Проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза, руки и инструмент убраны.",
-                          $"Run “{program.Name}” ({prepared.CommandCount} lines)?\n\n" +
-                          "Check: the stock is clamped, X/Y/Z zero is set, the right tool is in the spindle, hands and tools are clear.") +
-                      (stops > 0
-                          ? Loc.T(
-                              $"\n\nОстановок для смены инструмента: {stops}. На них программа ждёт, пока вы не нажмёте «Продолжить».",
-                              $"\n\nTool change stops: {stops}. At each the program waits until you press “Resume”.")
-                          : "") +
-                      levelingNote;
-        if (!_dialogs.Confirm(message))
-        {
-            return;
-        }
-
-        if (Run(c => c.StartJob(prepared.Lines)))
-        {
-            _jobStarted = DateTime.Now;
-            Refresh();
-        }
+        return new PreparedJob(program.Name, prepared.Lines, prepared.CommandCount, levelingNote);
     }
+
+    private sealed record PreparedJob(string Name, IReadOnlyList<GrblLine> Lines, int CommandCount, string LevelingNote);
 
     [RelayCommand]
     private void Pause() => Run(c => c.Pause());

@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
+using PathForge.Core.Leveling;
 using PathForge.Core.Machining;
 using PathForge.Core.Simulation;
 
@@ -16,8 +17,10 @@ namespace PathForge.App.Controls;
 /// <param name="Deviation">Difference from the model per surface cell (mm, NaN outside the model); colours the surface when set.</param>
 /// <param name="Tolerance">Deviation shown as "on the model" (mm).</param>
 /// <param name="Path">Toolpath drawn over the stock (the operation being machined), or null.</param>
+/// <param name="HeightMap">Probed board height map shown over the stock, or null.</param>
+/// <param name="HeightMapScale">Vertical exaggeration of the height map.</param>
 public sealed record SimulationFrame(HeightField Surface, int Version, Tool? Tool, Point3D ToolTip,
-    float[]? Deviation = null, double Tolerance = 0.05, Toolpath? Path = null);
+    float[]? Deviation = null, double Tolerance = 0.05, Toolpath? Path = null, LevelingMap? HeightMap = null, double HeightMapScale = 1);
 
 /// <summary>
 /// 3D view of the simulated stock. Left drag orbits, right or middle drag pans, the wheel zooms,
@@ -44,6 +47,7 @@ public sealed class SimulationView : Border
     private Material? _comparisonMaterial;
     private double _comparisonTolerance = double.NaN;
     private Toolpath? _meshPath;
+    private (LevelingMap? Map, double Scale, double Top) _meshMap;
     private readonly TranslateTransform3D _toolTransform = new();
     private readonly Material _stockMaterial;
 
@@ -198,6 +202,8 @@ public sealed class SimulationView : Border
             _toolModel.Geometry = null;
             _pathModel.Geometry = null;
             _meshPath = null;
+            _overlayModel.Geometry = null;
+            _meshMap = default;
             return;
         }
 
@@ -211,6 +217,18 @@ public sealed class SimulationView : Border
         {
             _meshPath = frame.Path;
             _pathModel.Geometry = frame.Path is null ? null : PathMesh(frame.Path, frame.Surface);
+        }
+
+        var map = (frame.HeightMap, frame.HeightMapScale, frame.Surface.Top);
+        if (map != _meshMap)
+        {
+            _meshMap = map;
+            _overlayModel.Geometry = frame.HeightMap is { IsValid: true } heights ? HeightMapMesh(heights, frame.HeightMapScale, frame.Surface.Top) : null;
+            if (_overlayModel.Material is null)
+            {
+                _overlayModel.Material = CreateHeightMapMaterial();
+                _overlayModel.BackMaterial = _overlayModel.Material;
+            }
         }
 
         var stock = (frame.Surface.SizeX, frame.Surface.SizeY, frame.Surface.Top);
@@ -417,6 +435,83 @@ public sealed class SimulationView : Border
         var mesh = new MeshGeometry3D { Positions = positions, TriangleIndices = indices };
         mesh.Freeze();
         return mesh;
+    }
+
+    /// <summary>
+    /// The probed height map as a translucent sheet a little above the stock top: heights exaggerated by
+    /// <paramref name="scale"/>, coloured from blue (lowest) to red (highest), with the probe points as the grid.
+    /// </summary>
+    private static MeshGeometry3D HeightMapMesh(LevelingMap map, double scale, double top)
+    {
+        const int Subdivide = 4;
+        var nx = (map.CountX - 1) * Subdivide + 1;
+        var ny = (map.CountY - 1) * Subdivide + 1;
+        var range = Math.Max(1e-9, map.Max - map.Min);
+        var lift = 0.5;
+        var positions = new Point3DCollection(nx * ny);
+        var texture = new PointCollection(nx * ny);
+        for (var j = 0; j < ny; j++)
+        {
+            for (var i = 0; i < nx; i++)
+            {
+                var x = map.X0 + map.StepX * i / Subdivide;
+                var y = map.Y0 + map.StepY * j / Subdivide;
+                var h = map.HeightAt(x, y);
+                positions.Add(new Point3D(x, y, top + lift + (h - map.Min) * scale));
+                texture.Add(new Point(Math.Clamp((h - map.Min) / range, 0.002, 0.998), 0.5));
+            }
+        }
+
+        var indices = new Int32Collection((nx - 1) * (ny - 1) * 6);
+        for (var j = 0; j + 1 < ny; j++)
+        {
+            for (var i = 0; i + 1 < nx; i++)
+            {
+                var a = j * nx + i;
+                indices.Add(a);
+                indices.Add(a + 1);
+                indices.Add(a + nx + 1);
+                indices.Add(a);
+                indices.Add(a + nx + 1);
+                indices.Add(a + nx);
+            }
+        }
+
+        var mesh = new MeshGeometry3D { Positions = positions, TextureCoordinates = texture, TriangleIndices = indices };
+        mesh.Freeze();
+        return mesh;
+    }
+
+    /// <summary>Blue → cyan → green → yellow → red, slightly see-through.</summary>
+    private static Material CreateHeightMapMaterial()
+    {
+        const int Width = 256;
+        var stops = new[]
+        {
+            Color.FromRgb(0x30, 0x50, 0xE0), Color.FromRgb(0x30, 0xC0, 0xE0), Color.FromRgb(0x40, 0xC0, 0x50),
+            Color.FromRgb(0xF0, 0xD0, 0x30), Color.FromRgb(0xE0, 0x40, 0x30),
+        };
+        var pixels = new byte[Width * 4];
+        for (var x = 0; x < Width; x++)
+        {
+            var t = x / (double)(Width - 1) * (stops.Length - 1);
+            var k = Math.Min(stops.Length - 2, (int)t);
+            var color = Mix(stops[k], stops[k + 1], t - k);
+            pixels[x * 4] = color.B;
+            pixels[x * 4 + 1] = color.G;
+            pixels[x * 4 + 2] = color.R;
+            pixels[x * 4 + 3] = 0xD8;
+        }
+
+        var bitmap = BitmapSource.Create(Width, 1, 96, 96, PixelFormats.Bgra32, null, pixels, Width * 4);
+        bitmap.Freeze();
+        var brush = new ImageBrush(bitmap) { ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, 1, 1) };
+        brush.Freeze();
+        var material = new MaterialGroup();
+        material.Children.Add(new DiffuseMaterial(brush));
+        material.Children.Add(new EmissiveMaterial(new SolidColorBrush(Color.FromArgb(0x30, 0x40, 0x40, 0x40))));
+        material.Freeze();
+        return material;
     }
 
     /// <summary>The four sides and the bottom of the stock, following the edge of the surface.</summary>

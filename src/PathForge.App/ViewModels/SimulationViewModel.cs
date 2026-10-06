@@ -108,6 +108,23 @@ public sealed partial class SimulationViewModel : ObservableObject
     [ObservableProperty]
     private bool showPath = true;
 
+    /// <summary>The project holds a probed height map (auto-levelling).</summary>
+    [ObservableProperty]
+    private bool hasHeightMap;
+
+    /// <summary>Show the probed height map over the stock.</summary>
+    [ObservableProperty]
+    private bool showHeightMap = true;
+
+    /// <summary>Vertical exaggeration of the height map: board unevenness is a few hundredths of a millimetre.</summary>
+    [ObservableProperty]
+    private double heightMapScale = 50;
+
+    [ObservableProperty]
+    private string heightMapText = "";
+
+    private Core.Leveling.LevelingMap? _heightMap;
+
     public string PlayLabel => IsPlaying ? Loc.T("❚❚ Пауза", "❚❚ Pause") : Loc.T("▶ Пуск", "▶ Play");
 
     /// <summary>Texts that are not recomputed by <see cref="MarkStale"/> follow the new language.</summary>
@@ -164,6 +181,11 @@ public sealed partial class SimulationViewModel : ObservableObject
         IsPlaying = false;
         Issues.Clear();
         var (project, generation) = _source();
+        _heightMap = project.LevelingMap is { IsValid: true } map ? map : null;
+        HasHeightMap = _heightMap is not null;
+        HeightMapText = _heightMap is null ? "" : Loc.T(
+            $"Карта высот {_heightMap.CountX}×{_heightMap.CountY}, перепад {_heightMap.Max - _heightMap.Min:0.000} мм",
+            $"Height map {_heightMap.CountX}×{_heightMap.CountY}, range {_heightMap.Max - _heightMap.Min:0.000} mm");
         if (generation.Toolpaths.Count == 0)
         {
             _simulation = null;
@@ -248,6 +270,19 @@ public sealed partial class SimulationViewModel : ObservableObject
 
     partial void OnShowPathChanged(bool value) => RefreshSurface();
 
+    partial void OnShowHeightMapChanged(bool value) => RefreshSurface();
+
+    partial void OnHeightMapScaleChanged(double value)
+    {
+        if (value is < 1 or > 10000)
+        {
+            HeightMapScale = Math.Clamp(value, 1, 10000);
+            return;
+        }
+
+        RefreshSurface();
+    }
+
     /// <summary>Redraws the stock with the current display options.</summary>
     private void RefreshSurface()
     {
@@ -315,7 +350,8 @@ public sealed partial class SimulationViewModel : ObservableObject
 
         var tip = simulation.ToolPosition;
         Frame = new SimulationFrame(_surface, _version, simulation.CurrentToolpath?.Tool, new Point3D(tip.X, tip.Y, tip.Z),
-            ShowComparison && HasModel ? _deviation : null, ComparisonTolerance, ShowPath ? simulation.CurrentToolpath : null);
+            ShowComparison && HasModel ? _deviation : null, ComparisonTolerance, ShowPath ? simulation.CurrentToolpath : null,
+            ShowHeightMap ? _heightMap : null, HeightMapScale);
         if (IsPlaying)
         {
             SetPosition(simulation.CurrentTime / Math.Max(1e-12, simulation.TotalTime) * 1000);
