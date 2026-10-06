@@ -5,10 +5,16 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
+  <!-- The test host must not watch its parent process: OpenProcess is denied on this machine
+       (access denied at testhost startup, "SetParentProcessExitCallback"), which aborts the run.
+       The TestHost package defaults this switch to true; set it before its targets are imported. -->
+  <PropertyGroup>
+    <_MSTestEnableParentProcessQuery>false</_MSTestEnableParentProcessQuery>
+  </PropertyGroup>
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
@@ -16,6 +22,7 @@
     <None Include="..\..\samples\*.dxf;..\..\samples\*.svg;..\..\samples\*.stl" LinkBase="samples" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\samples\pcb-demo\*" LinkBase="samples\pcb-demo" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\samples\pcb-altium\*" LinkBase="samples\pcb-altium" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fonts\*.otf;fonts\*.ttf" LinkBase="fonts" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\PathForge.Core\PathForge.Core.csproj" />

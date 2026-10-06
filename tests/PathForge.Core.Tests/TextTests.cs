@@ -205,7 +205,9 @@ public class TextTests
     [Fact]
     public void Font_catalog_lists_fonts_in_a_folder()
     {
-        var folder = Path.Combine(Path.GetTempPath(), "pathforge-fonts-" + Guid.NewGuid().ToString("N"));
+        // Scratch folder in the test output directory: the system temp folder may deny writes
+        // under restricted tokens (folder creation in %TEMP% fails with access denied).
+        var folder = Path.Combine(AppContext.BaseDirectory, "pathforge-fonts-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         try
         {

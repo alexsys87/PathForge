@@ -43,6 +43,12 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private MachineProgram? _fileProgram;
     private LevelingProbe? _probe;
 
+    // Automatic reconnection after the COM port drops out of the system (USB unplugged, board reboot).
+    private DispatcherTimer? _reconnectTimer;
+    private string _reconnectPort = "";
+    private HashSet<string> _reconnectKnownPorts = new(StringComparer.OrdinalIgnoreCase);
+    private int _reconnectAttempts;
+
     public MachineControlViewModel(IDialogService dialogs, Func<MachineProgram?> projectProgram, Func<double> safeZ,
         Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds)
     {
@@ -384,12 +390,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
         try
         {
-            var transport = new SerialPortTransport(SelectedPort, BaudRate);
-            _controller = new GrblController(transport);
-            _controller.Changed += QueueRefresh;
-            _controller.Log += entry => _dispatcher.BeginInvoke(() => AddLog(entry));
-            _controller.JobFinished += result => _dispatcher.BeginInvoke(() => OnJobFinished(result));
-            _controller.ProbeTouched += p => _dispatcher.BeginInvoke(() => OnProbeTouched(p));
+            _controller = CreateController(SelectedPort, BaudRate);
             IsConnected = true;
             AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T($"Подключено: {SelectedPort}, {BaudRate} бод. Ожидание ответа GRBL…", $"Connected: {SelectedPort}, {BaudRate} baud. Waiting for GRBL…")));
             _pollTimer.Start();
@@ -413,8 +414,103 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T("Отключено.", "Disconnected.")));
     }
 
+    /// <summary>Creates a controller over the given serial port and wires its events to the panel.</summary>
+    private GrblController CreateController(string portName, int baudRate)
+    {
+        var controller = new GrblController(new SerialPortTransport(portName, baudRate));
+        controller.Changed += QueueRefresh;
+        controller.Log += entry => _dispatcher.BeginInvoke(() => AddLog(entry));
+        controller.JobFinished += result => _dispatcher.BeginInvoke(() => OnJobFinished(result));
+        controller.ProbeTouched += p => _dispatcher.BeginInvoke(() => OnProbeTouched(p));
+        return controller;
+    }
+
+    /// <summary>
+    /// The COM port disappeared from the system (USB unplugged, board reboot): release the dead port and
+    /// keep trying to reopen it until it comes back or the user disconnects.
+    /// </summary>
+    private void BeginReconnect()
+    {
+        if (_reconnectTimer is not null)
+        {
+            return;
+        }
+
+        _reconnectPort = SelectedPort ?? "";
+        _reconnectKnownPorts = new HashSet<string>(SerialPortTransport.PortNames(), StringComparer.OrdinalIgnoreCase);
+        _reconnectAttempts = 0;
+
+        // The controller has already marked the connection as lost: release the dead port.
+        _controller?.Dispose();
+        _controller = null;
+
+        AddLog(new GrblLogEntry(GrblLogKind.Error, Loc.T(
+            $"Связь потеряна. Жду возвращения порта {_reconnectPort}…",
+            $"Connection lost. Waiting for port {_reconnectPort} to come back…")));
+
+        _reconnectTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
+        _reconnectTimer.Tick += (_, _) => TryReconnect();
+        _reconnectTimer.Start();
+        Refresh();
+    }
+
+    private void TryReconnect()
+    {
+        if (_reconnectTimer is null)
+        {
+            return;
+        }
+
+        _reconnectAttempts++;
+        var ports = SerialPortTransport.PortNames();
+        var name = _reconnectPort;
+        if (name.Length == 0 || !ports.Contains(name, StringComparer.OrdinalIgnoreCase))
+        {
+            // After a hard USB reset the port may come back under another number: accept a single new port.
+            var fresh = ports.Where(p => !_reconnectKnownPorts.Contains(p)).ToList();
+            if (fresh.Count == 1)
+            {
+                name = fresh[0];
+            }
+            else
+            {
+                StateText = Loc.T(
+                    $"Связь потеряна — порт {_reconnectPort} не найден, попытка {_reconnectAttempts}…",
+                    $"Connection lost — port {_reconnectPort} not found, attempt {_reconnectAttempts}…");
+                return;
+            }
+        }
+
+        try
+        {
+            _controller = CreateController(name, BaudRate);
+            _reconnectTimer.Stop();
+            _reconnectTimer = null;
+
+            if (!string.Equals(name, SelectedPort, StringComparison.OrdinalIgnoreCase))
+            {
+                RefreshPorts();
+                SelectedPort = name;
+            }
+
+            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
+                $"Связь восстановлена: {name}, {BaudRate} бод. Ожидание ответа GRBL…",
+                $"Connection restored: {name}, {BaudRate} baud. Waiting for GRBL…")));
+            Refresh();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        {
+            // The port exists but the OS has not released it yet: keep waiting.
+            StateText = Loc.T(
+                $"Связь потеряна — порт {name} найден, попытка {_reconnectAttempts}…",
+                $"Connection lost — port {name} found, attempt {_reconnectAttempts}…");
+        }
+    }
+
     private void CloseConnection()
     {
+        _reconnectTimer?.Stop();
+        _reconnectTimer = null;
         _pollTimer.Stop();
         _controller?.Dispose();
         _controller = null;
@@ -685,14 +781,16 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         var controller = _controller;
         if (controller is not null && !controller.IsConnected)
         {
-            // The connection was lost (cable): release the port so it can be opened again.
-            _dispatcher.BeginInvoke(CloseConnection);
+            // The connection was lost (cable, board reboot): try to restore it automatically.
+            BeginReconnect();
             controller = null;
         }
 
         if (controller is null)
         {
-            StateText = NotConnectedText;
+            StateText = _reconnectTimer is not null
+                ? Loc.T($"Связь потеряна — жду порт {_reconnectPort}…", $"Connection lost — waiting for port {_reconnectPort}…")
+                : NotConnectedText;
             VersionText = "";
             WorkX = WorkY = WorkZ = "—";
             MachineText = FeedText = OverridesText = "";

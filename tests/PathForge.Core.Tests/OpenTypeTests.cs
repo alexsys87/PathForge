@@ -111,7 +111,9 @@ public class OpenTypeTests
     [Fact]
     public void Catalog_lists_otf_fonts_too()
     {
-        var folder = Path.Combine(Path.GetTempPath(), "pathforge-otf-" + Guid.NewGuid().ToString("N"));
+        // Scratch folder in the test output directory: the system temp folder may deny writes
+        // under restricted tokens (folder creation in %TEMP% fails with access denied).
+        var folder = Path.Combine(AppContext.BaseDirectory, "pathforge-otf-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         try
         {

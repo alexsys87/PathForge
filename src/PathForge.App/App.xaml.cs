@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Markup;
 using PathForge.App.Services;
 using PathForge.Core.Localization;
@@ -18,6 +19,15 @@ public partial class App : Application
         FrameworkElement.LanguageProperty.OverrideMetadata(
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata(XmlLanguage.GetLanguage(CultureInfo.CurrentCulture.IetfLanguageTag)));
+
+        // Hints (tooltips) behave the same on every element, not only on buttons:
+        // they appear even on disabled controls and stay long enough to read.
+        ToolTipService.ShowOnDisabledProperty.OverrideMetadata(
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(true));
+        ToolTipService.ShowDurationProperty.OverrideMetadata(
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(60000));
 
         // Language and theme are applied before the main window is created.
         var preferences = UiPreferences.Load();
