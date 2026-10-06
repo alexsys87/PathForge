@@ -91,4 +91,8 @@ internal static class ClipperBridge
     /// <summary>Grows (positive delta) or shrinks (negative delta) a region with round corners.</summary>
     public static Paths64 Offset(Paths64 region, double delta) =>
         Clipper.InflatePaths(region, delta * Scale, JoinType.Round, EndType.Polygon, 2, ArcTolerance * Scale);
+
+    /// <summary>Offset with a coarser approximation of the rounded corners (fewer points, faster to compare).</summary>
+    public static Paths64 Offset(Paths64 region, double delta, double arcTolerance) =>
+        Clipper.InflatePaths(region, delta * Scale, JoinType.Round, EndType.Polygon, 2, Math.Max(ArcTolerance, arcTolerance) * Scale);
 }

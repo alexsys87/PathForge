@@ -710,6 +710,50 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Settings of the power × speed test card.</summary>
     public LaserTestGridViewModel LaserTest { get; } = new();
 
+    /// <summary>Sheet and gaps for laying out parts.</summary>
+    public NestingViewModel Nesting { get; } = new();
+
+    /// <summary>Fills the sheet size and gap from the machine and the largest cutter (before the first layout).</summary>
+    [RelayCommand]
+    private void SuggestNestingSheet()
+    {
+        var cutter = _project.Tools.Where(t => t.Kind != ToolKind.Laser).Select(t => t.Diameter).DefaultIfEmpty(0).Max();
+        Nesting.SuggestSheet(_project.Machine.WorkAreaX, _project.Machine.WorkAreaY, cutter > 0 ? cutter + 2 : 0);
+    }
+
+    /// <summary>
+    /// Lays out the selected parts (or all) on the sheet: each closed outer contour with everything inside it,
+    /// turned when allowed, with copies; operations get the copies too.
+    /// </summary>
+    [RelayCommand]
+    private void NestParts()
+    {
+        var result = PathForge.Core.Machining.Nesting.Arrange(_project, SelectedContourIds.ToList(), Nesting.Model);
+        foreach (var text in Texts)
+        {
+            text.Refresh();
+        }
+
+        foreach (var operation in Operations)
+        {
+            operation.RefreshSummary();
+        }
+
+        Messages.Add(Loc.T(
+            $"Раскладка: на листе {Nesting.SheetWidth:0.#}×{Nesting.SheetHeight:0.#} мм деталей {result.Placed}, заполнено {result.UsedPercent:0} % листа.",
+            $"Layout: {result.Placed} parts on the {Nesting.SheetWidth:0.#}×{Nesting.SheetHeight:0.#} mm sheet, {result.UsedPercent:0} % of the sheet used."));
+        foreach (var warning in result.Warnings)
+        {
+            Messages.Add(warning);
+        }
+
+        RefreshLayers();
+        OnSelectionChanged();
+        OnProjectChanged();
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// Adds a test card: squares burned with every combination of power (rows) and speed (columns), with the
     /// values burned next to them. Placed to the right of the drawing.

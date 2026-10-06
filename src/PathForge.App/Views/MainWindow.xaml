@@ -725,6 +725,43 @@
                             <Button Content="{l:Tr '+ Рельеф (картинка)', En='+ Relief (picture)'}" ToolTip="{l:Tr 'Создать 3D-рельеф из картинки: светлое — выше, тёмное — глубже (можно инвертировать). Обработка сферической фрезой.', En='Create a 3D relief from a picture: light is high, dark is deep (can be inverted). Machined with a ball nose.'}" Command="{Binding AddImageReliefCommand}" />
                             <Button Content="{l:Tr '+ Рельеф (STL)', En='+ Relief (STL)'}" ToolTip="{l:Tr 'Загрузить 3D-модель STL и создать операцию «Рельеф 3D»: обработка поверхности строками сферической фрезой с черновыми проходами.', En='Load an STL 3D model and create a “3D relief” operation: surface machining in lines with a ball nose, with roughing passes.'}" Command="{Binding ImportStlCommand}" />
                         </WrapPanel>
+                        <Expander Header="{l:Tr 'Раскладка деталей на листе', En='Lay out parts on a sheet'}" Margin="0,2,0,0" DataContext="{Binding Nesting}"
+                                  ToolTip="{l:Tr 'Разложить детали по листу заготовки плотно, с зазором между ними. Деталь — замкнутый наружный контур вместе со всем, что внутри (отверстия, гравировка, текст).', En='Lay the parts out on the stock sheet tightly, with a gap between them. A part is a closed outer contour together with everything inside it (holes, engraving, text).'}">
+                            <StackPanel>
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="{l:Tr 'Лист X × Y, мм', En='Sheet X × Y, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SheetWidth}" ToolTip="{l:Tr 'Ширина листа (по X). Лист начинается в нуле чертежа.', En='Sheet width (along X). The sheet starts at the drawing origin.'}" />
+                                    <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding SheetHeight}" ToolTip="{l:Tr 'Высота листа (по Y)', En='Sheet height (along Y)'}" />
+                                    <TextBlock Grid.Row="1" Text="{l:Tr 'Зазор, мм', En='Gap, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Spacing}" ToolTip="{l:Tr 'Расстояние между деталями: не меньше диаметра фрезы (лучше +1–2 мм), для лазера — 1–2 мм', En='Distance between the parts: at least the cutter diameter (better +1–2 mm), 1–2 mm for a laser'}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{l:Tr 'от края', En='edge'}" VerticalAlignment="Center" Margin="6,0" />
+                                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Margin}" ToolTip="{l:Tr 'Отступ от краёв листа (крепёж, неровный край)', En='Distance from the sheet edges (clamps, a rough edge)'}" />
+                                    <TextBlock Grid.Row="2" Text="{l:Tr 'Копий', En='Copies'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Copies}" ToolTip="{l:Tr 'Сколько экземпляров каждой детали разложить; операции получат все копии', En='How many copies of each part to lay out; the operations get all copies'}" />
+                                    <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Margin="6,0,0,0" VerticalAlignment="Center" Content="{l:Tr 'Поворачивать', En='Rotate'}" IsChecked="{Binding AllowRotation}"
+                                              ToolTip="{l:Tr 'Разрешить поворот деталей на 90°, 180°, 270° для плотной раскладки (выключите для фанеры с волокнами или рисунка). Детали с текстом не поворачиваются.', En='Allow turning the parts by 90°, 180°, 270° for a tighter layout (turn off for wood grain or a pattern). Parts with text are not turned.'}" />
+                                </Grid>
+                                <WrapPanel Margin="0,3,0,0">
+                                    <Button Content="{l:Tr 'Разложить', En='Lay out'}"
+                                            ToolTip="{l:Tr 'Разложить выделенные детали (или все, если ничего не выделено). Отменить — Ctrl+Z.', En='Lay out the selected parts (or all when nothing is selected). Undo with Ctrl+Z.'}"
+                                            Command="{Binding DataContext.NestPartsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <Button Content="{l:Tr 'Размер со станка', En='Size from the machine'}"
+                                            ToolTip="{l:Tr 'Взять размер листа из рабочего поля станка, а зазор — по самой большой фрезе + 2 мм.', En='Take the sheet size from the machine work area and the gap from the largest cutter + 2 mm.'}"
+                                            Command="{Binding DataContext.SuggestNestingSheetCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Expander>
                         <Expander Header="{l:Tr 'Тест лазера: мощность × скорость', En='Laser test: power × speed'}" Margin="0,2,0,0" DataContext="{Binding LaserTest}"
                                   ToolTip="{l:Tr 'Сетка квадратов, выжженных с разной мощностью (ряды снизу вверх) и скоростью (столбцы слева направо), с подписями значений. Вырежьте её на обрезке своего материала и выберите лучший квадрат.', En='A grid of squares burned with different power (rows, bottom to top) and speed (columns, left to right), with the values burned next to them. Burn it on a scrap of your material and pick the best square.'}">
                             <StackPanel>
