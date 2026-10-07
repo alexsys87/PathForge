@@ -194,8 +194,8 @@ public static class Nesting
         if (inHoles > 0)
         {
             warnings.Add(Loc.T(
-                $"В отверстиях других деталей: {inHoles} шт. Вырезайте сначала детали в отверстиях, потом внутренние контуры большой детали: PathForge обрабатывает вложенное раньше наружного.",
-                $"Parts in holes of other parts: {inHoles}. The parts in the holes are cut before the inner contours of the large part: PathForge machines nested contours first."));
+                $"В отверстиях других деталей: {inHoles} шт. Режьте сначала детали в отверстиях, потом отверстия, потом наружные контуры: внутри одной операции PathForge так и делает, между операциями — по порядку списка.",
+                $"Parts in holes of other parts: {inHoles}. Cut the parts in the holes first, then the holes, then the outer contours: within one operation PathForge does so itself, between operations the list order counts."));
         }
 
         var sheet = Math.Max(1e-9, area.Width * area.Height);

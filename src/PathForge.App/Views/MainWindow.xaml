@@ -587,9 +587,9 @@
                     <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterModes}" ToolTip="{l:Tr 'Как оттенки серого превращаются в мощность: плавно, дизерингом или порогом', En='How shades of grey turn into power: smoothly, dithered or as a threshold'}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" />
                     <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Мощность мин., %', En='Min power, %'}" />
-                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PowerMinPercent}" ToolTip="{l:Tr 'Мощность для самых тёмных точек (обычно 0–20 %)', En='Power for the darkest spots (usually 0–20 %)'}" />
+                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PowerMinPercent}" ToolTip="{l:Tr 'Мощность для самых светлых выжигаемых точек (обычно 0–20 %)', En='Power for the lightest burnt spots (usually 0–20 %)'}" />
                     <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Мощность макс., %', En='Max power, %'}" />
-                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding PowerMaxPercent}" ToolTip="{l:Tr 'Мощность для самых светлых точек (обычно 100 %)', En='Power for the lightest spots (usually 100 %)'}" />
+                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding PowerMaxPercent}" ToolTip="{l:Tr 'Мощность для самых тёмных точек (обычно 40–100 %)', En='Power for the darkest spots (usually 40–100 %)'}" />
                     <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Скорость, мм/мин', En='Speed, mm/min'}" />
                     <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Speed}" ToolTip="{l:Tr 'Скорость строк гравировки, мм/мин', En='Speed of the engraving lines, mm/min'}" />
                     <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Перебег, мм', En='Overscan, mm'}" />
