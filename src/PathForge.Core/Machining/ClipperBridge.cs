@@ -89,6 +89,41 @@ internal static class ClipperBridge
         return open.Where(p => p.Count >= 2).Select(p => p.Select(q => new Vec2(q.X / Scale, q.Y / Scale)).ToList()).ToList();
     }
 
+    /// <summary>The point lies inside the region (even-odd: holes are outside; on the edge counts as inside).</summary>
+    public static bool Contains(Paths64 region, Vec2 p)
+    {
+        var point = new Point64((long)Math.Round(p.X * Scale), (long)Math.Round(p.Y * Scale));
+        var inside = false;
+        foreach (var path in region)
+        {
+            switch (Clipper.PointInPolygon(point, path))
+            {
+                case PointInPolygonResult.IsOn:
+                    return true;
+                case PointInPolygonResult.IsInside:
+                    inside = !inside;
+                    break;
+            }
+        }
+
+        return inside;
+    }
+
+    /// <summary>Bounds of a region (mm); empty for an empty region.</summary>
+    public static Bounds2 Bounds(Paths64 region)
+    {
+        var bounds = Bounds2.Empty;
+        foreach (var path in region)
+        {
+            foreach (var p in path)
+            {
+                bounds = bounds.Include(new Vec2(p.X / Scale, p.Y / Scale));
+            }
+        }
+
+        return bounds;
+    }
+
     /// <summary>Moves a region by an offset in millimetres.</summary>
     public static Paths64 Translate(Paths64 region, Vec2 offset) =>
         Clipper.TranslatePaths(region, (long)Math.Round(offset.X * Scale), (long)Math.Round(offset.Y * Scale));

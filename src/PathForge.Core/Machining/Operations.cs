@@ -106,6 +106,15 @@ public sealed class ProfileOperation : Operation
 
     /// <summary>Radius of the lead arcs (mm).</summary>
     public double LeadRadius { get; set; } = 2;
+
+    /// <summary>
+    /// Rest machining by simulation: the contour is cut only where the stock left by the operations above this
+    /// one (3D simulation) still stands in the way of the tool, pass by pass. Lead arcs are not used then.
+    /// </summary>
+    public bool RestFromStock { get; set; }
+
+    /// <summary>Material thinner than this (mm) is not machined again by rest machining by simulation.</summary>
+    public double RestTolerance { get; set; } = 0.05;
 }
 
 /// <summary>How a pocket is cleared.</summary>
@@ -141,6 +150,15 @@ public sealed class PocketOperation : Operation
 
     /// <summary>Allowance the larger tool left on the walls (mm).</summary>
     public double RestFromAllowance { get; set; }
+
+    /// <summary>
+    /// Rest machining by simulation: only where the stock left by the operations above this one (3D simulation)
+    /// still stands above the pass. Takes precedence over <see cref="RestFromDiameter"/>.
+    /// </summary>
+    public bool RestFromStock { get; set; }
+
+    /// <summary>Material thinner than this (mm) is not machined again by rest machining by simulation.</summary>
+    public double RestTolerance { get; set; } = 0.05;
 }
 
 /// <summary>

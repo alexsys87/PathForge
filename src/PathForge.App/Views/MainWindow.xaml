@@ -98,6 +98,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Сторона', En='Side'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ProfileSides}"
@@ -107,6 +109,11 @@
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" ToolTip="{l:Tr 'Направление движения фрезы: попутное режет чище, встречное надёжнее на рыхлом материале', En='Tool travel direction: climb cuts cleaner, conventional is safer on soft material'}" />
                     <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Припуск, мм', En='Allowance, mm'}" />
                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Allowance}" ToolTip="{l:Tr 'Припуск: сколько материала остаётся; отрицательный — резать глубже контура', En='Allowance: how much material to leave; a negative value cuts past the contour'}" />
+                    <CheckBox Grid.Row="3" Grid.Column="1" Margin="0,3,0,0" Content="{l:Tr 'Дообработка по симуляции', En='Rest machining by simulation'}" IsChecked="{Binding RestFromStock}"
+                              ToolTip="{l:Tr 'PathForge симулирует операции выше по списку и режет контур только там, где фреза ещё встретит материал: проходы глубже, чем прорезала прошлая операция, припуск, оставленный черновым проходом, места, куда крупная фреза не пролезла. Перемычки сохраняются, подвод по дуге не используется.', En='PathForge simulates the operations above in the list and cuts the contour only where the tool still meets material: passes deeper than the previous operation went, the allowance a roughing pass left, places the larger cutter could not get into. Tabs are kept, arc lead-ins are not used.'}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Допуск остатков, мм', En='Rest tolerance, mm'}" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RestTolerance}" IsEnabled="{Binding RestFromStock}"
+                             ToolTip="{l:Tr 'Только для дообработки по симуляции: остаток тоньше этого не обрабатывается заново (0,03–0,1 мм).', En='Rest machining by simulation only: material thinner than this is not machined again (0.03–0.1 mm).'}" />
                 </Grid>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
                 <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Перемычки (удерживают деталь)', En='Tabs (hold the part)'}" />
@@ -273,6 +280,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
@@ -291,6 +300,11 @@
                     <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Её припуск, мм', En='Its allowance, mm'}" />
                     <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding RestFromAllowance}"
                              ToolTip="{l:Tr 'Припуск, который оставила крупная фреза (черновая с припуском): тогда мелкая пройдёт и вдоль всех стенок.', En='Allowance the larger cutter left (roughing with an allowance): the small cutter then also runs along all the walls.'}" />
+                    <CheckBox Grid.Row="6" Grid.Column="1" Margin="0,3,0,0" Content="{l:Tr 'Дообработка по симуляции', En='Rest machining by simulation'}" IsChecked="{Binding RestFromStock}"
+                              ToolTip="{l:Tr 'PathForge симулирует операции выше по списку и выбирает карман только там, где материал ещё остался: углы и узкие места после крупной фрезы, припуск на стенках, глубина ниже, чем дошла прошлая операция. Не нужно вписывать диаметр крупной фрезы — поля «Дообработка после Ø» и «Её припуск» тогда не используются.', En='PathForge simulates the operations above in the list and clears the pocket only where material is still left: corners and narrow places after the larger cutter, allowance on the walls, depth below where the previous operation went. No need to enter the larger cutter diameter — “Rest after Ø” and “Its allowance” are not used then.'}" />
+                    <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Допуск остатков, мм', En='Rest tolerance, mm'}" />
+                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding RestTolerance}" IsEnabled="{Binding RestFromStock}"
+                             ToolTip="{l:Tr 'Только для дообработки по симуляции: остаток тоньше этого не обрабатывается заново (0,03–0,1 мм).', En='Rest machining by simulation only: material thinner than this is not machined again (0.03–0.1 mm).'}" />
                 </Grid>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"

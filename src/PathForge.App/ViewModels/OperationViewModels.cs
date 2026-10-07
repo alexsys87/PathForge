@@ -106,6 +106,10 @@ public sealed class ProfileOperationViewModel : OperationViewModel
 
     public override string KindLabel => Loc.T("Контур", "Profile");
 
+    public override string Summary => _model.RestFromStock
+        ? Loc.T($"{KindLabel} · дообработка по симуляции · {Model.Depth:0.##} мм", $"{KindLabel} · rest by simulation · {Model.Depth:0.##} mm")
+        : base.Summary;
+
     public ProfileSide Side
     {
         get => _model.Side;
@@ -152,6 +156,18 @@ public sealed class ProfileOperationViewModel : OperationViewModel
     {
         get => _model.LeadRadius;
         set => Set(_model.LeadRadius, Math.Clamp(value, 0.1, 50), v => _model.LeadRadius = v);
+    }
+
+    public bool RestFromStock
+    {
+        get => _model.RestFromStock;
+        set => Set(_model.RestFromStock, value, v => _model.RestFromStock = v);
+    }
+
+    public double RestTolerance
+    {
+        get => _model.RestTolerance;
+        set => Set(_model.RestTolerance, Math.Clamp(value, 0.005, 2), v => _model.RestTolerance = v);
     }
 }
 
@@ -212,7 +228,9 @@ public sealed class PocketOperationViewModel : OperationViewModel
         set => Set(_model.Allowance, Math.Max(0, value), v => _model.Allowance = v);
     }
 
-    public override string Summary => _model.RestFromDiameter > 0
+    public override string Summary => _model.RestFromStock
+        ? Loc.T($"{KindLabel} · дообработка по симуляции · {Model.Depth:0.##} мм", $"{KindLabel} · rest by simulation · {Model.Depth:0.##} mm")
+        : _model.RestFromDiameter > 0
         ? Loc.T($"{KindLabel} · дообработка после Ø{_model.RestFromDiameter:0.##} · {Model.Depth:0.##} мм", $"{KindLabel} · rest after Ø{_model.RestFromDiameter:0.##} · {Model.Depth:0.##} mm")
         : _model.Strategy == PocketStrategy.Adaptive
             ? Loc.T($"{KindLabel} адаптивный · {Model.Depth:0.##} мм · контуров: {Model.ContourIds.Count}", $"Adaptive {KindLabel.ToLowerInvariant()} · {Model.Depth:0.##} mm · contours: {Model.ContourIds.Count}")
@@ -240,6 +258,18 @@ public sealed class PocketOperationViewModel : OperationViewModel
     {
         get => _model.RestFromAllowance;
         set => Set(_model.RestFromAllowance, Math.Clamp(value, 0, 10), v => _model.RestFromAllowance = v);
+    }
+
+    public bool RestFromStock
+    {
+        get => _model.RestFromStock;
+        set => Set(_model.RestFromStock, value, v => _model.RestFromStock = v);
+    }
+
+    public double RestTolerance
+    {
+        get => _model.RestTolerance;
+        set => Set(_model.RestTolerance, Math.Clamp(value, 0.005, 2), v => _model.RestTolerance = v);
     }
 }
 

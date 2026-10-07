@@ -1,6 +1,7 @@
 using PathForge.Core.Geometry;
 using PathForge.Core.Localization;
 using PathForge.Core.Projects;
+using PathForge.Core.Simulation;
 
 namespace PathForge.Core.Machining;
 
@@ -115,13 +116,16 @@ public static partial class ToolpathGenerator
 
             var writer = new PathWriter(position, project.Machine.SafeZ);
             var context = new OperationContext(project.Machine, operation, cuttingTool, writer, result.Warnings, label);
+            var restStock = operation is PocketOperation { RestFromStock: true } or ProfileOperation { RestFromStock: true }
+                ? RestStockFor(project, result.Toolpaths, selected, cuttingTool, operation, result.Warnings, label)
+                : null;
             switch (operation)
             {
                 case ProfileOperation profile:
-                    GenerateProfile(profile, selected, context);
+                    GenerateProfile(profile, selected, context, restStock);
                     break;
                 case PocketOperation pocket:
-                    GeneratePocket(pocket, selected, context);
+                    GeneratePocket(pocket, selected, context, restStock);
                     break;
                 case DrillOperation drill:
                     GenerateDrill(drill, selected, context);
@@ -168,11 +172,14 @@ public static partial class ToolpathGenerator
         return levels;
     }
 
-    private static void GenerateProfile(ProfileOperation operation, List<Contour> contours, OperationContext context)
+    /// <param name="stock">Rest machining by simulation: the stock left by the operations before this one; null = cut in full.</param>
+    private static void GenerateProfile(ProfileOperation operation, List<Contour> contours, OperationContext context, HeightField? stock = null)
     {
         var tool = context.Tool;
         var passes = PassDepths(operation.StartZ, operation.Depth, tool.StepDown);
         var tabTop = operation.BottomZ + operation.TabHeight;
+        var restTolerance = Math.Max(0.005, operation.RestTolerance);
+        var restLeft = false;
 
         foreach (var contour in OrderInsideFirst(contours, context.Writer.Position.XY))
         {
@@ -189,11 +196,19 @@ public static partial class ToolpathGenerator
                     context.Warnings.Add(Loc.T($"{context.Label}: контур №{contour.Id} не замкнут и обработан по линии.", $"{context.Label}: contour #{contour.Id} is open and was cut on the line."));
                 }
 
-                CutOpenPath(points, passes, context);
+                if (stock is not null)
+                {
+                    restLeft |= CutStockRestPath(points, closed: false, passes, new List<(double, double)>(), tabTop, stock, restTolerance, context);
+                }
+                else
+                {
+                    CutOpenPath(points, passes, context);
+                }
+
                 continue;
             }
 
-            var withLeads = operation.Lead == LeadMode.Arc && operation.LeadRadius > 0 && operation.Side != ProfileSide.OnLine;
+            var withLeads = stock is null && operation.Lead == LeadMode.Arc && operation.LeadRadius > 0 && operation.Side != ProfileSide.OnLine;
             var loops = ProfileLoops(operation, points, tool).ToList();
             if (loops.Count == 0 && operation.Side == ProfileSide.Inside && contour.TryGetSlot(out var slotA, out var slotB, out var slotWidth))
             {
@@ -205,7 +220,15 @@ public static partial class ToolpathGenerator
                         $"{context.Label}: slot #{contour.Id} is narrower than the tool ({slotWidth:0.##} < Ø{tool.Diameter:0.##}) — it comes out wider."));
                 }
 
-                CutOpenPath(new List<Vec2> { slotA, slotB }, passes, context);
+                if (stock is not null)
+                {
+                    restLeft |= CutStockRestPath(new List<Vec2> { slotA, slotB }, closed: false, passes, new List<(double, double)>(), tabTop, stock, restTolerance, context);
+                }
+                else
+                {
+                    CutOpenPath(new List<Vec2> { slotA, slotB }, passes, context);
+                }
+
                 continue;
             }
 
@@ -213,6 +236,13 @@ public static partial class ToolpathGenerator
             {
                 if (loop.Count < 3)
                 {
+                    continue;
+                }
+
+                if (stock is not null)
+                {
+                    var ring = Polyline.RotateToNearest(loop, context.Writer.Position.XY);
+                    restLeft |= CutStockRestPath(ring, closed: true, passes, TabIntervals(operation, ring, tool, context, contour.Id), tabTop, stock, restTolerance, context);
                     continue;
                 }
 
@@ -238,6 +268,13 @@ public static partial class ToolpathGenerator
                     CutClosedLoop(ring, passes, tabs, tabTop, context);
                 }
             }
+        }
+
+        if (stock is not null && !restLeft)
+        {
+            context.Warnings.Add(Loc.T(
+                $"{context.Label}: остатков нет — операции выше уже прорезали контур с допуском {operation.RestTolerance:0.###} мм.",
+                $"{context.Label}: nothing left — the operations above already cut the contour within {operation.RestTolerance:0.###} mm."));
         }
     }
 
@@ -269,7 +306,8 @@ public static partial class ToolpathGenerator
         }
     }
 
-    private static void GeneratePocket(PocketOperation operation, List<Contour> contours, OperationContext context)
+    /// <param name="stock">Rest machining by simulation: the stock left by the operations before this one; null = no such rest machining.</param>
+    private static void GeneratePocket(PocketOperation operation, List<Contour> contours, OperationContext context, HeightField? stock = null)
     {
         var tool = context.Tool;
         var closed = contours.Where(c => c.IsClosed).ToList();
@@ -284,6 +322,12 @@ public static partial class ToolpathGenerator
         }
 
         var region = ClipperBridge.EvenOddRegion(closed.Select(c => (IReadOnlyList<Vec2>)c.Flatten(FlattenTolerance)));
+        if (stock is not null)
+        {
+            GenerateStockRestPocket(operation, region, stock, context);
+            return;
+        }
+
         if (operation.RestFromDiameter > 0)
         {
             GenerateRestPocket(operation, region, context);
