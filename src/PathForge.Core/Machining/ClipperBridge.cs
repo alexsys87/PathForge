@@ -55,6 +55,11 @@ internal static class ClipperBridge
 
     public static Paths64 Difference(Paths64 subject, Paths64 clip) => Clipper.Difference(subject, clip, FillRule.NonZero);
 
+    public static Paths64 Intersect(Paths64 subject, Paths64 clip) => Clipper.Intersect(subject, clip, FillRule.NonZero);
+
+    /// <summary>Area of a region (mm²).</summary>
+    public static double Area(Paths64 region) => Clipper.Area(region) / (Scale * Scale);
+
     /// <summary>Area swept by a pen of radius <paramref name="radius"/> along an open polyline (round or square ends).</summary>
     public static Paths64 Stroke(IReadOnlyList<Vec2> polyline, double radius, bool squareEnds = false) =>
         Clipper.InflatePaths(ToPaths(new[] { polyline }), radius * Scale, JoinType.Round,

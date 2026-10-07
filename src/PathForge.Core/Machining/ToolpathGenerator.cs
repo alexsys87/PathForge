@@ -75,6 +75,20 @@ public static partial class ToolpathGenerator
                 continue;
             }
 
+            if (operation is FacingOperation face)
+            {
+                var faceWriter = new PathWriter(position, project.Machine.SafeZ);
+                GenerateFacing(face, contours, new OperationContext(project.Machine, operation, tool, faceWriter, result.Warnings, label));
+                faceWriter.Retract();
+                if (faceWriter.Moves.Count > 0)
+                {
+                    result.Toolpaths.Add(new Toolpath(operation, tool, faceWriter.Moves));
+                    position = faceWriter.Position;
+                }
+
+                continue;
+            }
+
             var selected = new List<Contour>();
             foreach (var id in operation.ContourIds)
             {
@@ -254,6 +268,18 @@ public static partial class ToolpathGenerator
         }
 
         var region = ClipperBridge.EvenOddRegion(closed.Select(c => (IReadOnlyList<Vec2>)c.Flatten(FlattenTolerance)));
+        if (operation.RestFromDiameter > 0)
+        {
+            GenerateRestPocket(operation, region, context);
+            return;
+        }
+
+        if (operation.Strategy == PocketStrategy.Adaptive)
+        {
+            GenerateAdaptivePocket(operation, region, context);
+            return;
+        }
+
         var stepOver = tool.StepOver;
         if (stepOver <= 0 || stepOver > tool.Diameter)
         {

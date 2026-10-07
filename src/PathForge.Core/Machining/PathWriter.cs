@@ -39,6 +39,15 @@ internal sealed class PathWriter
         Add(MoveKind.Rapid, new Vec3(xy, _safeZ));
     }
 
+    /// <summary>Rapid move to <paramref name="xy"/> at the current height (the caller knows the way is clear).</summary>
+    public void RapidTo(Vec2 xy)
+    {
+        if (!Position.XY.IsNear(xy, Epsilon))
+        {
+            Add(MoveKind.Rapid, new Vec3(xy, Position.Z));
+        }
+    }
+
     /// <summary>Rapid down to <paramref name="z"/> if the tool is above it.</summary>
     public void RapidDownTo(double z)
     {
