@@ -89,7 +89,7 @@ public sealed class Contour
         if (arcs.Count != 2 || Segments.OfType<LineSegment>().Count() != 2 ||
             arcs.Any(arc => Math.Abs(Math.Abs(arc.Sweep) - Math.PI) > 1e-6) ||
             Math.Abs(arcs[0].Radius - arcs[1].Radius) > 1e-6 || arcs[0].Center.IsNear(arcs[1].Center, 1e-6) ||
-            Segments[0].GetType() == Segments[1].GetType())
+            Enumerable.Range(0, 4).Any(i => Segments[i].GetType() == Segments[(i + 1) % 4].GetType()))
         {
             return false;
         }

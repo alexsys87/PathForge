@@ -37,6 +37,17 @@ public class PcbSlotAlignmentTests
 
         var circle = new Contour(2, new Segment[] { new ArcSegment(new Vec2(0, 0), 1, 0, 2 * Math.PI) });
         Assert.False(circle.TryGetSlot(out _, out _, out _));
+
+        // Two half circles next to each other and two lines: closed, but not a slot.
+        var odd = new Contour(3, new Segment[]
+        {
+            new LineSegment(new Vec2(0, 0), new Vec2(4, 0)),
+            new ArcSegment(new Vec2(4, 1), 1, -Math.PI / 2, Math.PI),
+            new ArcSegment(new Vec2(4, 3), 1, -Math.PI / 2, Math.PI),
+            new LineSegment(new Vec2(4, 4), new Vec2(0, 0)),
+        });
+        Assert.True(odd.IsClosed);
+        Assert.False(odd.TryGetSlot(out _, out _, out _));
     }
 
     [Fact]
