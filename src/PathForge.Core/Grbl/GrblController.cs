@@ -572,7 +572,7 @@ public sealed class GrblController : IDisposable
             {
                 OnAlarm(alarm);
             }
-            else if (line.StartsWith("Grbl ", StringComparison.Ordinal))
+            else if (line.StartsWith("Grbl ", StringComparison.Ordinal) || line.StartsWith("GrblHAL ", StringComparison.Ordinal))
             {
                 OnStartup(line);
             }
