@@ -30,6 +30,14 @@ public static class ProjectSerializer
         return project;
     }
 
+    /// <summary>Independent copy of an operation (with a new id), e.g. to base a rest machining pass on it.</summary>
+    public static Machining.Operation CloneOperation(Machining.Operation operation)
+    {
+        var copy = JsonSerializer.Deserialize<Machining.Operation>(JsonSerializer.Serialize(operation, Options), Options)!;
+        copy.Id = Guid.NewGuid().ToString("N");
+        return copy;
+    }
+
     public static void Save(CamProject project, string path) => File.WriteAllText(path, Serialize(project));
 
     public static CamProject Load(string path) => Deserialize(File.ReadAllText(path));

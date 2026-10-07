@@ -548,6 +548,15 @@ public sealed class ReliefOperation : Operation
     /// </summary>
     public double SteepAngle { get; set; }
 
+    /// <summary>
+    /// Rest machining: the operations before this one are simulated, and this (usually smaller) tool machines only
+    /// where material is left above the model — corners, narrow valleys and steps the larger tool could not reach.
+    /// </summary>
+    public bool RestMachining { get; set; }
+
+    /// <summary>Material thinner than this above the model is not machined again (mm).</summary>
+    public double RestTolerance { get; set; } = 0.05;
+
     [JsonIgnore]
     public double HeightMm
     {

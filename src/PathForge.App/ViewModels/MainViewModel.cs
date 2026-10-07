@@ -402,6 +402,39 @@ public sealed partial class MainViewModel : ObservableObject
         ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Rest machining after a relief: a copy of the selected (or last) relief with the largest ball nose or V-bit
+    /// smaller than its tool; it machines only what the simulation leaves above the model.
+    /// </summary>
+    [RelayCommand]
+    private void AddReliefRest()
+    {
+        var source = SelectedOperation?.Model as ReliefOperation ?? _project.Operations.OfType<ReliefOperation>().LastOrDefault(o => !o.RestMachining)
+            ?? _project.Operations.OfType<ReliefOperation>().LastOrDefault();
+        if (source is null)
+        {
+            Messages.Add(Loc.T("В проекте нет рельефа 3D.", "The project has no 3D relief."));
+            return;
+        }
+
+        var used = _project.Tools.FirstOrDefault(t => t.Id == source.ToolId);
+        var smaller = _project.Tools
+            .Where(t => t.Kind is ToolKind.BallNose or ToolKind.VBit && (used is null || t.Diameter < used.Diameter - 1e-9))
+            .MaxBy(t => t.Diameter);
+        if (smaller is null)
+        {
+            Messages.Add(Loc.T(
+                "Для дообработки добавьте фрезу меньше: «Инструменты» → пресет «Рельеф 3D: Сферическая Ø2 (R1)» или гравёр. Операция создана с прежней фрезой — смените её.",
+                "For rest machining add a smaller tool: “Tools” → preset “3D relief: Ball nose Ø2 (R1)” or a V-bit. The operation was created with the same tool — change it."));
+        }
+
+        var rest = (ReliefOperation)ProjectSerializer.CloneOperation(source);
+        // Roughing stays as in the source: a deep valley the large tool never reached must not be cut in one pass.
+        rest.RestMachining = true;
+        rest.Name = Loc.T($"Дообработка: {source.Name}", $"Rest: {source.Name}");
+        AddOperation(rest, smaller ?? used, source.ContourIds);
+    }
+
     [RelayCommand]
     private void AddImageRelief()
     {

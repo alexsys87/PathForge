@@ -752,6 +752,18 @@ public sealed class ReliefOperationViewModel : OperationViewModel
         set => Set(_model.SteepAngle, Math.Clamp(value, 0, 89), v => _model.SteepAngle = v);
     }
 
+    public bool RestMachining
+    {
+        get => _model.RestMachining;
+        set => Set(_model.RestMachining, value, v => _model.RestMachining = v);
+    }
+
+    public double RestTolerance
+    {
+        get => _model.RestTolerance;
+        set => Set(_model.RestTolerance, Math.Clamp(value, 0.005, 2), v => _model.RestTolerance = v);
+    }
+
     public void ReplaceImage(GrayImage image)
     {
         Set(_model.Image, image, v => _model.Image = v, nameof(SourceInfo));
