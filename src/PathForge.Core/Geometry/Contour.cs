@@ -72,6 +72,34 @@ public sealed class Contour
         return true;
     }
 
+    /// <summary>
+    /// Ends of the axis and width when the contour is a straight slot (oblong hole, e.g. an Excellon G85 slot):
+    /// two parallel lines joined by two half circles of the same radius.
+    /// </summary>
+    public bool TryGetSlot(out Vec2 a, out Vec2 b, out double width)
+    {
+        a = b = default;
+        width = 0;
+        if (!IsClosed || Segments.Count != 4)
+        {
+            return false;
+        }
+
+        var arcs = Segments.OfType<ArcSegment>().ToList();
+        if (arcs.Count != 2 || Segments.OfType<LineSegment>().Count() != 2 ||
+            arcs.Any(arc => Math.Abs(Math.Abs(arc.Sweep) - Math.PI) > 1e-6) ||
+            Math.Abs(arcs[0].Radius - arcs[1].Radius) > 1e-6 || arcs[0].Center.IsNear(arcs[1].Center, 1e-6) ||
+            Enumerable.Range(0, 4).Any(i => Segments[i].GetType() == Segments[(i + 1) % 4].GetType()))
+        {
+            return false;
+        }
+
+        a = arcs[0].Center;
+        b = arcs[1].Center;
+        width = 2 * arcs[0].Radius;
+        return true;
+    }
+
     /// <summary>Polyline approximation. For closed contours the closing point is not repeated.</summary>
     public List<Vec2> Flatten(double tolerance = DefaultFlattenTolerance)
     {

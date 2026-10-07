@@ -132,6 +132,12 @@ public sealed class GrblController : IDisposable
 
     public int AcknowledgedCommands { get; private set; }
 
+    /// <summary>
+    /// Source line of the last program line GRBL accepted ("ok"), kept after the job ends so that a stopped or
+    /// interrupted job can be resumed (0 = none). GRBL accepts lines into its planner ahead of the machine.
+    /// </summary>
+    public int LastAcknowledgedLine { get; private set; }
+
     /// <summary>Bytes of GRBL's serial buffer occupied by lines that were not answered yet.</summary>
     public int BufferUsed
     {
@@ -346,6 +352,7 @@ public sealed class GrblController : IDisposable
             TotalCommands = _program.Count(l => l.Text.Length > 0);
             SentCommands = 0;
             AcknowledgedCommands = 0;
+            LastAcknowledgedLine = 0;
             JobMessage = "";
             Job = GrblJobState.Running;
             _checkMode = check;
@@ -609,6 +616,11 @@ public sealed class GrblController : IDisposable
         if (line.SourceLine > 0)
         {
             AcknowledgedCommands++;
+            if (error is null && !_checkMode)
+            {
+                LastAcknowledgedLine = line.SourceLine;
+            }
+
             if (error is { } code)
             {
                 var text = Loc.T($"Строка {line.SourceLine} «{line.Text}»: {GrblMessages.Error(code)}", $"Line {line.SourceLine} “{line.Text}”: {GrblMessages.Error(code)}");

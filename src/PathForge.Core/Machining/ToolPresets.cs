@@ -59,6 +59,7 @@ public static class ToolPresets
         Preset(Pcb, ("Сверло Ø0,8", "Drill Ø0.8"), ToolKind.Drill, 0.8, 10000, feed: 100, plunge: 50, stepDown: 2, stepOver: 50),
         Preset(Pcb, ("Сверло Ø1,0", "Drill Ø1.0"), ToolKind.Drill, 1.0, 10000, feed: 100, plunge: 50, stepDown: 2, stepOver: 50),
         Preset(General, ("Сверло Ø3", "Drill Ø3"), ToolKind.Drill, 3, 8000, feed: 150, plunge: 60, stepDown: 3, stepOver: 50),
+        Preset(General, ("Фреза Ø6 для выравнивания стола (торцовка)", "Ø6 end mill for spoil board surfacing (facing)"), ToolKind.EndMill, 6, 10000, feed: 600, plunge: 150, stepDown: 0.3, stepOver: 60),
         Preset(Laser, ("Лазерный модуль 5 Вт (пятно ≈0,15)", "Laser module 5 W (spot ≈0.15)"), ToolKind.Laser, 0.15, 0, feed: 1000, plunge: 1000, stepDown: 1, stepOver: 100),
         Preset(Laser, ("Лазерный модуль 10 Вт (пятно ≈0,1)", "Laser module 10 W (spot ≈0.1)"), ToolKind.Laser, 0.1, 0, feed: 1000, plunge: 1000, stepDown: 1, stepOver: 100),
     };

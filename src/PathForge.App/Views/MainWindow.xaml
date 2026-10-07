@@ -268,16 +268,32 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" ToolTip="{l:Tr 'Направление движения фрезы: попутное режет чище, встречное надёжнее на рыхлом материале', En='Tool travel direction: climb cuts cleaner, conventional is safer on soft material'}" />
                     <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Припуск, мм', En='Allowance, mm'}" />
                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Allowance}" ToolTip="{l:Tr 'Припуск: сколько материала остаётся; отрицательный — резать глубже контура', En='Allowance: how much material to leave; a negative value cuts past the contour'}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Стратегия', En='Strategy'}" />
+                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.PocketStrategies}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Strategy}"
+                              ToolTip="{l:Tr 'Кольцами — обычная выборка с перекрытием инструмента: в начале и в углах фреза режет почти всей шириной. Адаптивный — сначала трохоидами (петлями) прорезается канал по середине кармана, потом кольца расходятся от него маленьким шагом: фреза всё время снимает одинаково узкую полосу, без полного погружения по ширине даже в углах. Для слабого шпинделя 775 — меньше поломок фрез; шаг по глубине можно увеличить в 2–3 раза, а подачу — поднять.', En='Rings — classic clearing with the tool step-over: at the start and in corners the cutter cuts with almost its full width. Adaptive — first a channel along the middle of the pocket is opened with trochoids (loops), then rings spread from it by a small step: the cutter always takes an equally narrow strip, never its full width, not even in corners. For a weak 775 spindle — fewer broken cutters; the step-down can be 2–3 times larger and the feed higher.'}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Нагрузка, % Ø', En='Load, % Ø'}" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding AdaptiveStepOverPercent}"
+                             ToolTip="{l:Tr 'Только для адаптивного кармана: ширина полосы, которую фреза снимает за проход, в процентах диаметра. 10–20 % — обычно; меньше — легче фрезе, но дольше. На изгибах шаг автоматически уменьшается, чтобы нагрузка не росла.', En='Adaptive pocket only: width of the strip the cutter takes per pass, percent of the diameter. 10–20 % is usual; less is easier on the cutter but takes longer. On bends the step is reduced automatically so that the load does not grow.'}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Дообработка после Ø', En='Rest after Ø'}" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RestFromDiameter}"
+                             ToolTip="{l:Tr 'Дообработка: диаметр крупной фрезы, которая уже выбрала этот карман (0 — выключено). Тогда эта, меньшая, фреза проходит только там, куда крупная не достала: углы и узкие места, а не весь контур заново. Глубина — как у кармана крупной фрезы.', En='Rest machining: diameter of the larger cutter that already cleared this pocket (0 — off). This smaller cutter then goes only where the larger one could not reach: corners and narrow places, not the whole contour again. The depth is the same as for the larger cutter.'}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Её припуск, мм', En='Its allowance, mm'}" />
+                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding RestFromAllowance}"
+                             ToolTip="{l:Tr 'Припуск, который оставила крупная фреза (черновая с припуском): тогда мелкая пройдёт и вдоль всех стенок.', En='Allowance the larger cutter left (roughing with an allowance): the small cutter then also runs along all the walls.'}" />
                 </Grid>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
-                           Text="{l:Tr 'Контуры внутри выбранных контуров становятся островами и не обрабатываются.', En='Contours inside the selected contours become islands and are not machined.'}" />
+                           Text="{l:Tr 'Контуры внутри выбранных контуров становятся островами и не обрабатываются. Адаптивный карман всегда входит в материал по спирали.', En='Contours inside the selected contours become islands and are not machined. An adaptive pocket always enters the material with a helix.'}" />
             </StackPanel>
         </DataTemplate>
 
@@ -290,11 +306,18 @@
                         <ColumnDefinition Width="130" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг, мм (0 — сразу)', En='Peck, mm (0 — at once)'}" />
                     <TextBox Grid.Column="1" Text="{Binding PeckDepth}" ToolTip="{l:Tr 'Опускание за один раз (вывод стружки); 0 — сверлить сразу на всю глубину', En='Plunge per peck (chip clearing); 0 — drill the whole depth at once'}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Пазы: шаг, % Ø', En='Slots: pitch, % Ø'}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SlotPitchPercent}"
+                             ToolTip="{l:Tr 'Пазы (овальные отверстия, G85 в сверловке) сверлятся рядом отверстий вдоль оси: расстояние между ними в процентах диаметра сверла. 30–50 % — стенки получаются ровнее. Сначала сверлится каждое второе отверстие, потом промежуточные — сверло не уводит в соседнее.', En='Slots (oblong holes, G85 in the drill file) are drilled as a row of holes along the axis: the distance between them in percent of the drill diameter. 30–50 % gives smoother walls. Every other hole is drilled first, then the ones between — the drill does not walk into the next hole.'}" />
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
-                           Text="{l:Tr 'Сверлится центр каждой выбранной окружности. Кнопка «Выбрать окружности» на панели инструментов выделяет их все.', En='The centre of every selected circle is drilled. The “Select circles” button on the tool bar selects all of them.'}" />
+                           Text="{l:Tr 'Сверлится центр каждой выбранной окружности и ряд отверстий вдоль каждого выбранного паза. Кнопка «Выбрать окружности» на панели инструментов выделяет все окружности. Паз ровнее фрезеровать: «+ Контур», сторона «Внутри»; если фреза равна ширине паза, она пройдёт по его оси.', En='The centre of every selected circle is drilled, and a row of holes along every selected slot. The “Select circles” button on the tool bar selects all circles. A slot is cleaner when milled: “+ Profile”, side “Inside”; a cutter as wide as the slot runs along its axis.'}" />
             </StackPanel>
         </DataTemplate>
 
@@ -322,6 +345,51 @@
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Text="{l:Tr 'Выберите контуры меди (слой Gerber). Глубина для текстолита обычно 0,05–0,1 мм; ширина реза гравёра зависит от глубины. Неровность заготовки компенсируйте картой высот («Пульт» → «Карта высот»). Подробно — docs/pcb-milling.md.', En='Select the copper contours (Gerber layer). The depth for FR4 is usually 0.05–0.1 mm; the engraver cut width depends on the depth. Compensate an uneven board with a height map (“Control” → “Height map”). Details: docs/pcb-milling.md.'}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:FacingOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Торцовка (выравнивание поверхности)', En='Facing (surfacing)'}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'X, мм (левый край)', En='X, mm (left edge)'}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding X}" ToolTip="{l:Tr 'Левый край области в координатах чертежа. Используется, когда контуры не назначены. В проекте без контуров (только выравнивание стола) этот угол и есть ноль X0 Y0.', En='Left edge of the area in drawing coordinates. Used when no contours are assigned. In a project without contours (surfacing only) this corner is the X0 Y0 zero.'}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Y, мм (нижний край)', En='Y, mm (bottom edge)'}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Y}" ToolTip="{l:Tr 'Нижний край области в координатах чертежа (когда контуры не назначены).', En='Bottom edge of the area in drawing coordinates (when no contours are assigned).'}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина, мм', En='Width, mm'}" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Width}" ToolTip="{l:Tr 'Размер области по X (когда контуры не назначены).', En='Size of the area in X (when no contours are assigned).'}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Высота, мм', En='Height, mm'}" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Height}" ToolTip="{l:Tr 'Размер области по Y (когда контуры не назначены).', En='Size of the area in Y (when no contours are assigned).'}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Поля вокруг, мм', En='Margin, mm'}" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Margin}" ToolTip="{l:Tr 'Когда назначены контуры: на сколько область больше их габарита с каждой стороны.', En='When contours are assigned: how much larger than their bounding box the area is on each side.'}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Строки', En='Lines'}" />
+                    <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterAxes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Axis}"
+                              ToolTip="{l:Tr 'Направление проходов. Вдоль длинной стороны — меньше разворотов.', En='Direction of the passes. Along the long side — fewer turns.'}" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Выход за край, % Ø', En='Overhang, % Ø'}" />
+                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding OverhangPercent}"
+                             ToolTip="{l:Tr 'На сколько край фрезы выходит за область, в процентах диаметра. 50 — центр фрезы доходит до края (край и углы обработаны). Меньше 21 % — углы останутся. Больше 100 % — фреза полностью выходит за край перед разворотом.', En='How far the cutter edge goes past the area, percent of the diameter. 50 — the cutter centre reaches the edge (edges and corners are done). Below 21 % the corners stay. Above 100 % the cutter leaves the area completely before turning.'}" />
+                    <Button Grid.Row="7" Grid.Column="1" HorizontalAlignment="Left" Margin="0,3" Content="{l:Tr 'Всё поле станка', En='Whole machine area'}"
+                            ToolTip="{l:Tr 'Область = всё рабочее поле станка из профиля (для 3018 — 300×180 мм), контуры снимаются. Для выравнивания жертвенного стола: ноль X0 Y0 — в левом нижнем углу хода станка.', En='Area = the whole work area from the machine profile (300×180 mm for a 3018), contours are cleared. For spoil board surfacing: X0 Y0 at the lower-left corner of the machine travel.'}"
+                            Command="{Binding DataContext.FacingFromMachineCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                </Grid>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Зигзагом снимается слой на «Глубину» за проходы по шагу инструмента. Перекрытие строк — из инструмента (40–70 %). Для стола: фреза для выравнивания или концевая Ø6, 0,1–0,3 мм за проход.', En='The zigzag removes the “Depth” in passes of the tool step-down. The line overlap comes from the tool (40–70 %). For a spoil board: a surfacing bit or a Ø6 end mill, 0.1–0.3 mm per pass.'}" />
             </StackPanel>
         </DataTemplate>
 
@@ -695,6 +763,7 @@
                     <MenuItem Header="{l:Tr 'Добавить сверловку (Excellon)…', En='Add drill file (Excellon)…'}" Command="{Binding ImportExcellonCommand}" />
                     <Separator />
                     <MenuItem Header="{l:Tr 'Зеркалить по X (нижний слой)', En='Mirror X (bottom layer)'}" Command="{Binding MirrorXCommand}" />
+                    <MenuItem Header="{l:Tr 'Добавить базовые отверстия (двусторонняя плата)', En='Add alignment holes (double-sided board)'}" Command="{Binding AddAlignmentHolesCommand}" ToolTip="{l:Tr 'Двусторонняя плата: два отверстия под штифты слева и справа от контура платы, на одной горизонтали и симметрично. Сверлятся насквозь в жертвенный стол; плату переворачивают слева направо на штифты, «Зеркалить по X» — и вторая сторона совпадает с первой без перестановки нуля. Диаметр и отступ — на вкладке «Операции», «Двусторонняя плата».', En='Double-sided board: two pin holes left and right of the board outline, on one horizontal line and symmetric. Drilled through into the spoil board; the board is turned over left to right onto the pins, “Mirror X” — and the second side matches the first without moving the zero. Diameter and distance are on the “Operations” tab, “Double-sided board”.'}" />
                     <Separator />
                     <MenuItem Header="{l:Tr '+ Изоляция фрезой (гравёром)', En='+ Isolation by milling (engraver)'}" Command="{Binding AddIsolationCommand}" />
                     <MenuItem Header="{l:Tr '+ Плата лазером (краска и травление)', En='+ Laser PCB (paint and etching)'}" Command="{Binding AddLaserPcbCommand}" ToolTip="{l:Tr 'Добавить операцию «Плата лазером»: медь покрыта краской, лазер выжигает краску вокруг дорожек (полосой или со всей платы), затем плата травится. Выделите медь (и контур платы) перед нажатием.', En='Add a “Laser PCB” operation: the copper is painted, the laser burns the paint around the tracks (a strip or the whole board), then the board is etched. Select the copper (and the board outline) first.'}" />
@@ -743,6 +812,7 @@
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Контур', En='+ Profile'}" ToolTip="{l:Tr 'Добавить операцию «Контур»: фреза идёт вдоль выделенных контуров снаружи, внутри или по линии, в несколько проходов по глубине, с перемычками. Для вырезания деталей и отверстий.', En='Add a “Profile” operation: the tool follows the selected contours outside, inside or on the line, in several depth passes, with tabs. For cutting out parts and holes.'}" Command="{Binding AddProfileCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Карман', En='+ Pocket'}" ToolTip="{l:Tr 'Добавить операцию «Карман»: выборка материала внутри выделенных замкнутых контуров на заданную глубину. Вложенные контуры остаются островами.', En='Add a “Pocket” operation: clears the material inside the selected closed contours to the given depth. Nested contours stay as islands.'}" Command="{Binding AddPocketCommand}" />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Торцовка', En='+ Facing'}" ToolTip="{l:Tr 'Добавить операцию «Торцовка»: прямоугольная область фрезеруется зигзагом в размер — выравнивание жертвенного стола или верха заготовки. Область — выделенные контуры с полями, а без выделения — чертёж или всё поле станка.', En='Add a “Facing” operation: a rectangular area is milled flat in a zigzag — spoil board surfacing or the top of the stock. The area is the selected contours with a margin, or without a selection the drawing or the whole machine area.'}" Command="{Binding AddFacingCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Сверление', En='+ Drill'}" ToolTip="{l:Tr 'Добавить операцию «Сверление»: сверлится центр каждой выделенной окружности, сразу или с шагом (выводом стружки).', En='Add a “Drilling” operation: drills the centre of every selected circle, at once or with pecking.'}" Command="{Binding AddDrillCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Изоляция', En='+ Isolation'}" ToolTip="{l:Tr 'Добавить операцию «Изоляция» для печатных плат: гравёр обходит контуры меди в несколько проходов, отделяя дорожки друг от друга.', En='Add an “Isolation” operation for PCBs: the engraver goes around the copper contours in several passes, separating the tracks.'}" Command="{Binding AddIsolationCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" ToolTip="{l:Tr 'Добавить операцию «V-карвинг»: V-фреза режет внутри выделенных контуров (обычно букв), глубина зависит от ширины — острые углы и красивые надписи.', En='Add a “V-carving” operation: a V-bit cuts inside the selected contours (usually letters), the depth follows the width — sharp corners and nice lettering.'}" Command="{Binding AddVCarveCommand}" />
@@ -792,6 +862,7 @@
                         <WrapPanel>
                             <Button Content="{l:Tr '+ Контур', En='+ Profile'}" ToolTip="{l:Tr 'Добавить операцию «Контур»: фреза идёт вдоль выделенных контуров снаружи, внутри или по линии, в несколько проходов по глубине, с перемычками. Для вырезания деталей и отверстий.', En='Add a “Profile” operation: the tool follows the selected contours outside, inside or on the line, in several depth passes, with tabs. For cutting out parts and holes.'}" Command="{Binding AddProfileCommand}" />
                             <Button Content="{l:Tr '+ Карман', En='+ Pocket'}" ToolTip="{l:Tr 'Добавить операцию «Карман»: выборка материала внутри выделенных замкнутых контуров на заданную глубину. Вложенные контуры остаются островами.', En='Add a “Pocket” operation: clears the material inside the selected closed contours to the given depth. Nested contours stay as islands.'}" Command="{Binding AddPocketCommand}" />
+                            <Button Content="{l:Tr '+ Торцовка', En='+ Facing'}" ToolTip="{l:Tr 'Добавить операцию «Торцовка»: прямоугольная область фрезеруется зигзагом в размер — выравнивание жертвенного стола или верха заготовки. Область — выделенные контуры с полями, а без выделения — чертёж или всё поле станка.', En='Add a “Facing” operation: a rectangular area is milled flat in a zigzag — spoil board surfacing or the top of the stock. The area is the selected contours with a margin, or without a selection the drawing or the whole machine area.'}" Command="{Binding AddFacingCommand}" />
                             <Button Content="{l:Tr '+ Сверление', En='+ Drill'}" ToolTip="{l:Tr 'Добавить операцию «Сверление»: сверлится центр каждой выделенной окружности, сразу или с шагом (выводом стружки).', En='Add a “Drilling” operation: drills the centre of every selected circle, at once or with pecking.'}" Command="{Binding AddDrillCommand}" />
                             <Button Content="{l:Tr '+ Изоляция', En='+ Isolation'}" ToolTip="{l:Tr 'Добавить операцию «Изоляция» для печатных плат: гравёр обходит контуры меди в несколько проходов, отделяя дорожки друг от друга.', En='Add an “Isolation” operation for PCBs: the engraver goes around the copper contours in several passes, separating the tracks.'}" Command="{Binding AddIsolationCommand}" />
                             <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" ToolTip="{l:Tr 'Добавить операцию «V-карвинг»: V-фреза режет внутри выделенных контуров (обычно букв), глубина зависит от ширины — острые углы и красивые надписи.', En='Add a “V-carving” operation: a V-bit cuts inside the selected contours (usually letters), the depth follows the width — sharp corners and nice lettering.'}" Command="{Binding AddVCarveCommand}" />
@@ -836,6 +907,26 @@
                                             ToolTip="{l:Tr 'Взять размер листа из рабочего поля станка, а зазор — по самой большой фрезе + 2 мм.', En='Take the sheet size from the machine work area and the gap from the largest cutter + 2 mm.'}"
                                             Command="{Binding DataContext.SuggestNestingSheetCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </WrapPanel>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="{l:Tr 'Двусторонняя плата: базовые отверстия', En='Double-sided board: alignment holes'}" Margin="0,2,0,0" DataContext="{Binding AlignmentHoles}"
+                                  ToolTip="{l:Tr 'Двусторонняя плата: два отверстия под штифты слева и справа от контура платы, на одной горизонтали и симметрично. Сверлятся насквозь в жертвенный стол; плату переворачивают слева направо на штифты, «Зеркалить по X» — и вторая сторона совпадает с первой без перестановки нуля. Диаметр и отступ — на вкладке «Операции», «Двусторонняя плата».', En='Double-sided board: two pin holes left and right of the board outline, on one horizontal line and symmetric. Drilled through into the spoil board; the board is turned over left to right onto the pins, “Mirror X” — and the second side matches the first without moving the zero. Diameter and distance are on the “Operations” tab, “Double-sided board”.'}">
+                            <StackPanel>
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ø, мм', En='Ø, mm'}" />
+                                    <TextBox Grid.Column="1" Text="{Binding Diameter}" ToolTip="{l:Tr 'Диаметр отверстий и штифтов. Удобно 3 мм: сверло Ø3 из пресетов и штифт — отрезок стальной проволоки или хвостовик сломанного сверла 3 мм.', En='Diameter of the holes and pins. 3 mm is handy: the Ø3 drill from the presets and a pin cut from steel wire or the shank of a broken 3 mm drill.'}" />
+                                    <TextBlock Grid.Column="2" Margin="6,0,0,0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Отступ, мм', En='Gap, mm'}" />
+                                    <TextBox Grid.Column="3" Text="{Binding Margin}" ToolTip="{l:Tr 'Расстояние от контура платы до края отверстия. Заготовка должна быть шире платы на 2 × (отступ + Ø) + запас.', En='Distance from the board outline to the hole edge. The blank must be wider than the board by 2 × (gap + Ø) plus some spare.'}" />
+                                </Grid>
+                                <Button HorizontalAlignment="Left" Margin="0,3,0,0" Content="{l:Tr '+ Базовые отверстия', En='+ Alignment holes'}"
+                                        ToolTip="{l:Tr 'Двусторонняя плата: два отверстия под штифты слева и справа от контура платы, на одной горизонтали и симметрично. Сверлятся насквозь в жертвенный стол; плату переворачивают слева направо на штифты, «Зеркалить по X» — и вторая сторона совпадает с первой без перестановки нуля. Диаметр и отступ — на вкладке «Операции», «Двусторонняя плата».', En='Double-sided board: two pin holes left and right of the board outline, on one horizontal line and symmetric. Drilled through into the spoil board; the board is turned over left to right onto the pins, “Mirror X” — and the second side matches the first without moving the zero. Diameter and distance are on the “Operations” tab, “Double-sided board”.'}"
+                                        Command="{Binding DataContext.AddAlignmentHolesCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                             </StackPanel>
                         </Expander>
                         <Expander Header="{l:Tr 'Тест лазера: мощность × скорость', En='Laser test: power × speed'}" Margin="0,2,0,0" DataContext="{Binding LaserTest}"
@@ -1194,6 +1285,12 @@
                             <ProgressBar Height="12" Margin="0,4" Maximum="100" Value="{Binding Progress}" ToolTip="{l:Tr 'Прогресс выполнения программы', En='Program progress'}" />
                             <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" FontSize="11" />
                             <TextBlock Text="{Binding JobMessage}" TextWrapping="Wrap" Foreground="DarkOrange" FontWeight="SemiBold" Margin="0,2" />
+                            <DockPanel Margin="0,2,0,0">
+                                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Text="{l:Tr 'Со строки', En='From line'}" />
+                                <Button DockPanel.Dock="Right" Content="{l:Tr '▶ С этой строки', En='▶ From this line'}" Command="{Binding StartFromLineCommand}" IsEnabled="{Binding CanStartJob}"
+                                        ToolTip="{l:Tr 'Продолжить программу с указанной строки — после сломанной фрезы, пропадания питания или остановки. PathForge восстановит режимы всех строк до неё (единицы, система координат, подача, шпиндель), поднимет фрезу на безопасную высоту, переедет к началу строки, включит шпиндель и опустится с подачей врезания. После остановки номер подставляется сам — на ~20 строк раньше последней принятой GRBL: плата принимает строки с опережением. После пропадания питания сначала выставьте ноль X/Y/Z точно там же, где он был.', En='Continue the program from the given line — after a broken cutter, a power cut or a stop. PathForge restores the modes of all lines before it (units, coordinate system, feed, spindle), lifts the tool to the safe height, moves over the start of the line, starts the spindle and goes down with the plunge feed. After a stop the number is filled in — ~20 lines before the last one GRBL accepted: the board takes lines ahead of the machine. After a power cut first set the X/Y/Z zero exactly where it was.'}" />
+                                <TextBox Margin="6,0" Text="{Binding ResumeLine}" ToolTip="{l:Tr 'Номер строки программы (как в журнале и в сообщениях об ошибках).', En='Program line number (as in the log and in error messages).'}" />
+                            </DockPanel>
                             <Grid Margin="0,4,0,0" IsEnabled="{Binding IsConnected}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="70" />

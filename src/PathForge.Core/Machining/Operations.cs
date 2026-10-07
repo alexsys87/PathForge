@@ -55,6 +55,7 @@ public enum LeadMode
 [JsonDerivedType(typeof(LaserPcbOperation), "laserPcb")]
 [JsonDerivedType(typeof(ReliefOperation), "relief")]
 [JsonDerivedType(typeof(VCarveOperation), "vcarve")]
+[JsonDerivedType(typeof(FacingOperation), "facing")]
 public abstract class Operation
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -107,12 +108,83 @@ public sealed class ProfileOperation : Operation
     public double LeadRadius { get; set; } = 2;
 }
 
+/// <summary>How a pocket is cleared.</summary>
+public enum PocketStrategy
+{
+    /// <summary>Rings from the centre to the wall at the tool's step-over.</summary>
+    Offset,
+
+    /// <summary>
+    /// Constant load: a trochoidal channel along the middle of the pocket, then rings growing outwards from it by a
+    /// small step. The cutter never goes in with its full width, not even in corners.
+    /// </summary>
+    Adaptive,
+}
+
 /// <summary>Clears the whole area inside closed contours; nested contours become islands.</summary>
 public sealed class PocketOperation : Operation
 {
     public CutDirection Direction { get; set; } = CutDirection.Climb;
 
     public double Allowance { get; set; }
+
+    public PocketStrategy Strategy { get; set; } = PocketStrategy.Offset;
+
+    /// <summary>Adaptive clearing: width of the material taken by each pass, percent of the tool diameter.</summary>
+    public double AdaptiveStepOverPercent { get; set; } = 15;
+
+    /// <summary>
+    /// Rest machining: diameter of the larger tool that already cleared this pocket (0 = off). Only what that
+    /// tool could not reach (corners, narrow places) is machined.
+    /// </summary>
+    public double RestFromDiameter { get; set; }
+
+    /// <summary>Allowance the larger tool left on the walls (mm).</summary>
+    public double RestFromAllowance { get; set; }
+}
+
+/// <summary>
+/// Face milling: a rectangle is machined flat in zigzag lines (spoil board, top of the stock). The area is the
+/// bounding box of the selected contours plus <see cref="Margin"/>, or X/Y/Width/Height without contours.
+/// </summary>
+public sealed class FacingOperation : Operation
+{
+    public FacingOperation()
+    {
+        Depth = 0.3;
+    }
+
+    /// <summary>Lower-left corner of the area when no contours are selected (drawing coordinates, mm).</summary>
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    public double Width { get; set; } = 100;
+
+    public double Height { get; set; } = 100;
+
+    /// <summary>Added on every side of the selected contours' bounding box (mm).</summary>
+    public double Margin { get; set; } = 2;
+
+    /// <summary>Lines run along X or along Y.</summary>
+    public RasterAxis Axis { get; set; } = RasterAxis.X;
+
+    /// <summary>How far the cutter edge goes past the area edge, percent of the diameter (50 = the centre reaches the edge).</summary>
+    public double OverhangPercent { get; set; } = 50;
+
+    /// <summary>Area actually faced (drawing coordinates).</summary>
+    public Geometry.Bounds2 Area(IReadOnlyDictionary<int, Geometry.Contour> contours)
+    {
+        var selected = ContourIds.Where(contours.ContainsKey).Select(id => contours[id]).ToList();
+        if (selected.Count == 0)
+        {
+            return new Geometry.Bounds2(X, Y, X + Math.Max(0, Width), Y + Math.Max(0, Height));
+        }
+
+        var b = selected.Aggregate(Geometry.Bounds2.Empty, (bounds, c) => bounds.Union(c.GetBounds()));
+        var m = Math.Max(0, Margin);
+        return new Geometry.Bounds2(b.MinX - m, b.MinY - m, b.MaxX + m, b.MaxY + m);
+    }
 }
 
 /// <summary>
@@ -141,6 +213,9 @@ public sealed class DrillOperation : Operation
 {
     /// <summary>Depth per peck (0 = drill in one go).</summary>
     public double PeckDepth { get; set; }
+
+    /// <summary>Slots (oblong holes, Excellon G85): distance between the holes drilled along them, percent of the drill diameter.</summary>
+    public double SlotPitchPercent { get; set; } = 40;
 }
 
 /// <summary>

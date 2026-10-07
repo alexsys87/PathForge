@@ -137,6 +137,12 @@ public static class Choices
         new Choice<ReliefFinishing>(ReliefFinishing.ParallelAndWaterline, "Строками + по уровням", "Lines + levels"),
     };
 
+    public static IReadOnlyList<Choice<PocketStrategy>> PocketStrategies { get; } = new[]
+    {
+        new Choice<PocketStrategy>(PocketStrategy.Offset, "Кольцами (обычный)", "Rings (classic)"),
+        new Choice<PocketStrategy>(PocketStrategy.Adaptive, "Адаптивный (постоянная нагрузка)", "Adaptive (constant load)"),
+    };
+
     public static IReadOnlyList<Choice<RasterAxis>> RasterAxes { get; } = new[]
     {
         new Choice<RasterAxis>(RasterAxis.X, "Вдоль X", "Along X"),

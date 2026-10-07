@@ -39,9 +39,21 @@ public sealed class CamProject
     /// <summary>Id for a new contour.</summary>
     public int NextContourId() => Contours.Count == 0 ? 1 : Contours.Max(c => c.Id) + 1;
 
-    /// <summary>Bounding box of all contours in drawing coordinates.</summary>
-    public Bounds2 DrawingBounds() =>
-        Contours.Aggregate(Bounds2.Empty, (bounds, contour) => bounds.Union(contour.GetBounds()));
+    /// <summary>
+    /// Bounding box of all contours in drawing coordinates. Without contours (e.g. a project that only faces the
+    /// spoil board) the facing areas take their place, so that the work zero is their corner.
+    /// </summary>
+    public Bounds2 DrawingBounds()
+    {
+        if (Contours.Count > 0)
+        {
+            return Contours.Aggregate(Bounds2.Empty, (bounds, contour) => bounds.Union(contour.GetBounds()));
+        }
+
+        var none = new Dictionary<int, Contour>();
+        return Operations.OfType<FacingOperation>().Where(f => f.Enabled)
+            .Aggregate(Bounds2.Empty, (bounds, facing) => bounds.Union(facing.Area(none)));
+    }
 
     /// <summary>New project set up for a CNC 3018 with the stock spindle and a few typical tools.</summary>
     public static CamProject CreateDefault()
