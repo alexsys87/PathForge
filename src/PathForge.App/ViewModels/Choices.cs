@@ -121,6 +121,7 @@ public static class Choices
     {
         new Choice<LaserPcbClearing>(LaserPcbClearing.Isolation, "Полоса вокруг меди (быстрее)", "Strip around the copper (faster)"),
         new Choice<LaserPcbClearing>(LaserPcbClearing.All, "Вся лишняя медь (чище)", "All excess copper (cleaner)"),
+        new Choice<LaserPcbClearing>(LaserPcbClearing.Inside, "Внутри контуров (маска, шелкография)", "Inside the contours (mask, silk screen)"),
     };
 
     public static IReadOnlyList<Choice<RasterModulation>> RasterModulations { get; } = new[]

@@ -133,6 +133,9 @@ public static partial class ToolpathGenerator
                 case IsolationOperation isolation:
                     GenerateIsolation(isolation, selected, context);
                     break;
+                case CopperClearingOperation clearing:
+                    GenerateCopperClearing(clearing, contours, context);
+                    break;
                 case VCarveOperation vcarve:
                     GenerateVCarve(vcarve, selected, context);
                     break;
@@ -347,18 +350,29 @@ public static partial class ToolpathGenerator
             return;
         }
 
-        // Rings from the wall inwards: level 0 is the finishing ring along the wall.
+        var levels = InwardRings(region, tool.Radius + operation.Allowance, stepOver, operation.Direction);
+        if (levels.Count == 0)
+        {
+            context.Warnings.Add(Loc.T($"{context.Label}: фреза не помещается в карман.", $"{context.Label}: the tool does not fit into the pocket."));
+            return;
+        }
+
+        CutRingLevels(levels, stepOver, context);
+    }
+
+    /// <summary>Offset rings of a region from the wall inwards: level 0 runs <paramref name="wallOffset"/> inside the wall.</summary>
+    private static List<List<List<Vec2>>> InwardRings(Clipper2Lib.Paths64 region, double wallOffset, double stepOver, CutDirection direction)
+    {
         var levels = new List<List<List<Vec2>>>();
         for (var k = 0; k < 10000; k++)
         {
-            var delta = -(tool.Radius + operation.Allowance + k * stepOver);
-            var rings = ClipperBridge.FromPaths(ClipperBridge.Offset(region, delta));
+            var rings = ClipperBridge.FromPaths(ClipperBridge.Offset(region, -(wallOffset + k * stepOver)));
             if (rings.Count == 0)
             {
                 break;
             }
 
-            if (operation.Direction == CutDirection.Conventional)
+            if (direction == CutDirection.Conventional)
             {
                 rings.ForEach(r => r.Reverse());
             }
@@ -366,14 +380,15 @@ public static partial class ToolpathGenerator
             levels.Add(rings);
         }
 
-        if (levels.Count == 0)
-        {
-            context.Warnings.Add(Loc.T($"{context.Label}: фреза не помещается в карман.", $"{context.Label}: the tool does not fit into the pocket."));
-            return;
-        }
+        return levels;
+    }
 
+    /// <summary>Cuts ring levels at every pass depth, from the innermost level out to the wall ring.</summary>
+    private static void CutRingLevels(List<List<List<Vec2>>> levels, double stepOver, OperationContext context)
+    {
+        var operation = context.Operation;
         var writer = context.Writer;
-        foreach (var z in PassDepths(operation.StartZ, operation.Depth, tool.StepDown))
+        foreach (var z in PassDepths(operation.StartZ, operation.Depth, context.Tool.StepDown))
         {
             // Cut from the centre outwards so that the wall ring is cut last.
             for (var level = levels.Count - 1; level >= 0; level--)

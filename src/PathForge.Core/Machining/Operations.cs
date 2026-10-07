@@ -50,6 +50,7 @@ public enum LeadMode
 [JsonDerivedType(typeof(PocketOperation), "pocket")]
 [JsonDerivedType(typeof(DrillOperation), "drill")]
 [JsonDerivedType(typeof(IsolationOperation), "isolation")]
+[JsonDerivedType(typeof(CopperClearingOperation), "copperClearing")]
 [JsonDerivedType(typeof(LaserVectorOperation), "laserVector")]
 [JsonDerivedType(typeof(LaserRasterOperation), "laserRaster")]
 [JsonDerivedType(typeof(LaserPcbOperation), "laserPcb")]
@@ -262,6 +263,30 @@ public sealed class IsolationOperation : Operation
     public CutDirection Direction { get; set; } = CutDirection.Climb;
 }
 
+/// <summary>
+/// Removes the excess copper of a PCB with a larger end mill: the whole board (outline plus margin, or the copper
+/// bounds) is cleared except a band of <see cref="KeepDistance"/> around the selected copper, which the engraver's
+/// isolation passes take care of. Places narrower than the mill stay as floating copper islands.
+/// </summary>
+public sealed class CopperClearingOperation : Operation
+{
+    public CopperClearingOperation()
+    {
+        Depth = 0.1;
+    }
+
+    /// <summary>Closed board outline contours that limit the cleared area; empty = the copper bounds.</summary>
+    public List<int> BoardContourIds { get; set; } = new();
+
+    /// <summary>Extra cleared margin beyond the board outline or the copper bounds (mm).</summary>
+    public double Margin { get; set; } = 1;
+
+    /// <summary>The mill's edge stays this far from the copper (mm): the width the isolation passes cut.</summary>
+    public double KeepDistance { get; set; } = 0.4;
+
+    public CutDirection Direction { get; set; } = CutDirection.Climb;
+}
+
 public enum LaserVectorMode
 {
     /// <summary>Burn along the contour lines (cutting, line engraving).</summary>
@@ -351,6 +376,12 @@ public enum LaserPcbClearing
 
     /// <summary>All the paint except over the copper: the board is etched clean, only tracks and pads stay.</summary>
     All,
+
+    /// <summary>
+    /// Inside the selected contours: solder mask openings over the pads (the cured mask is burned away) or the
+    /// silk screen markings burned into the mask. The burned edge lands on the contour.
+    /// </summary>
+    Inside,
 }
 
 /// <summary>
