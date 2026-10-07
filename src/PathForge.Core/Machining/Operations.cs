@@ -80,6 +80,12 @@ public abstract class Operation
     /// <summary>Ramp angle to the horizontal, degrees.</summary>
     public double RampAngle { get; set; } = 3;
 
+    /// <summary>
+    /// Air assist (laser) or coolant on during this operation: M8, or M7 when the machine settings say so;
+    /// M9 switches it off for the operations without it.
+    /// </summary>
+    public bool AirAssist { get; set; }
+
     [JsonIgnore]
     public double BottomZ => StartZ - Depth;
 }
@@ -326,6 +332,15 @@ public sealed class LaserVectorOperation : Operation
 
     /// <summary>Width of the cut (mm): measure a cut square and subtract its size from the nominal one.</summary>
     public double KerfWidth { get; set; } = 0.15;
+
+    /// <summary>
+    /// Micro-tabs per closed outer contour burned as a line (0 = none): short gaps where the beam is off, so the
+    /// part stays in the sheet and cannot drop or tilt up under the nozzle. Holes are cut without tabs.
+    /// </summary>
+    public int TabCount { get; set; }
+
+    /// <summary>Material left in each micro-tab (mm); the beam spot is added to the gap.</summary>
+    public double TabWidth { get; set; } = 0.5;
 }
 
 /// <summary>Which part of the paint the laser removes from a painted PCB blank.</summary>

@@ -36,7 +36,7 @@ public static partial class ToolpathGenerator
                 }
 
                 speed = vector.Speed;
-                GenerateLaserVector(vector, selected, writer, result.Warnings, label);
+                GenerateLaserVector(vector, tool, selected, writer, result.Warnings, label);
                 break;
             case LaserRasterOperation raster:
                 speed = raster.Speed;
@@ -60,7 +60,7 @@ public static partial class ToolpathGenerator
         return writer.Position;
     }
 
-    private static void GenerateLaserVector(LaserVectorOperation operation, List<Contour> contours, PathWriter writer,
+    private static void GenerateLaserVector(LaserVectorOperation operation, Tool tool, List<Contour> contours, PathWriter writer,
         List<string> warnings, string label)
     {
         var power = Math.Clamp(operation.PowerPercent, 0, 100) / 100;
@@ -74,6 +74,11 @@ public static partial class ToolpathGenerator
         {
             warnings.Add(Loc.T($"{label}: ширина реза учитывается только у замкнутых контуров.", $"{label}: the kerf is only compensated on closed contours."));
         }
+
+        // Micro-tabs hold the parts: outer contours only, the scrap of holes may fall out.
+        var tabbed = line && operation.TabCount > 0 && operation.TabWidth > 0
+            ? ClosedDepths(contours).Where(c => c.Depth % 2 == 0).Select(c => c.Contour).ToHashSet()
+            : new HashSet<Contour>();
 
         for (var pass = 0; pass < Math.Max(1, operation.Passes); pass++)
         {
@@ -89,7 +94,7 @@ public static partial class ToolpathGenerator
                 continue;
             }
 
-            foreach (var contour in OrderInsideFirst(contours, writer.Position.XY))
+            foreach (var contour in OrderInsideFirst(contours, writer.Position.XY, openFromNearerEnd: true))
             {
                 var points = contour.Flatten(FlattenTolerance);
                 if (points.Count < 2)
@@ -112,12 +117,17 @@ public static partial class ToolpathGenerator
                         burn = Polyline.RotateToNearest(path, writer.Position.XY);
                         burn.Add(burn[0]);
                     }
-
-                    MoveLaserTo(writer, burn[0], z);
-                    foreach (var p in burn.Skip(1))
+                    else if (path[^1].DistanceTo(writer.Position.XY) < path[0].DistanceTo(writer.Position.XY))
                     {
-                        writer.BurnTo(p, power);
+                        // An open line is burned from its nearer end.
+                        burn = Enumerable.Reverse(path).ToList();
                     }
+
+                    var tabs = tabbed.Contains(contour)
+                        ? LaserTabIntervals(burn, operation, tool, pass == 0 ? warnings : null, label, contour.Id)
+                        : new List<(double From, double To)>();
+                    MoveLaserTo(writer, burn[0], z);
+                    BurnWithTabs(burn, tabs, power, writer);
                 }
             }
         }
@@ -129,18 +139,98 @@ public static partial class ToolpathGenerator
     /// </summary>
     internal static Dictionary<Contour, double> KerfDeltas(List<Contour> contours, LaserVectorOperation operation)
     {
-        var closed = contours.Where(c => c.IsClosed).Select(c => (Contour: c, Ring: c.Flatten(FlattenTolerance))).Where(c => c.Ring.Count >= 3).ToList();
         var deltas = new Dictionary<Contour, double>();
         var half = operation.KerfWidth / 2;
-        foreach (var (contour, ring) in closed)
+        foreach (var (contour, depth) in ClosedDepths(contours))
         {
-            var depth = closed.Count(other => !ReferenceEquals(other.Contour, contour) && Polyline.Contains(other.Ring, ring[0]));
             var outer = depth % 2 == 0;
             var grow = outer == (operation.Kerf == KerfCompensation.Parts);
             deltas[contour] = grow ? half : -half;
         }
 
         return deltas;
+    }
+
+    /// <summary>Closed contours with the number of other closed contours around them (even = outer contour, odd = hole).</summary>
+    private static List<(Contour Contour, int Depth)> ClosedDepths(List<Contour> contours)
+    {
+        var closed = contours.Where(c => c.IsClosed).Select(c => (Contour: c, Ring: c.Flatten(FlattenTolerance))).Where(c => c.Ring.Count >= 3).ToList();
+        return closed
+            .Select(c => (c.Contour, closed.Count(other => !ReferenceEquals(other.Contour, c.Contour) && Polyline.Contains(other.Ring, c.Ring[0]))))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Equally spaced micro-tab gaps along a closed burn path (arc length from its start), each the tab width plus
+    /// the beam spot. Empty, with a warning, when the contour is too short for them.
+    /// </summary>
+    internal static List<(double From, double To)> LaserTabIntervals(List<Vec2> burn, LaserVectorOperation operation, Tool tool,
+        List<string>? warnings, string label, int contourId)
+    {
+        var tabs = new List<(double, double)>();
+        var length = Polyline.Length(burn, closed: false);
+        var width = operation.TabWidth + Math.Max(0, tool.Diameter);
+        if (width * operation.TabCount >= length * 0.5)
+        {
+            warnings?.Add(Loc.T($"{label}: контур №{contourId} слишком короткий для {operation.TabCount} перемычек.", $"{label}: contour #{contourId} is too short for {operation.TabCount} tabs."));
+            return tabs;
+        }
+
+        for (var i = 0; i < operation.TabCount; i++)
+        {
+            var center = (i + 0.5) * length / operation.TabCount;
+            tabs.Add((center - width / 2, center + width / 2));
+        }
+
+        return tabs;
+    }
+
+    /// <summary>Burns along a path from its first point, with the beam off over the tab intervals.</summary>
+    private static void BurnWithTabs(List<Vec2> burn, List<(double From, double To)> tabs, double power, PathWriter writer)
+    {
+        if (tabs.Count == 0)
+        {
+            foreach (var p in burn.Skip(1))
+            {
+                writer.BurnTo(p, power);
+            }
+
+            return;
+        }
+
+        bool InTab(double s) => tabs.Any(t => s > t.From && s < t.To);
+        var distance = 0.0;
+        for (var i = 0; i + 1 < burn.Count; i++)
+        {
+            var a = burn[i];
+            var b = burn[i + 1];
+            var length = a.DistanceTo(b);
+            if (length < 1e-9)
+            {
+                continue;
+            }
+
+            var cuts = new List<double> { distance, distance + length };
+            foreach (var (from, to) in tabs)
+            {
+                foreach (var s in new[] { from, to })
+                {
+                    if (s > distance && s < distance + length)
+                    {
+                        cuts.Add(s);
+                    }
+                }
+            }
+
+            cuts.Sort();
+            for (var k = 0; k + 1 < cuts.Count; k++)
+            {
+                var end = Vec2.Lerp(a, b, (cuts[k + 1] - distance) / length);
+                writer.BurnTo(end, InTab((cuts[k] + cuts[k + 1]) / 2) ? 0 : power);
+            }
+
+            distance += length;
+        }
     }
 
     /// <summary>Travel with the beam off to <paramref name="xy"/> and set the focus height.</summary>

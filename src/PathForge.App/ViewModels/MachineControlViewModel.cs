@@ -11,6 +11,7 @@ using PathForge.Core.Geometry;
 using PathForge.Core.Grbl;
 using PathForge.Core.Leveling;
 using PathForge.Core.Localization;
+using PathForge.Core.Machining;
 
 namespace PathForge.App.ViewModels;
 
@@ -50,6 +51,10 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private readonly Func<Bounds2> _programBounds;
     private MachineProgram? _fileProgram;
     private LevelingProbe? _probe;
+    private readonly Func<MachineSettings> _machine;
+
+    /// <summary>The running "job" only traces the frame: no resume line, no program line highlighting.</summary>
+    private bool _framing;
 
     // The open connection, and automatic reconnection after it is lost (USB unplugged, board reboot, WiFi dropped).
     private ConnectionTarget? _target;
@@ -70,9 +75,11 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private int _failedCommandsSeen;
 
     public MachineControlViewModel(IDialogService dialogs, UiPreferences preferences, Func<MachineProgram?> projectProgram, Func<double> safeZ,
-        Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds, Func<double> spindleDelay)
+        Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds, Func<double> spindleDelay,
+        Func<MachineSettings> machine)
     {
         _spindleDelay = spindleDelay;
+        _machine = machine;
         _dialogs = dialogs;
         _preferences = preferences;
         ConnectionKind = preferences.MachineConnection;
@@ -1076,6 +1083,60 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         }
     }
 
+    /// <summary>Laser power while tracing the frame (percent; 0 = the beam stays off).</summary>
+    [ObservableProperty]
+    private double framePowerPercent = 1;
+
+    /// <summary>Speed along the frame (mm/min).</summary>
+    [ObservableProperty]
+    private double frameFeed = 1500;
+
+    /// <summary>
+    /// Traces the rectangle around the program's cuts before the job: the head runs along its border (a laser in
+    /// laser mode at <see cref="FramePowerPercent"/>, so the dot shows the edges; a spindle machine above the stock at
+    /// the safe height) and returns to the start corner.
+    /// </summary>
+    [RelayCommand]
+    private void Frame()
+    {
+        if (_controller is null)
+        {
+            return;
+        }
+
+        var program = _fileProgram ?? _projectProgram();
+        if (program is null)
+        {
+            _dialogs.ShowError(Loc.T("В проекте нет траекторий: добавьте операции и выберите контуры.", "The project has no toolpaths: add operations and select contours."));
+            return;
+        }
+
+        var area = GrblFrame.WorkArea(program.Gcode, out var highestZ);
+        if (area.IsEmpty)
+        {
+            _dialogs.ShowError(Loc.T("В программе нет рабочих ходов (G1, G2, G3) — обводить нечего.", "The program has no work moves (G1, G2, G3) — there is nothing to trace."));
+            return;
+        }
+
+        var machine = _machine();
+        // Never lower than the program itself goes: it knows where the stock and the clamps are.
+        var safeZ = double.IsNaN(highestZ) ? _safeZ() : Math.Max(_safeZ(), highestZ);
+        var lines = GrblFrame.Build(area, new GrblFrameOptions(Math.Max(1, FrameFeed), Math.Clamp(FramePowerPercent, 0, 100),
+            machine.LaserMode, machine.SpindleMaxS, safeZ));
+        var prepared = GrblProgram.Prepare(string.Join("\n", lines));
+        if (Run(c => c.StartJob(prepared.Lines)))
+        {
+            _framing = true;
+            _jobStarted = DateTime.Now;
+            ProgressText = FrameText(area);
+            Refresh();
+        }
+    }
+
+    private static string FrameText(Bounds2 area) => Loc.T(
+        $"Рамка: X {area.MinX:0.##}…{area.MaxX:0.##}, Y {area.MinY:0.##}…{area.MaxY:0.##} мм ({area.Width:0.#}×{area.Height:0.#}).",
+        $"Frame: X {area.MinX:0.##}…{area.MaxX:0.##}, Y {area.MinY:0.##}…{area.MaxY:0.##} mm ({area.Width:0.#}×{area.Height:0.#}).");
+
     /// <summary>Text of the program running on the machine (with the height map applied), null when none was started.</summary>
     [ObservableProperty]
     private string? jobGcode;
@@ -1363,7 +1424,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         IsAlarm = status.State == GrblState.Alarm;
         CanControl = controller.CanSendCommands && status.State is GrblState.Idle or GrblState.Jog or GrblState.Alarm;
         IsJobActive = job != GrblJobState.None;
-        ExecutingLine = IsJobActive ? controller.ExecutingLine : 0;
+        ExecutingLine = IsJobActive && !_framing ? controller.ExecutingLine : 0;
         CanStartJob = job == GrblJobState.None && status.State == GrblState.Idle;
         CanPause = job == GrblJobState.Running;
         CanResume = job is GrblJobState.Paused or GrblJobState.Error or GrblJobState.ProgramStop;
@@ -1374,7 +1435,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             : controller.JobMessage;
         ToolPosition = known ? status.WorkPosition.XY : null;
 
-        if (IsJobActive && controller.TotalCommands > 0)
+        if (IsJobActive && controller.TotalCommands > 0 && !_framing)
         {
             Progress = 100.0 * controller.AcknowledgedCommands / controller.TotalCommands;
             var elapsed = _jobStarted is { } start ? DateTime.Now - start : TimeSpan.Zero;
@@ -1388,6 +1449,15 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     {
         var elapsed = _jobStarted is { } start ? DateTime.Now - start : TimeSpan.Zero;
         _jobStarted = null;
+        if (_framing)
+        {
+            // The frame is not the program: keep the resume line and the progress of the last real job.
+            _framing = false;
+            ProgressText = result.Success ? Loc.T("Рамка обведена. ", "The frame has been traced. ") + ProgressText : result.Message;
+            Refresh();
+            return;
+        }
+
         if (result.Success)
         {
             Progress = 100;

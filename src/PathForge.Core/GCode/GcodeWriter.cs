@@ -34,7 +34,7 @@ public sealed record GcodeOutput(string Text, IReadOnlyList<int[]> MoveLines)
 }
 
 /// <summary>
-/// Writes G-code: G0/G1 moves in absolute millimetres, M3/M5 spindle.
+/// Writes G-code: G0/G1 moves in absolute millimetres, M3/M5 spindle, M8 (or M7) / M9 air assist per operation.
 /// <see cref="GcodeDialect.Generic"/> uses Tn M6 tool changes; <see cref="GcodeDialect.Grbl"/> pauses with M0,
 /// keeps every line within GRBL's 80 character buffer and writes comments in ASCII.
 /// </summary>
@@ -56,6 +56,7 @@ public sealed class GcodeWriter
     private Vec3 _current;
     private double? _s;
     private bool _laser;
+    private string _coolant = "";
 
     private GcodeWriter(MachineSettings machine, double safeZ)
     {
@@ -121,6 +122,7 @@ public sealed class GcodeWriter
                 currentTool = toolpath.Tool;
             }
 
+            Coolant(toolpath.Operation.AirAssist);
             WriteMoves(toolpath);
         }
 
@@ -129,6 +131,7 @@ public sealed class GcodeWriter
             Rapid(null, null, _safeZ);
         }
 
+        Coolant(false);
         Line("M5");
         if (_machine.ReturnToOrigin)
         {
@@ -280,6 +283,8 @@ public sealed class GcodeWriter
                 Rapid(null, null, _safeZ);
             }
 
+            // No air blowing while the program waits for a tool change.
+            Coolant(false);
             Line("M5");
         }
 
@@ -317,6 +322,19 @@ public sealed class GcodeWriter
         {
             Line($"G4 P{Number(_machine.SpindleDelaySeconds)}");
         }
+    }
+
+    /// <summary>Switches the air assist (coolant) on or off when its state changes.</summary>
+    private void Coolant(bool on)
+    {
+        var word = !on ? "" : _machine.AirAssistCommand == CoolantCommand.Mist ? "M7" : "M8";
+        if (word == _coolant)
+        {
+            return;
+        }
+
+        Line(word.Length > 0 ? word : "M9");
+        _coolant = word;
     }
 
     private void Rapid(double? x, double? y, double? z)

@@ -420,6 +420,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Название', En='Name'}" />
                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" ToolTip="{l:Tr 'Название операции — только для вас; в G-code оно не попадает', En='Operation name — just for you; it is not written to the G-code'}" />
@@ -430,6 +431,8 @@
                           DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding ToolId}" ToolTip="{l:Tr 'Инструмент этой операции: фреза, гравёр или лазер; его параметры задают траекторию', En='The tool of this operation: a mill, V-bit or laser; its parameters shape the toolpath'}" />
                 <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фокус Z, мм', En='Focus Z, mm'}" />
                 <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding StartZ}" ToolTip="{l:Tr '0 — фокус выставлен на поверхности', En='0 — focused on the surface'}" />
+                <CheckBox Grid.Row="4" Grid.Column="1" Content="{l:Tr 'Обдув (M8/M7)', En='Air assist (M8/M7)'}" IsChecked="{Binding AirAssist}"
+                          ToolTip="{l:Tr 'Включить воздух на эту операцию: перед ней в G-code пишется M8 (или M7 — выбирается на вкладке «Станок»), после — M9. Обдув нужен при резке: сдувает дым и пламя, кромка не обугливается, линза не закапчивается. При гравировке обычно выключен: поток воздуха разносит копоть по поверхности. У лазерной операции включается сам при режиме «По линии» и выключается при заливке. Компрессор подключите к выходу охлаждения платы (Coolant / Flood).', En='Turn the air on for this operation: M8 (or M7 — chosen on the “Machine” tab) is written before it in the G-code, M9 after it. Air assist is for cutting: it blows away smoke and flames, the edge does not char, the lens stays clean. For engraving it is usually off: the air flow spreads soot over the surface. A laser operation switches it on by itself in the “On the line” mode and off for filling. Connect the pump to the coolant output of the board (Coolant / Flood).'}" />
             </Grid>
         </DataTemplate>
 
@@ -442,6 +445,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -481,6 +486,12 @@
                     <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина реза, мм', En='Kerf width, mm'}" />
                     <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding KerfWidth}"
                              ToolTip="{l:Tr 'Вырежьте квадрат 20 мм, измерьте его: ширина реза = 20 − размер. Обычно 0,1–0,2 мм для диодного лазера.', En='Cut a 20 mm square and measure it: kerf = 20 − size. Usually 0.1–0.2 mm for a diode laser.'}" />
+                    <TextBlock Grid.Row="10" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Микроперемычки', En='Micro-tabs'}" />
+                    <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding TabCount}" IsEnabled="{Binding IsLine}"
+                             ToolTip="{l:Tr 'Сколько перемычек оставить на каждом наружном контуре (0 — нет). На перемычке луч гаснет, и вырезанная деталь держится в листе: не выпадает сквозь решётку стола и не встаёт на ребро под соплом. Отверстия режутся без перемычек. После работы деталь выламывается, остаток зачищается шкуркой или ножом. 2–4 на деталь обычно хватает.', En='How many tabs to leave on each outer contour (0 — none). On a tab the beam goes off, so the cut part stays held in the sheet: it does not fall through the bed grid or tilt up under the nozzle. Holes are cut without tabs. After the job the part is broken out and the rest is sanded or trimmed with a knife. 2–4 per part is usually enough.'}" />
+                    <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина перемычки, мм', En='Tab width, mm'}" />
+                    <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding TabWidth}" IsEnabled="{Binding IsLine}"
+                             ToolTip="{l:Tr 'Сколько материала остаётся в перемычке; к разрыву в резе добавляется пятно лазера (диаметр инструмента). Фанера 3 мм: 0,3–0,5 мм; акрил: 0,2–0,3 мм.', En='How much material stays in a tab; the laser spot (tool diameter) is added to the gap in the cut. 3 mm plywood: 0.3–0.5 mm; acrylic: 0.2–0.3 mm.'}" />
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Text="{l:Tr 'Начните с пробы на обрезке: фанера 3 мм режется лазером 5 Вт примерно за 3–6 проходов при 100 % и 150–250 мм/мин, лазером 10 Вт — за 1–2 прохода при 100 % и 200–300 мм/мин (с обдувом). Работайте в защитных очках и с вытяжкой.', En='Start with a test on scrap: 3 mm plywood is cut by a 5 W laser in about 3–6 passes at 100 % and 150–250 mm/min, by a 10 W laser in 1–2 passes at 100 % and 200–300 mm/min (with air assist). Wear safety glasses and use an exhaust.'}" />
@@ -995,6 +1006,86 @@
                                     Command="{Binding DataContext.AddLaserTestGridCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                             </StackPanel>
                         </Expander>
+                        <Expander Header="{l:Tr 'Тест фокуса лазера', En='Laser focus test'}" Margin="0,2,0,0" DataContext="{Binding LaserFocus}"
+                                  ToolTip="{l:Tr 'Ряд линий, выжженных на разной высоте Z, с подписями высоты. Самая тонкая линия — в фокусе: сдвиньте лазер по Z на её значение и выставьте там Z0. Лазер должен стоять на оси Z.', En='A row of lines burned at different Z heights, labelled with the height. The thinnest line is in focus: jog the laser in Z by its value and set Z0 there. The laser must sit on the Z axis.'}">
+                            <StackPanel>
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{l:Tr 'от', En='from'}" Foreground="{DynamicResource MutedTextBrush}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{l:Tr 'до', En='to'}" Foreground="{DynamicResource MutedTextBrush}" />
+                                <TextBlock Grid.Row="0" Grid.Column="3" Text="{l:Tr 'линий', En='lines'}" Foreground="{DynamicResource MutedTextBrush}" />
+                                <TextBlock Grid.Row="1" Text="{l:Tr 'Высота Z, мм', En='Height Z, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ZFrom}" ToolTip="{l:Tr 'Z нижней линии относительно текущего Z0 (минус — лазер ниже)', En='Z of the bottom line relative to the current Z0 (minus — the laser lower)'}" />
+                                <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding ZTo}" ToolTip="{l:Tr 'Z верхней линии (плюс — лазер выше)', En='Z of the top line (plus — the laser higher)'}" />
+                                <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Steps}" ToolTip="{l:Tr 'Сколько линий: шаг по Z = (до − от) / (линий − 1)', En='How many lines: the Z step = (to − from) / (lines − 1)'}" />
+                                <TextBlock Grid.Row="2" Text="{l:Tr 'Мощность, %', En='Power, %'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding PowerPercent}" ToolTip="{l:Tr 'Мощность линий: чтобы только оставить след (20–40 %)', En='Power of the lines: just enough to leave a mark (20–40 %)'}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{l:Tr 'мм/мин', En='mm/min'}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding Speed}" ToolTip="{l:Tr 'Скорость линий: быстро, чтобы линия была тонкой (800–1500 мм/мин)', En='Speed of the lines: fast, so that the line is thin (800–1500 mm/min)'}" />
+                            </Grid>
+                            <Button HorizontalAlignment="Left" Content="{l:Tr '+ Тест фокуса', En='+ Focus test'}" Margin="0,3,0,0"
+                                    ToolTip="{l:Tr 'Добавить линии теста справа от чертежа: каждая — своя операция со своей высотой «Фокус Z», плюс подписи. Сфокусируйте лазер на поверхности (Z0) и запустите.', En='Add the test lines to the right of the drawing: each is its own operation with its own “Focus Z”, plus the labels. Focus the laser on the surface (Z0) and run.'}"
+                                    Command="{Binding DataContext.AddLaserFocusTestCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="{l:Tr 'Гибкий шарнир (living hinge)', En='Living hinge'}" Margin="0,2,0,0" DataContext="{Binding LivingHinge}"
+                                  ToolTip="{l:Tr 'Прорези в шахматном порядке: фанера 3 мм в этой области гнётся, как ткань, — для коробок со скруглёнными углами, обложек, браслетов.', En='Staggered slots: 3 mm plywood bends like fabric in this area — for boxes with rounded corners, covers, bracelets.'}">
+                            <StackPanel>
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="{l:Tr 'X, мм', En='X, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding X}" ToolTip="{l:Tr 'Левый нижний угол области шарнира на чертеже', En='Lower-left corner of the hinge area on the drawing'}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{l:Tr 'Y, мм', En='Y, mm'}" VerticalAlignment="Center" Margin="6,0" />
+                                <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding Y}" ToolTip="{l:Tr 'Левый нижний угол области шарнира на чертеже', En='Lower-left corner of the hinge area on the drawing'}" />
+                                <TextBlock Grid.Row="1" Text="{l:Tr 'Ширина', En='Width'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Width}" ToolTip="{l:Tr 'Размер области по X, мм', En='Size of the area along X, mm'}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{l:Tr 'Высота', En='Height'}" VerticalAlignment="Center" Margin="6,0" />
+                                <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Height}" ToolTip="{l:Tr 'Размер области по Y, мм', En='Size of the area along Y, mm'}" />
+                                <TextBlock Grid.Row="2" Text="{l:Tr 'Прорези', En='Slots'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" ItemsSource="{x:Static vm:Choices.RasterAxes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Along}"
+                                          ToolTip="{l:Tr 'Вдоль Y — панель гнётся вокруг вертикальной оси (стенка коробки со скруглёнными углами), вдоль X — вокруг горизонтальной.', En='Along Y — the panel bends around a vertical axis (the wall of a box with rounded corners), along X — around a horizontal one.'}" />
+                                <TextBlock Grid.Row="3" Text="{l:Tr 'Длина, мм', En='Length, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SlotLength}" ToolTip="{l:Tr 'Длина прорези (подгоняется, чтобы прорези ровно уложились в область): длиннее — мягче. 10–25 мм.', En='Slot length (adjusted so that whole slots fit the area): longer is softer. 10–25 mm.'}" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="{l:Tr 'Перемычка', En='Bridge'}" VerticalAlignment="Center" Margin="6,0" />
+                                <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding Bridge}" ToolTip="{l:Tr 'Целый материал между прорезями одной линии, мм: 2–4 мм.', En='Uncut material between the slots of one line, mm: 2–4 mm.'}" />
+                                <TextBlock Grid.Row="4" Text="{l:Tr 'Шаг линий', En='Line spacing'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Spacing}" ToolTip="{l:Tr 'Расстояние между соседними линиями прорезей, мм: меньше — гнётся круче, но ломче. Фанера 3 мм: 1,2–2 мм.', En='Distance between neighbouring lines of slots, mm: smaller bends tighter but is more fragile. 3 mm plywood: 1.2–2 mm.'}" />
+                                <CheckBox Grid.Row="4" Grid.Column="2" Grid.ColumnSpan="2" Margin="6,0,0,0" VerticalAlignment="Center" Content="{l:Tr 'До края', En='To the edge'}" IsChecked="{Binding ToEdge}"
+                                          ToolTip="{l:Tr 'Каждая вторая линия прорезается до края области — так гибче, если шарнир идёт через всю панель от края до края. Выключите, если область внутри панели: тогда все прорези остаются внутри.', En='Every second line is cut through to the edge of the area — more flexible when the hinge runs across the whole panel from edge to edge. Turn off when the area is inside a panel: then all slots stay inside.'}" />
+                            </Grid>
+                            <WrapPanel Margin="0,3,0,0">
+                                <Button Content="{l:Tr 'По выделению', En='From selection'}"
+                                        ToolTip="{l:Tr 'Взять область из габарита выделенных контуров (например, нарисованного прямоугольника зоны изгиба).', En='Take the area from the bounds of the selected contours (e.g. a rectangle drawn for the bending zone).'}"
+                                        Command="{Binding DataContext.LivingHingeFromSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <Button Margin="4,0,0,0" Content="{l:Tr '+ Гибкий шарнир', En='+ Living hinge'}"
+                                        ToolTip="{l:Tr 'Добавить прорези на слой «Living hinge» и лазерную операцию резки по линии. Она ставится перед первой лазерной резкой, чтобы шарнир прорезался, пока панель ещё держится в листе; мощность и скорость берутся из этой резки.', En='Add the slots on the “Living hinge” layer and a laser cutting operation on the line. It is placed before the first laser cut so that the hinge is cut while the panel is still held by the sheet; power and speed are taken from that cut.'}"
+                                        Command="{Binding DataContext.AddLivingHingeCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </WrapPanel>
+                            </StackPanel>
+                        </Expander>
                         </StackPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Operations}" SelectedItem="{Binding SelectedOperation}" ToolTip="{l:Tr 'Список операций: галочка включает/выключает операцию, клик открывает её настройки', En='List of operations: the check box enables or disables an operation, a click opens its settings'}">
                             <ListBox.ItemTemplate>
@@ -1304,6 +1395,15 @@
                                 <TextBlock VerticalAlignment="Center" Text="{Binding ProgramSource}" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
                             <WrapPanel Margin="0,4,0,0">
+                                <Button Content="{l:Tr '⬚ Обвести рамку', En='⬚ Trace frame'}" Command="{Binding FrameCommand}" IsEnabled="{Binding CanStartJob}"
+                                        ToolTip="{l:Tr 'Проехать по прямоугольнику вокруг всех рабочих ходов программы и вернуться в начальный угол — видно, где будет резка и помещается ли задание на заготовку. Лазер (профиль с $32=1) светит на малой мощности: по точке видны края. Фрезер едет на безопасной высоте, шпиндель не включается.', En='Run along the rectangle around all work moves of the program and return to the start corner — you see where the cut will be and whether the job fits the stock. A laser (profile with $32=1) shines at low power: the dot shows the edges. A milling machine moves at the safe height, the spindle stays off.'}" />
+                                <TextBlock VerticalAlignment="Center" Margin="8,0,4,0" Text="{l:Tr 'мощность, %', En='power, %'}" />
+                                <TextBox Width="45" Text="{Binding FramePowerPercent}"
+                                         ToolTip="{l:Tr 'Мощность лазера при обводке: 1–2 % — точку видно, но материал не горит. 0 — луч не включать (только движение).', En='Laser power while tracing: at 1–2 % the dot is visible but the material does not burn. 0 — keep the beam off (motion only).'}" />
+                                <TextBlock VerticalAlignment="Center" Margin="8,0,4,0" Text="{l:Tr 'скорость, мм/мин', En='speed, mm/min'}" />
+                                <TextBox Width="55" Text="{Binding FrameFeed}" ToolTip="{l:Tr 'Скорость обхода рамки', En='Speed along the frame'}" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,4,0,0">
                                 <Button Content="{l:Tr '▶ Старт', En='▶ Start'}" FontWeight="SemiBold" ToolTip="{l:Tr 'Запустить программу на станке. Перед стартом проверьте: заготовка закреплена, ноль X/Y/Z выставлен, в шпинделе нужная фреза.', En='Start the program on the machine. Before starting check: the stock is clamped, X/Y/Z zero is set, the right tool is in the spindle.'}" Command="{Binding StartJobCommand}" IsEnabled="{Binding CanStartJob}" />
                                 <Button Content="{l:Tr 'Проверить ($C)', En='Check ($C)'}" Command="{Binding CheckProgramCommand}" IsEnabled="{Binding CanStartJob}"
                                         ToolTip="{l:Tr 'Прогнать программу через режим проверки GRBL ($C): плата разбирает каждую строку со своими настройками (мягкие пределы, поддерживаемые команды), но станок не двигается и шпиндель не включается. Ошибочные строки появятся в журнале, итог — в сообщениях. В конце GRBL выходит из режима и перезапускается.', En='Run the program through GRBL check mode ($C): the board parses every line with its own settings (soft limits, supported commands), but the machine does not move and the spindle stays off. Faulty lines appear in the log, the summary in the messages. At the end GRBL leaves the mode and restarts.'}" />
@@ -1441,6 +1541,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Формат G-code', En='G-code format'}" />
                                 <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.Dialects}" ToolTip="{l:Tr 'Формат G-code: GRBL, Marlin и другие', En='G-code dialect: GRBL, Marlin and others'}"
@@ -1468,18 +1569,21 @@
                                 <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding DecimalPlaces}" ToolTip="{l:Tr 'Точность координат в файле; 3–4 обычно достаточно', En='Coordinate precision in the file; 3–4 is usually enough'}" />
                                 <TextBlock Grid.Row="11" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Пауза после M3, с', En='Dwell after M3, s'}" />
                                 <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding SpindleDelaySeconds}" ToolTip="{l:Tr 'Пауза после включения шпинделя, чтобы он набрал обороты', En='Dwell after the spindle starts so it can spin up'}" />
-                                <CheckBox Grid.Row="12" Grid.Column="1" Content="{l:Tr 'Автосмена инструмента (Tn M6)', En='Automatic tool change (Tn M6)'}" IsChecked="{Binding UseToolChange}"
+                                <TextBlock Grid.Row="12" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Обдув лазера', En='Laser air assist'}" />
+                                <ComboBox Grid.Row="12" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CoolantCommands}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding AirAssistCommand}"
+                                          ToolTip="{l:Tr 'Какой командой включать обдув в операциях с галочкой «Обдув»; выключается всегда M9. M8 (Flood) — выход охлаждения, он есть у GRBL всегда, к нему обычно и подключают компрессор. M7 (Mist) GRBL понимает, только если собран с ENABLE_M7.', En='Which command switches the air on in operations with “Air assist” ticked; it is always switched off with M9. M8 (Flood) is the coolant output GRBL always has, the pump is usually connected to it. GRBL understands M7 (Mist) only when built with ENABLE_M7.'}" />
+                                <CheckBox Grid.Row="13" Grid.Column="1" Content="{l:Tr 'Автосмена инструмента (Tn M6)', En='Automatic tool change (Tn M6)'}" IsChecked="{Binding UseToolChange}"
                                           ToolTip="{l:Tr 'Не для GRBL: там смена инструмента — пауза M0', En='Not for GRBL: there a tool change is an M0 pause'}" />
-                                <StackPanel Grid.Row="13" Grid.Column="1">
+                                <StackPanel Grid.Row="14" Grid.Column="1">
                                     <CheckBox Content="{l:Tr 'В конце вернуться в X0 Y0', En='Return to X0 Y0 at the end'}" IsChecked="{Binding ReturnToOrigin}" ToolTip="{l:Tr 'В конце программы фреза вернётся в X0 Y0', En='At the end of the program the tool returns to X0 Y0'}" />
                                     <CheckBox Content="{l:Tr 'Дуги G2/G3 вместо коротких отрезков', En='G2/G3 arcs instead of short segments'}" IsChecked="{Binding UseArcs}"
                                               ToolTip="{l:Tr 'Файл короче, движение плавнее. Нужны 3 знака после запятой.', En='Shorter file, smoother motion. Needs 3 decimal places.'}" />
                                 </StackPanel>
-                                <TextBlock Grid.Row="14" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="{l:Tr 'Свои строки в начале программы', En='Custom lines at the program start'}" />
-                                <TextBox Grid.Row="15" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
+                                <TextBlock Grid.Row="15" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="{l:Tr 'Свои строки в начале программы', En='Custom lines at the program start'}" />
+                                <TextBox Grid.Row="16" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
                                          VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Text="{Binding Header}" ToolTip="{l:Tr 'Эти строки пишутся в начало файла G-code (например, настройка станка)', En='These lines are written at the start of the G-code file (e.g. machine setup)'}" />
-                                <TextBlock Grid.Row="16" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="{l:Tr 'Свои строки в конце программы', En='Custom lines at the program end'}" />
-                                <TextBox Grid.Row="17" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
+                                <TextBlock Grid.Row="17" Grid.ColumnSpan="2" Style="{StaticResource SectionHeader}" Text="{l:Tr 'Свои строки в конце программы', En='Custom lines at the program end'}" />
+                                <TextBox Grid.Row="18" Grid.ColumnSpan="2" Height="70" AcceptsReturn="True" FontFamily="Consolas"
                                          VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Text="{Binding Footer}" ToolTip="{l:Tr 'Эти строки пишутся в конец файла G-code (например, M30)', En='These lines are written at the end of the G-code file (e.g. M30)'}" />
                             </Grid>
                         </StackPanel>

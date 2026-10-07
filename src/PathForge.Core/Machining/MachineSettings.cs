@@ -13,6 +13,16 @@ public enum GcodeDialect
     Grbl,
 }
 
+/// <summary>Output that switches the air assist (or the coolant) on.</summary>
+public enum CoolantCommand
+{
+    /// <summary>M8, flood: the coolant pin of GRBL boards, where an air pump is usually connected.</summary>
+    Flood,
+
+    /// <summary>M7, mist: GRBL accepts it only when built with ENABLE_M7.</summary>
+    Mist,
+}
+
 /// <summary>Machine and G-code output settings. Z = 0 is the top of the stock unless the stock says otherwise.</summary>
 public sealed class MachineSettings
 {
@@ -55,6 +65,9 @@ public sealed class MachineSettings
     /// no spindle start delay. The laser must be focused at Z0 (stock top) before the job.
     /// </summary>
     public bool LaserMode { get; set; }
+
+    /// <summary>Command that switches the air assist on in operations that use it (M9 switches it off).</summary>
+    public CoolantCommand AirAssistCommand { get; set; }
 
     /// <summary>Write circular arcs as G2/G3 instead of many short lines (needs at least 3 decimals).</summary>
     public bool UseArcs { get; set; }
