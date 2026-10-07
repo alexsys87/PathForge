@@ -5,6 +5,7 @@
         xmlns:controls="clr-namespace:PathForge.App.Controls"
         xmlns:l="clr-namespace:PathForge.App.Localization"
         Title="{Binding Title}"
+        Icon="/Assets/PathForge.ico"
         Background="{DynamicResource WindowBrush}"
         Foreground="{DynamicResource TextBrush}"
         Width="1280" Height="800" MinWidth="900" MinHeight="560"

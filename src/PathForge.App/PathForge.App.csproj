@@ -6,6 +6,8 @@
     <RootNamespace>PathForge.App</RootNamespace>
     <AssemblyName>PathForge</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Icon of the .exe (Explorer, taskbar); the window uses the same file as a resource -->
+    <ApplicationIcon>Assets\PathForge.ico</ApplicationIcon>
     <!-- Allows building on non-Windows machines (CI); the app itself runs only on Windows -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
@@ -14,6 +16,9 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!-- Serial port for the machine connection, MIT license -->
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\PathForge.ico" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PathForge.Core\PathForge.Core.csproj" />
