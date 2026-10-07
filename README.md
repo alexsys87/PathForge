@@ -330,6 +330,25 @@ PathForge читает те же файлы, что и завод: **Gerber** и
 - Visual Studio 2022 (17.8+) с нагрузкой «.NET desktop development», открыть `PathForge.sln`.
 - Или из командной строки: `dotnet build PathForge.sln`, тесты: `dotnet test PathForge.sln`.
 
+### Один exe-файл без установки .NET
+
+Команда (в Windows, из папки репозитория) собирает `PathForge.exe`, в котором уже есть среда .NET и WPF: его можно
+скопировать на любой компьютер с Windows 10/11 x64 и запустить без установки .NET и без инсталлятора.
+
+```
+dotnet publish src/PathForge.App/PathForge.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+```
+
+- Результат — `publish\PathForge.exe` (70–80 МБ: внутри вся среда выполнения .NET 8 и WPF).
+- `-r win-x64` — для обычных 64-битных Windows; для 32-битных — `win-x86`, для ARM (Snapdragon) — `win-arm64`.
+- `IncludeNativeLibrariesForSelfExtract` кладёт в exe и родные библиотеки WPF: без него рядом с exe останутся
+  несколько `.dll`. При первом запуске они распаковываются во временную папку пользователя, поэтому первый старт
+  на пару секунд дольше.
+- `EnableCompressionInSingleFile` сжимает файл почти вдвое; без него запуск чуть быстрее, а файл больше.
+- Обрезка неиспользуемого кода (`PublishTrimmed`) для WPF не поддерживается — не включайте её.
+- Нужен .NET 8 SDK только на компьютере, где собирают; на компьютере со станком — ничего, кроме самого exe
+  (драйвер CH340 для USB 3018 — как и раньше).
+
 ## Структура
 
 | Проект | Назначение |
