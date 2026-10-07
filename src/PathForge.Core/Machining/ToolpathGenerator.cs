@@ -193,7 +193,22 @@ public static partial class ToolpathGenerator
             }
 
             var withLeads = operation.Lead == LeadMode.Arc && operation.LeadRadius > 0 && operation.Side != ProfileSide.OnLine;
-            foreach (var loop in ProfileLoops(operation, points, tool))
+            var loops = ProfileLoops(operation, points, tool).ToList();
+            if (loops.Count == 0 && operation.Side == ProfileSide.Inside && contour.TryGetSlot(out var slotA, out var slotB, out var slotWidth))
+            {
+                // A slot as wide as the cutter (or narrower): there is no room to go around it, run along its axis.
+                if (tool.Diameter > slotWidth + 0.02)
+                {
+                    context.Warnings.Add(Loc.T(
+                        $"{context.Label}: паз №{contour.Id} уже фрезы ({slotWidth:0.##} < Ø{tool.Diameter:0.##}) — он выйдет шире.",
+                        $"{context.Label}: slot #{contour.Id} is narrower than the tool ({slotWidth:0.##} < Ø{tool.Diameter:0.##}) — it comes out wider."));
+                }
+
+                CutOpenPath(new List<Vec2> { slotA, slotB }, passes, context);
+                continue;
+            }
+
+            foreach (var loop in loops)
             {
                 if (loop.Count < 3)
                 {
@@ -404,67 +419,102 @@ public static partial class ToolpathGenerator
 
     private static void GenerateDrill(DrillOperation operation, List<Contour> contours, OperationContext context)
     {
-        var centers = new List<Vec2>();
+        // Each group is drilled in its own order: a hole, or the holes along a slot.
+        var groups = new List<List<Vec2>>();
+        var diameter = context.Tool.Diameter;
         foreach (var contour in contours)
         {
-            if (!contour.TryGetCircle(out var center, out var radius))
+            if (contour.TryGetCircle(out var center, out var radius))
             {
-                context.Warnings.Add(Loc.T($"{context.Label}: контур №{contour.Id} не окружность и пропущен.", $"{context.Label}: contour #{contour.Id} is not a circle and was skipped."));
+                if (radius * 2 > diameter + 0.1)
+                {
+                    context.Warnings.Add(Loc.T($"{context.Label}: окружность №{contour.Id} (Ø{radius * 2:0.##}) больше инструмента, сверлится только центр.", $"{context.Label}: circle #{contour.Id} (Ø{radius * 2:0.##}) is larger than the tool, only the centre is drilled."));
+                }
+
+                groups.Add(new List<Vec2> { center });
                 continue;
             }
 
-            if (radius * 2 > context.Tool.Diameter + 0.1)
+            if (contour.TryGetSlot(out var a, out var b, out var width))
             {
-                context.Warnings.Add(Loc.T($"{context.Label}: окружность №{contour.Id} (Ø{radius * 2:0.##}) больше инструмента, сверлится только центр.", $"{context.Label}: circle #{contour.Id} (Ø{radius * 2:0.##}) is larger than the tool, only the centre is drilled."));
+                if (Math.Abs(width - diameter) > 0.1)
+                {
+                    context.Warnings.Add(Loc.T(
+                        $"{context.Label}: паз №{contour.Id} шириной {width:0.##} мм сверлится сверлом Ø{diameter:0.##} — паз выйдет {(diameter > width ? "шире" : "уже")}. Ровнее его фрезеровать: «Контур» внутри.",
+                        $"{context.Label}: slot #{contour.Id} {width:0.##} mm wide is drilled with a Ø{diameter:0.##} drill — it comes out {(diameter > width ? "wider" : "narrower")}. Milling it (Profile, inside) is cleaner."));
+                }
+
+                groups.Add(SlotHoles(a, b, Math.Max(0.05, diameter * operation.SlotPitchPercent / 100)));
+                continue;
             }
 
-            centers.Add(center);
+            context.Warnings.Add(Loc.T($"{context.Label}: контур №{contour.Id} не окружность и не паз — пропущен.", $"{context.Label}: contour #{contour.Id} is neither a circle nor a slot and was skipped."));
         }
 
         var writer = context.Writer;
-        var approach = operation.StartZ + context.Machine.ApproachClearance;
-        while (centers.Count > 0)
+        while (groups.Count > 0)
         {
             var index = 0;
-            for (var i = 1; i < centers.Count; i++)
+            for (var i = 1; i < groups.Count; i++)
             {
-                if (centers[i].DistanceTo(writer.Position.XY) < centers[index].DistanceTo(writer.Position.XY))
+                if (groups[i][0].DistanceTo(writer.Position.XY) < groups[index][0].DistanceTo(writer.Position.XY))
                 {
                     index = i;
                 }
             }
 
-            var center = centers[index];
-            centers.RemoveAt(index);
-            writer.TravelTo(center);
-            writer.RapidDownTo(approach);
-
-            if (operation.PeckDepth <= 0)
+            var group = groups[index];
+            groups.RemoveAt(index);
+            foreach (var center in group)
             {
-                writer.PlungeTo(operation.BottomZ);
+                DrillHole(operation, center, context);
             }
-            else
-            {
-                var levels = PassDepths(operation.StartZ, operation.Depth, operation.PeckDepth);
-                for (var i = 0; i < levels.Count; i++)
-                {
-                    if (i > 0)
-                    {
-                        // Back into the hole quickly, stopping just above the previous depth.
-                        writer.RapidDownTo(levels[i - 1] + 0.3);
-                    }
+        }
+    }
 
-                    writer.PlungeTo(levels[i]);
-                    if (i < levels.Count - 1)
-                    {
-                        // Clear chips.
-                        writer.RapidUpTo(approach);
-                    }
+    /// <summary>
+    /// Holes along a slot axis at most <paramref name="pitch"/> apart, both ends included. Every other hole first:
+    /// the drill then never cuts on one side only and does not walk into the hole next to it.
+    /// </summary>
+    internal static List<Vec2> SlotHoles(Vec2 a, Vec2 b, double pitch)
+    {
+        var count = Math.Max(2, (int)Math.Ceiling(a.DistanceTo(b) / pitch - 1e-9) + 1);
+        var points = Enumerable.Range(0, count).Select(i => Vec2.Lerp(a, b, (double)i / (count - 1))).ToList();
+        return points.Where((_, i) => i % 2 == 0).Concat(points.Where((_, i) => i % 2 == 1)).ToList();
+    }
+
+    private static void DrillHole(DrillOperation operation, Vec2 center, OperationContext context)
+    {
+        var writer = context.Writer;
+        var approach = operation.StartZ + context.Machine.ApproachClearance;
+        writer.TravelTo(center);
+        writer.RapidDownTo(approach);
+
+        if (operation.PeckDepth <= 0)
+        {
+            writer.PlungeTo(operation.BottomZ);
+        }
+        else
+        {
+            var levels = PassDepths(operation.StartZ, operation.Depth, operation.PeckDepth);
+            for (var i = 0; i < levels.Count; i++)
+            {
+                if (i > 0)
+                {
+                    // Back into the hole quickly, stopping just above the previous depth.
+                    writer.RapidDownTo(levels[i - 1] + 0.3);
+                }
+
+                writer.PlungeTo(levels[i]);
+                if (i < levels.Count - 1)
+                {
+                    // Clear chips.
+                    writer.RapidUpTo(approach);
                 }
             }
-
-            writer.RapidUpTo(approach);
         }
+
+        writer.RapidUpTo(approach);
     }
 
     private static void CutOpenPath(List<Vec2> points, List<double> passes, OperationContext context)
