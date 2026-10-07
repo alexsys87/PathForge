@@ -12,7 +12,8 @@ namespace PathForge.App.Controls;
 /// <summary>
 /// 2D view of contours and toolpaths (top view, Y up). Wheel zooms around the cursor,
 /// dragging with any mouse button pans, a left click selects contours (Ctrl adds), a right click without dragging
-/// opens the context menu.
+/// opens the context menu. Dragging with Shift selects by a rectangle: to the right — the contours lying wholly
+/// inside it, to the left — every contour it touches (Ctrl+Shift adds to the selection).
 /// </summary>
 public sealed class CamViewport : FrameworkElement
 {
@@ -22,6 +23,9 @@ public sealed class CamViewport : FrameworkElement
 
     public static readonly DependencyProperty ContourClickCommandProperty = DependencyProperty.Register(
         nameof(ContourClickCommand), typeof(ICommand), typeof(CamViewport));
+
+    public static readonly DependencyProperty BoxSelectCommandProperty = DependencyProperty.Register(
+        nameof(BoxSelectCommand), typeof(ICommand), typeof(CamViewport));
 
     public static readonly DependencyProperty CursorTextProperty = DependencyProperty.Register(
         nameof(CursorText), typeof(string), typeof(CamViewport),
@@ -54,6 +58,9 @@ public sealed class CamViewport : FrameworkElement
     private Point _lastMouse;
     private bool _dragging;
 
+    /// <summary>A Shift-drag draws the selection rectangle instead of panning.</summary>
+    private bool _boxSelecting;
+
     public CamViewport()
     {
         Focusable = true;
@@ -71,6 +78,13 @@ public sealed class CamViewport : FrameworkElement
     {
         get => (ICommand?)GetValue(ContourClickCommandProperty);
         set => SetValue(ContourClickCommandProperty, value);
+    }
+
+    /// <summary>Executed with a <see cref="ContourBoxSelection"/> argument after a Shift-drag.</summary>
+    public ICommand? BoxSelectCommand
+    {
+        get => (ICommand?)GetValue(BoxSelectCommandProperty);
+        set => SetValue(BoxSelectCommandProperty, value);
     }
 
     /// <summary>World coordinates under the mouse, formatted for the status bar.</summary>
@@ -153,6 +167,21 @@ public sealed class CamViewport : FrameworkElement
         dc.Pop();
         DrawOriginMarker(dc);
         DrawMachinePosition(dc);
+        DrawSelectionBox(dc);
+    }
+
+    /// <summary>The rectangle of a Shift-drag: solid when it takes only what lies wholly inside, dashed when it takes all it touches.</summary>
+    private void DrawSelectionBox(DrawingContext dc)
+    {
+        if (!_boxSelecting || !_dragging || _pressPoint is not { } press)
+        {
+            return;
+        }
+
+        var crossing = _lastMouse.X < press.X;
+        var pen = new Pen(new SolidColorBrush(SelectedColor), 1) { DashStyle = crossing ? new DashStyle(new[] { 4.0, 3.0 }, 0) : null };
+        var fill = new SolidColorBrush(Color.FromArgb(0x30, SelectedColor.R, SelectedColor.G, SelectedColor.B));
+        dc.DrawRectangle(fill, pen, new Rect(press, _lastMouse));
     }
 
     /// <summary>Crosshair where the spindle is now.</summary>
@@ -196,6 +225,7 @@ public sealed class CamViewport : FrameworkElement
         _pressPoint = e.GetPosition(this);
         _lastMouse = _pressPoint.Value;
         _dragging = false;
+        _boxSelecting = e.ChangedButton == MouseButton.Left && (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         CaptureMouse();
         e.Handled = true;
     }
@@ -211,7 +241,14 @@ public sealed class CamViewport : FrameworkElement
             if (!_dragging && (mouse - press).Length > DragThresholdPixels)
             {
                 _dragging = true;
-                Cursor = Cursors.SizeAll;
+                Cursor = _boxSelecting ? Cursors.Cross : Cursors.SizeAll;
+            }
+
+            if (_dragging && _boxSelecting)
+            {
+                _lastMouse = mouse;
+                InvalidateVisual();
+                return;
             }
 
             if (_dragging)
@@ -233,10 +270,32 @@ public sealed class CamViewport : FrameworkElement
         }
 
         var wasDragging = _dragging;
+        var press = _pressPoint.Value;
+        var boxSelecting = _boxSelecting;
         _pressPoint = null;
         _dragging = false;
+        _boxSelecting = false;
         Cursor = null;
         ReleaseMouseCapture();
+
+        if (wasDragging && boxSelecting)
+        {
+            var end = e.GetPosition(this);
+            var a = ToWorld(press);
+            var b = ToWorld(end);
+            var box = new Bounds2(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
+            var crossing = end.X < press.X;
+            var ids = _hitTargets.Where(h => crossing ? Touches(h.Contour, h.Bounds, box) : box.Contains(h.Bounds)).Select(h => h.Contour.Id).ToList();
+            var selection = new ContourBoxSelection(ids, (Keyboard.Modifiers & ModifierKeys.Control) != 0);
+            if (BoxSelectCommand?.CanExecute(selection) == true)
+            {
+                BoxSelectCommand.Execute(selection);
+            }
+
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
 
         if (!wasDragging && e.ChangedButton == MouseButton.Right)
         {
@@ -323,6 +382,68 @@ public sealed class CamViewport : FrameworkElement
 
         geometry.Freeze();
         return geometry;
+    }
+
+    /// <summary>Whether a contour has a point inside the box or crosses its border.</summary>
+    private static bool Touches(SceneContour contour, Bounds2 bounds, Bounds2 box)
+    {
+        if (bounds.MaxX < box.MinX || bounds.MinX > box.MaxX || bounds.MaxY < box.MinY || bounds.MinY > box.MaxY)
+        {
+            return false;
+        }
+
+        var points = contour.Points;
+        bool Inside(Vec2 p) => p.X >= box.MinX && p.X <= box.MaxX && p.Y >= box.MinY && p.Y <= box.MaxY;
+        if (points.Any(Inside))
+        {
+            return true;
+        }
+
+        // A segment crossing the box without a point inside it (Liang–Barsky clipping).
+        var count = contour.Closed ? points.Count : points.Count - 1;
+        for (var i = 0; i < count; i++)
+        {
+            var p = points[i];
+            var d = points[(i + 1) % points.Count] - p;
+            double t0 = 0, t1 = 1;
+            var hit = true;
+            foreach (var (q, r) in new[] { (-d.X, p.X - box.MinX), (d.X, box.MaxX - p.X), (-d.Y, p.Y - box.MinY), (d.Y, box.MaxY - p.Y) })
+            {
+                if (Math.Abs(q) < 1e-12)
+                {
+                    if (r < 0)
+                    {
+                        hit = false;
+                        break;
+                    }
+
+                    continue;
+                }
+
+                var t = r / q;
+                if (q < 0)
+                {
+                    t0 = Math.Max(t0, t);
+                }
+                else
+                {
+                    t1 = Math.Min(t1, t);
+                }
+
+                if (t0 > t1)
+                {
+                    hit = false;
+                    break;
+                }
+            }
+
+            if (hit)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private int? HitTest(Point screen)

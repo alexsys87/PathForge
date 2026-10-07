@@ -150,6 +150,26 @@ public static class Choices
         new Choice<PocketStrategy>(PocketStrategy.Adaptive, "Адаптивный (постоянная нагрузка)", "Adaptive (constant load)"),
     };
 
+    public static IReadOnlyList<Choice<CornerRelief>> CornerReliefs { get; } = new[]
+    {
+        new Choice<CornerRelief>(CornerRelief.None, "Нет — скругление радиусом фрезы", "None — a fillet of the tool radius"),
+        new Choice<CornerRelief>(CornerRelief.Dogbone, "Dogbone — по биссектрисе", "Dogbone — along the bisector"),
+        new Choice<CornerRelief>(CornerRelief.TBone, "T-bone — вдоль длинной стороны", "T-bone — along the longer side"),
+    };
+
+    public static IReadOnlyList<Choice<ProfileSide>> ChamferSides { get; } = new[]
+    {
+        new Choice<ProfileSide>(ProfileSide.Outside, "Снаружи (кромка детали)", "Outside (part edge)"),
+        new Choice<ProfileSide>(ProfileSide.Inside, "Внутри (отверстие, потай)", "Inside (hole, countersink)"),
+    };
+
+    public static IReadOnlyList<Choice<BoxLid>> BoxLids { get; } = new[]
+    {
+        new Choice<BoxLid>(BoxLid.None, "Без крышки", "No lid"),
+        new Choice<BoxLid>(BoxLid.Overlay, "Накладная", "Lift-off"),
+        new Choice<BoxLid>(BoxLid.Sliding, "Сдвижная (в пазах)", "Sliding (in grooves)"),
+    };
+
     public static IReadOnlyList<Choice<RasterAxis>> RasterAxes { get; } = new[]
     {
         new Choice<RasterAxis>(RasterAxis.X, "Вдоль X", "Along X"),

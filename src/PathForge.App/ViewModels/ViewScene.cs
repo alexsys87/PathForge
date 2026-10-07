@@ -26,3 +26,6 @@ public sealed record ViewScene(IReadOnlyList<SceneContour> Contours, IReadOnlyLi
 
 /// <summary>Mouse click on the drawing: the contour hit (or null) and whether Ctrl was held.</summary>
 public sealed record ContourClick(int? ContourId, bool Additive);
+
+/// <summary>Contours inside the rectangle dragged with Shift; added to the selection when Ctrl was held too.</summary>
+public sealed record ContourBoxSelection(IReadOnlyList<int> ContourIds, bool Additive);
