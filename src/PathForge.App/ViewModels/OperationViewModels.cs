@@ -98,6 +98,8 @@ public abstract class OperationViewModel : ModelWrapper
         ReliefOperation r => new ReliefOperationViewModel(r, changed),
         VCarveOperation v => new VCarveOperationViewModel(v, changed),
         FacingOperation f => new FacingOperationViewModel(f, changed),
+        ChamferOperation c => new ChamferOperationViewModel(c, changed),
+        HelixHoleOperation h => new HelixHoleOperationViewModel(h, changed),
         _ => throw new NotSupportedException(model.GetType().Name),
     };
 }
@@ -176,6 +178,84 @@ public sealed class ProfileOperationViewModel : OperationViewModel
     {
         get => _model.RestTolerance;
         set => Set(_model.RestTolerance, Math.Clamp(value, 0.005, 2), v => _model.RestTolerance = v);
+    }
+
+    public CornerRelief CornerRelief
+    {
+        get => _model.CornerRelief;
+        set => Set(_model.CornerRelief, value, v => _model.CornerRelief = v);
+    }
+}
+
+public sealed class ChamferOperationViewModel : OperationViewModel
+{
+    private readonly ChamferOperation _model;
+
+    public ChamferOperationViewModel(ChamferOperation model, Action changed)
+        : base(model, changed)
+    {
+        _model = model;
+    }
+
+    public override string KindLabel => Loc.T("Фаска", "Chamfer");
+
+    public override string Summary => Loc.T(
+        $"Фаска · {_model.ChamferWidth:0.##} мм · {(_model.Side == ProfileSide.Inside ? "внутри" : "снаружи")} · контуров: {_model.ContourIds.Count}",
+        $"Chamfer · {_model.ChamferWidth:0.##} mm · {(_model.Side == ProfileSide.Inside ? "inside" : "outside")} · contours: {_model.ContourIds.Count}");
+
+    public double ChamferWidth
+    {
+        get => _model.ChamferWidth;
+        set => Set(_model.ChamferWidth, Math.Clamp(value, 0.05, 20), v => _model.ChamferWidth = v);
+    }
+
+    public ProfileSide Side
+    {
+        get => _model.Side;
+        set => Set(_model.Side, value == ProfileSide.OnLine ? ProfileSide.Outside : value, v => _model.Side = v);
+    }
+
+    public CutDirection Direction
+    {
+        get => _model.Direction;
+        set => Set(_model.Direction, value, v => _model.Direction = v);
+    }
+}
+
+public sealed class HelixHoleOperationViewModel : OperationViewModel
+{
+    private readonly HelixHoleOperation _model;
+
+    public HelixHoleOperationViewModel(HelixHoleOperation model, Action changed)
+        : base(model, changed)
+    {
+        _model = model;
+    }
+
+    public override string KindLabel => Loc.T("Отверстия по спирали", "Helical holes");
+
+    public double HoleDiameter
+    {
+        get => _model.HoleDiameter;
+        set => Set(_model.HoleDiameter, Math.Clamp(value, 0, 500), v => _model.HoleDiameter = v);
+    }
+
+    public double CounterboreDiameter
+    {
+        get => _model.CounterboreDiameter;
+        set => Set(_model.CounterboreDiameter, Math.Clamp(value, 0, 500), v => _model.CounterboreDiameter = v);
+    }
+
+    public double CounterboreDepth
+    {
+        get => _model.CounterboreDepth;
+        set => Set(_model.CounterboreDepth, Math.Clamp(value, 0, 100), v => _model.CounterboreDepth = v);
+    }
+
+    public CutDirection Direction
+    {
+        get => _model.Direction;
+        set => Set(_model.Direction, value, v => _model.Direction = v);
     }
 }
 

@@ -181,6 +181,8 @@ public sealed partial class MainViewModel : ObservableObject
             tool.Refresh();
         }
 
+        Cutout.RefreshLanguage();
+
         foreach (var operation in Operations)
         {
             operation.Refresh();

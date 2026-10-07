@@ -44,6 +44,19 @@ public enum LeadMode
     Arc,
 }
 
+/// <summary>How the inner corners a round cutter cannot reach are relieved.</summary>
+public enum CornerRelief
+{
+    /// <summary>The cutter leaves a fillet of its radius in the corner.</summary>
+    None,
+
+    /// <summary>A short cut along the corner bisector: the cutter reaches the corner point (a "dog bone").</summary>
+    Dogbone,
+
+    /// <summary>A short cut along the longer edge into the corner (a "T-bone"): the ear hides in that edge.</summary>
+    TBone,
+}
+
 /// <summary>One machining step applied to a set of contours with one tool.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ProfileOperation), "profile")]
@@ -57,6 +70,8 @@ public enum LeadMode
 [JsonDerivedType(typeof(ReliefOperation), "relief")]
 [JsonDerivedType(typeof(VCarveOperation), "vcarve")]
 [JsonDerivedType(typeof(FacingOperation), "facing")]
+[JsonDerivedType(typeof(ChamferOperation), "chamfer")]
+[JsonDerivedType(typeof(HelixHoleOperation), "helixHole")]
 public abstract class Operation
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -122,6 +137,63 @@ public sealed class ProfileOperation : Operation
 
     /// <summary>Material thinner than this (mm) is not machined again by rest machining by simulation.</summary>
     public double RestTolerance { get; set; } = 0.05;
+
+    /// <summary>
+    /// Relief of the corners the cutter cannot reach (inner corners of a hole, notches of a part): finger joints and
+    /// slots then fit square parts.
+    /// </summary>
+    public CornerRelief CornerRelief { get; set; }
+}
+
+/// <summary>
+/// Chamfer along contours with a V-bit: a bevel of <see cref="ChamferWidth"/> on the panel edge (outside) or around
+/// a hole (inside, a countersink for flat-head screws). The depth follows from the width and the bit angle.
+/// </summary>
+public sealed class ChamferOperation : Operation
+{
+    public ChamferOperation()
+    {
+        Depth = 0;
+    }
+
+    /// <summary>Width of the bevel on the top surface (mm).</summary>
+    public double ChamferWidth { get; set; } = 1;
+
+    /// <summary>Outside: the edge of a part; inside: the edge of a hole.</summary>
+    public ProfileSide Side { get; set; } = ProfileSide.Outside;
+
+    public CutDirection Direction { get; set; } = CutDirection.Climb;
+
+    /// <summary>Depth of the bit tip for a chamfer of <paramref name="width"/> with the tool's angle and tip (mm).</summary>
+    public static double TipDepth(Tool tool, double width)
+    {
+        var half = Math.Clamp(tool.TipAngle, 1, 179) / 2 * Math.PI / 180;
+        return Math.Max(0, width) / Math.Tan(half);
+    }
+}
+
+/// <summary>
+/// Round holes milled along a helix: the cutter goes down while circling, larger holes in several rings from the
+/// centre out. A counterbore (a wider, shallower hole for the screw head) is milled first when set.
+/// </summary>
+public sealed class HelixHoleOperation : Operation
+{
+    public HelixHoleOperation()
+    {
+        Depth = 3;
+        Entry = EntryMode.Helix;
+    }
+
+    /// <summary>Hole diameter (mm); 0 = the diameter of each selected circle.</summary>
+    public double HoleDiameter { get; set; }
+
+    /// <summary>Counterbore diameter (mm, 0 = none), e.g. 6 for an M3 socket head.</summary>
+    public double CounterboreDiameter { get; set; }
+
+    /// <summary>Counterbore depth from the start (mm).</summary>
+    public double CounterboreDepth { get; set; } = 3;
+
+    public CutDirection Direction { get; set; } = CutDirection.Climb;
 }
 
 /// <summary>How a pocket is cleared.</summary>

@@ -53,7 +53,7 @@ public static partial class ToolpathGenerator
                 continue;
             }
 
-            if (operation.Depth <= 0)
+            if (operation.Depth <= 0 && operation is not ChamferOperation)
             {
                 result.Warnings.Add(Loc.T($"{label}: глубина должна быть больше нуля.", $"{label}: the depth must be greater than zero."));
                 continue;
@@ -108,7 +108,7 @@ public static partial class ToolpathGenerator
 
             // A V-bit cuts as wide as it is at the operation depth (V-carving works with the cone itself).
             var cuttingTool = tool;
-            if (tool.Kind == ToolKind.VBit && operation is not VCarveOperation)
+            if (tool.Kind == ToolKind.VBit && operation is not (VCarveOperation or ChamferOperation))
             {
                 cuttingTool = tool.Clone();
                 cuttingTool.Diameter = tool.CuttingDiameter(operation.Depth);
@@ -135,6 +135,12 @@ public static partial class ToolpathGenerator
                     break;
                 case CopperClearingOperation clearing:
                     GenerateCopperClearing(clearing, contours, context);
+                    break;
+                case ChamferOperation chamfer:
+                    GenerateChamfer(chamfer, selected, context);
+                    break;
+                case HelixHoleOperation helix:
+                    GenerateHelixHoles(helix, selected, context);
                     break;
                 case VCarveOperation vcarve:
                     GenerateVCarve(vcarve, selected, context);
@@ -294,6 +300,10 @@ public static partial class ToolpathGenerator
         var offset = tool.Radius + operation.Allowance;
         var delta = operation.Side == ProfileSide.Outside ? offset : -offset;
         var loops = ClipperBridge.FromPaths(ClipperBridge.Offset(ClipperBridge.ToPaths(new[] { ring }), delta));
+        if (operation.CornerRelief != CornerRelief.None)
+        {
+            loops = loops.Select(l => RelieveCorners(l, tool.Radius, operation.CornerRelief)).ToList();
+        }
 
         // Clipper keeps the region on the left of each loop. For an outside cut the part is that region,
         // so climb milling (material on the right with an M3 spindle) needs the reverse direction.

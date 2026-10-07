@@ -100,6 +100,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Сторона', En='Side'}" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ProfileSides}"
@@ -114,6 +115,10 @@
                     <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Допуск остатков, мм', En='Rest tolerance, mm'}" />
                     <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RestTolerance}" IsEnabled="{Binding RestFromStock}"
                              ToolTip="{l:Tr 'Только для дообработки по симуляции: остаток тоньше этого не обрабатывается заново (0,03–0,1 мм).', En='Rest machining by simulation only: material thinner than this is not machined again (0.03–0.1 mm).'}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Подрезка углов', En='Corner relief'}" />
+                    <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CornerReliefs}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding CornerRelief}"
+                              ToolTip="{l:Tr 'Круглая фреза оставляет во внутренних углах скругление своего радиуса, и квадратный шип не входит в паз. Dogbone — фреза заходит в угол по биссектрисе, T-bone — вдоль длинной стороны (ухо спрятано в ней). Подрезаются только углы, куда фреза не достаёт: углы отверстий при «Внутри», углы пазов детали при «Снаружи». Для шипов, пазов и вставок.', En='A round cutter leaves a fillet of its radius in inner corners, and a square finger does not go into the slot. Dogbone — the cutter goes into the corner along the bisector, T-bone — along the longer side (the ear hides in it). Only the corners the cutter cannot reach are relieved: corners of holes with “Inside”, corners of notches in the part with “Outside”. For fingers, slots and inlays.'}" />
+
                 </Grid>
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource EntryFields}" />
                 <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Перемычки (удерживают деталь)', En='Tabs (hold the part)'}" />
@@ -396,6 +401,68 @@
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Text="{l:Tr 'Концевая фреза Ø1–2 мм снимает медь кольцами со всей платы, кроме полосы вокруг дорожек — её прорезает изоляция гравёром. В узких местах, куда фреза не пролезает, остаются островки меди: они отделены от дорожек. Глубина — как у изоляции (0,05–0,1 мм), неровность компенсируйте картой высот. Подробно — docs/pcb-milling.md.', En='An Ø1–2 mm end mill removes the copper in rings from the whole board except a band around the tracks — the engraver isolation cuts it. In narrow places the mill cannot get into, copper islands stay: they are separated from the tracks. The depth is as for the isolation (0.05–0.1 mm); compensate an uneven board with a height map. Details: docs/pcb-milling.md.'}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:ChamferOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Фаска V-фрезой', En='V-bit chamfer'}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ширина фаски, мм', En='Chamfer width, mm'}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ChamferWidth}"
+                             ToolTip="{l:Tr 'Ширина скоса на поверхности. Глубина считается сама из угла V-фрезы: у 90° она равна ширине. Потай под винт: (Ø головки − Ø отверстия) / 2, V-фреза 90°.', En='Width of the bevel on the surface. The depth follows from the V-bit angle: with 90° it equals the width. Countersink for a screw: (head Ø − hole Ø) / 2, 90° V-bit.'}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Где', En='Where'}" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:Choices.ChamferSides}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Side}"
+                              ToolTip="{l:Tr 'Снаружи — кромка детали (панели); внутри — край отверстия, потай под винт.', En='Outside — the edge of a part (panel); inside — the edge of a hole, a countersink for a screw.'}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
+                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" ToolTip="{l:Tr 'Направление движения фрезы: попутное режет чище, встречное надёжнее на рыхлом материале', En='Tool travel direction: climb cuts cleaner, conventional is safer on soft material'}" />
+                </Grid>
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Поле «Глубина» не используется: глубина = ширина / tg(половины угла фрезы), за проходы по шагу инструмента. Кончик фрезы идёт на половину своей ширины от кромки. Фаску делайте до вырезки детали — пока заготовка закреплена.', En='The “Depth” field is not used: depth = width / tan(half the bit angle), in passes of the tool step-down. The tip runs half its width off the edge. Chamfer before cutting the part out — while the stock is still clamped.'}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:HelixHoleOperationViewModel}">
+            <StackPanel>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonOperationFields}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Отверстия по спирали', En='Helical holes'}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ø отверстия, мм', En='Hole Ø, mm'}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HoleDiameter}" ToolTip="{l:Tr '0 — диаметр каждой выделенной окружности. Иначе все отверстия этого диаметра в центрах окружностей.', En='0 — the diameter of each selected circle. Otherwise all holes of this diameter at the circle centres.'}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ø цековки, мм', En='Counterbore Ø, mm'}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CounterboreDiameter}" ToolTip="{l:Tr 'Цековка под головку винта (0 — нет): M3 — 6,5 мм, M4 — 8 мм, M5 — 10 мм. Фрезеруется первой.', En='Counterbore for the screw head (0 — none): M3 — 6.5 mm, M4 — 8 mm, M5 — 10 mm. Milled first.'}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Глубина цековки, мм', En='Counterbore depth, mm'}" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding CounterboreDepth}" ToolTip="{l:Tr 'Высота головки винта + 0,3 мм: M3 — 3,3, M4 — 4,3.', En='Screw head height + 0.3 mm: M3 — 3.3, M4 — 4.3.'}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Угол спирали, °', En='Helix angle, °'}" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RampAngle}" ToolTip="{l:Tr 'Наклон спирали: за виток фреза опускается на 2πR·tg(угла), но не больше шага инструмента. Для 3018: 2–5°.', En='Slope of the helix: per turn the cutter goes down 2πR·tan(angle), but no more than the tool step-down. For a 3018: 2–5°.'}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Фрезерование', En='Cut direction'}" />
+                    <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{x:Static vm:Choices.CutDirections}"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" ToolTip="{l:Tr 'Направление движения фрезы: попутное режет чище, встречное надёжнее на рыхлом материале', En='Tool travel direction: climb cuts cleaner, conventional is safer on soft material'}" />
+                </Grid>
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{l:Tr 'Фреза опускается по спирали вдоль стенки — без вертикального врезания; отверстия больше двух диаметров фрезы выбираются кольцами от центра наружу, последнее кольцо чистовое. Быстрее и круглее кармана. Глубина — насквозь: толщина + 0,2 мм.', En='The cutter goes down along a helix by the wall — no straight plunge; holes larger than two cutter diameters are cleared in rings from the centre out, the last ring finishes. Faster and rounder than a pocket. Depth for a through hole: thickness + 0.2 mm.'}" />
             </StackPanel>
         </DataTemplate>
 
@@ -945,6 +1012,8 @@
                             <Button Content="{l:Tr '+ Изоляция', En='+ Isolation'}" ToolTip="{l:Tr 'Добавить операцию «Изоляция» для печатных плат: гравёр обходит контуры меди в несколько проходов, отделяя дорожки друг от друга.', En='Add an “Isolation” operation for PCBs: the engraver goes around the copper contours in several passes, separating the tracks.'}" Command="{Binding AddIsolationCommand}" />
                             <Button Content="{l:Tr '+ Удаление меди', En='+ Copper clearing'}" ToolTip="{l:Tr 'Удаление лишней меди: выделите медь (и контур платы). Гравёр обходит дорожки изоляцией, концевая фреза Ø1–2 мм снимает всю остальную медь внутри контура платы. Если изоляции ещё нет, она добавится.', En='Removing excess copper: select the copper (and the board outline). The engraver isolates the tracks, an Ø1–2 mm end mill removes all the other copper inside the board outline. An isolation is added if there is none yet.'}" Command="{Binding AddCopperClearingCommand}" />
                             <Button Content="{l:Tr '+ Сверловка по Ø', En='+ Drilling by Ø'}" ToolTip="{l:Tr 'Отверстия группируются по диаметру, каждой группе подбирается ближайшее сверло из инструментов, на каждое сверло — своя операция, от тонкого к толстому, с паузой на смену сверла. Берутся выделенные отверстия, а без выделения — все слои сверловки.', En='The holes are grouped by diameter, each group gets the nearest drill among the tools, one operation per drill, thinnest first, with a pause for the drill change. The selected holes are used, or without a selection all the drill layers.'}" Command="{Binding AddDrillsByDiameterCommand}" />
+                            <Button Content="{l:Tr '+ Фаска', En='+ Chamfer'}" ToolTip="{l:Tr 'Добавить фаску V-фрезой по выделенным контурам: кромка панели (снаружи) или потай под винт (внутри отверстия). Ширина фаски задаётся, глубина считается из угла фрезы.', En='Add a V-bit chamfer along the selected contours: the panel edge (outside) or a countersink for a screw (inside a hole). The chamfer width is set, the depth follows from the bit angle.'}" Command="{Binding AddChamferCommand}" />
+                            <Button Content="{l:Tr '+ Отверстия по спирали', En='+ Helical holes'}" ToolTip="{l:Tr 'Круглые отверстия больше фрезы — по спирали, с цековкой под головку винта: быстрее и точнее кармана. Выделите окружности.', En='Round holes larger than the cutter — along a helix, with a counterbore for the screw head: faster and more accurate than a pocket. Select the circles.'}" Command="{Binding AddHelixHolesCommand}" />
                             <Button Content="{l:Tr '+ V-карвинг', En='+ V-carve'}" ToolTip="{l:Tr 'Добавить операцию «V-карвинг»: V-фреза режет внутри выделенных контуров (обычно букв), глубина зависит от ширины — острые углы и красивые надписи.', En='Add a “V-carving” operation: a V-bit cuts inside the selected contours (usually letters), the depth follows the width — sharp corners and nice lettering.'}" Command="{Binding AddVCarveCommand}" />
                             <Button Content="{l:Tr '+ Лазер', En='+ Laser'}" ToolTip="{l:Tr 'Добавить лазерную операцию по выделенным контурам: резка или обводка по линии, заливка штриховкой или и то и другое. Нужен профиль станка с лазером.', En='Add a laser operation on the selected contours: cutting or outlining on the line, hatch fill, or both. Needs a machine profile with a laser.'}" Command="{Binding AddLaserVectorCommand}" />
                             <Button Content="{l:Tr '+ Плата лазером', En='+ Laser PCB'}" ToolTip="{l:Tr 'Добавить операцию «Плата лазером»: медь покрыта краской, лазер выжигает краску вокруг дорожек (полосой или со всей платы), затем плата травится. Выделите медь (и контур платы) перед нажатием.', En='Add a “Laser PCB” operation: the copper is painted, the laser burns the paint around the tracks (a strip or the whole board), then the board is etched. Select the copper (and the board outline) first.'}" Command="{Binding AddLaserPcbCommand}" />
@@ -1211,6 +1280,200 @@
                     </DockPanel>
                 </TabItem>
 
+                <TabItem Header="{l:Tr 'Конструктор', En='Design'}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="6">
+                            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="{l:Tr 'Правка выделенных контуров и генераторы для коробок и приборных панелей. Выделение рамкой — Shift + протянуть на чертеже. Подробно — docs/boxes-panels.md.', En='Editing of the selected contours and generators for boxes and front panels. Box selection — Shift + drag on the drawing. Details: docs/boxes-panels.md.'}" />
+
+                            <Expander Header="{l:Tr 'Изменить выделенное', En='Edit the selection'}" Margin="0,4,0,0" IsExpanded="True" DataContext="{Binding DrawingEdit}">
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Сдвиг X / Y, мм', En='Move X / Y, mm'}" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MoveX}" />
+                                    <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding MoveY}" />
+                                    <Button Grid.Row="0" Grid.Column="3" Content="{l:Tr 'Сдвинуть', En='Move'}" ToolTip="{l:Tr 'Сдвинуть выделенные контуры. Текст, выделенный целиком, едет вместе с буквами.', En='Move the selected contours. A text selected as a whole moves with its letters.'}"
+                                            Command="{Binding DataContext.MoveSelectedCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Поворот, °', En='Turn, °'}" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Angle}" ToolTip="{l:Tr 'Против часовой стрелки вокруг центра выделения; минус — по часовой.', En='Counter-clockwise around the centre of the selection; minus — clockwise.'}" />
+                                    <Button Grid.Row="1" Grid.Column="3" Content="{l:Tr 'Повернуть', En='Turn'}" ToolTip="{l:Tr 'Повернуть выделенное вокруг его центра. Повёрнутые буквы текста становятся обычными контурами.', En='Turn the selection around its centre. Turned text letters become plain contours.'}"
+                                            Command="{Binding DataContext.RotateSelectedCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Масштаб', En='Scale'}" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding ScaleFactor}" ToolTip="{l:Tr '1 — без изменений, 2 — вдвое больше, 0,5 — вдвое меньше; вокруг центра выделения.', En='1 — unchanged, 2 — twice as large, 0.5 — half; around the centre of the selection.'}" />
+                                    <Button Grid.Row="2" Grid.Column="3" Content="{l:Tr 'Масштаб', En='Scale'}" ToolTip="{l:Tr 'Изменить размер выделенного во столько раз (одинаково по X и Y).', En='Resize the selection by this factor (the same in X and Y).'}"
+                                            Command="{Binding DataContext.ScaleSelectedCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Массив: столбцы × ряды', En='Array: columns × rows'}" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Columns}" ToolTip="{l:Tr 'Сколько штук по X (вместе с исходным)', En='How many along X (the original included)'}" />
+                                    <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding Rows}" ToolTip="{l:Tr 'Сколько штук по Y (вместе с исходным)', En='How many along Y (the original included)'}" />
+                                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Шаг X / Y, мм', En='Step X / Y, mm'}" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding StepX}" />
+                                    <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding StepY}" />
+                                    <Button Grid.Row="4" Grid.Column="3" Content="{l:Tr 'Массив', En='Array'}" ToolTip="{l:Tr 'Копии выделенного сеткой. Операции, где был исходный контур, получают и копии.', En='Copies of the selection in a grid. Operations that had the original get the copies too.'}"
+                                            Command="{Binding DataContext.ArrayRectangularCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'По кругу: штук, угол °', En='Circular: count, angle °'}" />
+                                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding CircularCount}" ToolTip="{l:Tr 'Сколько штук вместе с исходным', En='How many, the original included'}" />
+                                    <TextBox Grid.Row="5" Grid.Column="2" Text="{Binding CircularSweep}" ToolTip="{l:Tr '360 — по всему кругу равномерно; меньше — дуга от исходного до последнего', En='360 — evenly around the full circle; less — an arc from the original to the last one'}" />
+                                    <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Центр X / Y, мм', En='Centre X / Y, mm'}" />
+                                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding CenterX}" />
+                                    <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding CenterY}" />
+                                    <Button Grid.Row="6" Grid.Column="3" Content="{l:Tr 'По выделению', En='From selection'}" ToolTip="{l:Tr 'Взять центр из выделенного (например, окружности).', En='Take the centre from the selection (e.g. a circle).'}"
+                                            Command="{Binding DataContext.ArrayCenterFromSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <CheckBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Content="{l:Tr 'Поворачивать копии', En='Turn the copies'}" IsChecked="{Binding RotateCopies}" />
+                                    <Button Grid.Row="7" Grid.Column="3" Content="{l:Tr 'По кругу', En='Circular'}" ToolTip="{l:Tr 'Копии выделенного по кругу вокруг центра: крепёжные отверстия, вентиляция, риски.', En='Copies of the selection around the centre: mounting holes, vents, marks.'}"
+                                            Command="{Binding DataContext.ArrayCircularCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <Button Grid.Row="8" Grid.Column="3" Content="{l:Tr 'Удалить', En='Delete'}" ToolTip="{l:Tr 'Удалить выделенные контуры из чертежа и из операций (Del на чертеже). Отменяется Ctrl+Z.', En='Delete the selected contours from the drawing and the operations (Del on the drawing). Undo with Ctrl+Z.'}"
+                                            Command="{Binding DataContext.DeleteSelectedCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                </Grid>
+                            </Expander>
+
+                            <Expander Header="{l:Tr 'Коробка с шипами', En='Finger-joint box'}" Margin="0,4,0,0" DataContext="{Binding Box}"
+                                      ToolTip="{l:Tr 'Коробка из листа: дно, четыре стенки и крышка с соединением «шип-паз». Детали раскладываются справа от чертежа, операции резки добавляются сами.', En='A box from sheet material: bottom, four walls and a lid with finger joints. The parts are laid out to the right of the drawing, the cutting operations are added by themselves.'}">
+                                <StackPanel>
+                                    <Grid Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Ш × Г × В, мм', En='W × D × H, mm'}" />
+                                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Width}" ToolTip="{l:Tr 'Ширина (по X)', En='Width (along X)'}" />
+                                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding Depth}" ToolTip="{l:Tr 'Глубина (по Y)', En='Depth (along Y)'}" />
+                                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding Height}" ToolTip="{l:Tr 'Высота', En='Height'}" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Content="{l:Tr 'Внутренние размеры', En='Inner sizes'}" IsChecked="{Binding InnerDimensions}"
+                                                  ToolTip="{l:Tr 'Включено — размеры внутри коробки (что в неё должно поместиться), выключено — снаружи.', En='On — the sizes inside the box (what must fit in), off — outside.'}" />
+                                        <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Толщина, шип, мм', En='Thickness, finger, mm'}" />
+                                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Thickness}" ToolTip="{l:Tr 'Толщина листа — измерьте штангенциркулем: «фанера 3 мм» бывает 2,7–3,2.', En='Sheet thickness — measure it with calipers: “3 mm plywood” is 2.7–3.2.'}" />
+                                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding FingerWidth}" ToolTip="{l:Tr 'Желаемая ширина шипа; подгоняется, чтобы на каждой кромке было нечётное число шипов. Обычно 2–4 толщины.', En='Wanted finger width; adjusted so that every edge has an odd number of fingers. Usually 2–4 thicknesses.'}" />
+                                        <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Крышка', En='Lid'}" />
+                                        <ComboBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" ItemsSource="{x:Static vm:Choices.BoxLids}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Lid}"
+                                                  ToolTip="{l:Tr 'Накладная — пластина сверху и вкладыш под ней (приклеить), чтобы крышка не съезжала. Сдвижная — едет в пазах боковых и задней стенок, передняя стенка ниже.', En='Lift-off — a plate on top and an insert under it (glue it) so that the lid does not slip. Sliding — runs in grooves of the side and back walls, the front wall is lower.'}" />
+                                        <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Посадка, мм', En='Fit, mm'}" />
+                                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Fit}" ToolTip="{l:Tr 'Зазор в каждом соединении: плюс — свободно (под клей), минус — натяг. Начните с 0 и вырежьте пробный угол.', En='Play in every joint: plus — loose (for glue), minus — press fit. Start with 0 and cut a test corner.'}" />
+                                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Зазор, мм', En='Gap, mm'}" />
+                                        <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding Gap}" ToolTip="{l:Tr 'Расстояние между деталями на листе: для фрезы — больше её диаметра.', En='Distance between the parts on the sheet: for a mill — more than its diameter.'}" />
+                                    </Grid>
+                                    <Button HorizontalAlignment="Left" Margin="0,3,0,0" Content="{l:Tr '+ Коробка', En='+ Box'}"
+                                            ToolTip="{l:Tr 'Добавить детали коробки справа от чертежа (ряды по ширине поля станка) и операции: лазер — резка с учётом ширины реза; фреза — контур снаружи с подрезкой углов (dogbone), глубина = толщина + 0,2.', En='Add the box parts to the right of the drawing (rows across the machine width) and the operations: laser — a cut with the kerf compensated; mill — an outside profile with dog-bone corners, depth = thickness + 0.2.'}"
+                                            Command="{Binding DataContext.AddFingerBoxCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                </StackPanel>
+                            </Expander>
+
+                            <Expander Header="{l:Tr 'Вырезы для панели', En='Panel cutouts'}" Margin="0,4,0,0" DataContext="{Binding Cutout}"
+                                      ToolTip="{l:Tr 'Готовые вырезы для приборных панелей: отверстия под кнопки, тумблеры и потенциометры (с лыской), D-Sub, USB, XLR, разъём питания, окна дисплеев, вентиляция, крепёж по углам. Размеры типовые — сверьте со своей деталью.', En='Ready cutouts for front panels: holes for buttons, toggles and pots (with a flat), D-Sub, USB, XLR, power jack, display windows, vents, corner mounting holes. Typical sizes — check them against your part.'}">
+                                <StackPanel>
+                                    <ComboBox Margin="0,2,0,0" ItemsSource="{Binding Cutouts}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedCutout}" />
+                                    <ItemsControl ItemsSource="{Binding Values}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="190" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+                                                    <TextBox Grid.Column="1" Text="{Binding Value}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="{l:Tr 'Центр X / Y, поворот °', En='Centre X / Y, turn °'}" />
+                                        <TextBox Grid.Column="1" Text="{Binding CenterX}" />
+                                        <TextBox Grid.Column="2" Text="{Binding CenterY}" />
+                                        <TextBox Grid.Column="3" Text="{Binding Angle}" />
+                                    </Grid>
+                                    <WrapPanel Margin="0,3,0,0">
+                                        <Button Content="{l:Tr 'По выделению', En='From selection'}" ToolTip="{l:Tr 'Центр выреза — центр выделенного (например, нарисованной метки или контура панели для крепежа по углам).', En='The cutout centre is the centre of the selection (e.g. a drawn mark, or the panel outline for corner holes).'}"
+                                                Command="{Binding DataContext.CutoutCenterFromSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        <Button Margin="4,0,0,0" Content="{l:Tr '+ Вырез', En='+ Cutout'}" ToolTip="{l:Tr 'Добавить вырез на слой «Вырезы»; контуры будут выделены — добавьте операцию (контур внутри, отверстия по спирали, лазер).', En='Add the cutout on the “Cutouts” layer; the contours are selected — add an operation (inside profile, helical holes, laser).'}"
+                                                Command="{Binding DataContext.AddPanelCutoutCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Expander>
+
+                            <Expander Header="{l:Tr 'Шкала для ручки', En='Dial scale'}" Margin="0,4,0,0" DataContext="{Binding Dial}"
+                                      ToolTip="{l:Tr 'Дуга с рисками и цифрами вокруг потенциометра или переключателя — для гравировки, лазера или V-карвинга.', En='An arc of ticks and numbers around a pot or a switch — for engraving, laser or V-carving.'}">
+                                <StackPanel>
+                                    <Grid Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Центр X / Y, мм', En='Centre X / Y, mm'}" />
+                                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding X}" />
+                                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding Y}" />
+                                        <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Радиус рисок, мм', En='Tick radius, mm'}" />
+                                        <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Radius}" ToolTip="{l:Tr 'Откуда начинаются риски: чуть больше радиуса ручки.', En='Where the ticks start: a little more than the knob radius.'}" />
+                                        <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Начало °, охват °', En='Start °, sweep °'}" />
+                                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding StartAngle}" ToolTip="{l:Tr 'Угол первой риски от оси X против часовой: 225 — слева внизу.', En='Angle of the first tick from the X axis counter-clockwise: 225 — lower left.'}" />
+                                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding Sweep}" ToolTip="{l:Tr 'Сколько градусов по часовой стрелке занимает шкала: потенциометр — 270–300.', En='How many degrees clockwise the scale covers: a pot — 270–300.'}" />
+                                        <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Делений, длинная каждая', En='Divisions, long every'}" />
+                                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Divisions}" ToolTip="{l:Tr 'Число промежутков между рисками (рисок на одну больше). Переключатель на 6 положений — 5.', En='Number of steps between the ticks (one tick more). A 6-position switch — 5.'}" />
+                                        <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding MajorEvery}" ToolTip="{l:Tr 'Каждая N-я риска длинная и с цифрой; 1 — все.', En='Every Nth tick is long and numbered; 1 — all.'}" />
+                                        <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Длина рисок, мм', En='Tick length, mm'}" />
+                                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding MinorLength}" ToolTip="{l:Tr 'Короткая риска', En='Short tick'}" />
+                                        <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding MajorLength}" ToolTip="{l:Tr 'Длинная риска', En='Long tick'}" />
+                                        <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Цифры от, до', En='Numbers from, to'}" />
+                                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding LabelFrom}" />
+                                        <TextBox Grid.Row="5" Grid.Column="2" Text="{Binding LabelTo}" />
+                                        <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Высота цифр, толщина линий', En='Digit height, line width'}" />
+                                        <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding LabelHeight}" ToolTip="{l:Tr 'Высота цифр, мм; 0 — без цифр.', En='Digit height, mm; 0 — no numbers.'}" />
+                                        <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding StrokeWidth}" ToolTip="{l:Tr '0 — линии (гравировка «Контуром» по линии, лазер). Больше 0 — замкнутые контуры такой ширины (V-карвинг, карман).', En='0 — lines (engraving with a Profile on the line, laser). Above 0 — closed outlines of this width (V-carving, pocket).'}" />
+                                        <CheckBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Content="{l:Tr 'Дуга по началу рисок', En='Arc along the ticks'}" IsChecked="{Binding Arc}" />
+                                    </Grid>
+                                    <WrapPanel Margin="0,3,0,0">
+                                        <Button Content="{l:Tr 'По выделению', En='From selection'}" ToolTip="{l:Tr 'Центр шкалы — центр выделенного отверстия под вал.', En='The dial centre is the centre of the selected shaft hole.'}"
+                                                Command="{Binding DataContext.DialCenterFromSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        <Button Margin="4,0,0,0" Content="{l:Tr '+ Шкала', En='+ Scale'}" ToolTip="{l:Tr 'Добавить риски и цифры на слой «Шкала»; контуры будут выделены.', En='Add the ticks and numbers on the “Scale” layer; the contours are selected.'}"
+                                                Command="{Binding DataContext.AddDialScaleCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
                 <TabItem Header="{l:Tr 'Текст', En='Text'}">
                     <Grid Margin="6">
                         <Grid.RowDefinitions>
@@ -1677,20 +1940,25 @@
                                                   Scene="{Binding Scene}"
                                                   MachinePosition="{Binding Control.ToolPosition}"
                                                   ContourClickCommand="{Binding ContourClickedCommand}"
+                                                  BoxSelectCommand="{Binding BoxSelectCommand}"
                                                   CursorText="{Binding CursorText, Mode=OneWayToSource}">
+                                <controls:CamViewport.InputBindings>
+                                    <KeyBinding Key="Delete" Command="{Binding DeleteSelectedCommand}" />
+                                </controls:CamViewport.InputBindings>
                                 <controls:CamViewport.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="{l:Tr 'Выделить всё', En='Select all'}" InputGestureText="Ctrl+A" Command="{Binding SelectAllCommand}" />
                                         <MenuItem Header="{l:Tr 'Выделить окружности', En='Select circles'}" Command="{Binding SelectCirclesCommand}" />
                                         <MenuItem Header="{l:Tr 'Выделить отверстия того же диаметра', En='Select holes of the same diameter'}" Command="{Binding SelectSameDiameterCommand}" />
                                         <MenuItem Header="{l:Tr 'Снять выделение', En='Clear selection'}" InputGestureText="Esc" Command="{Binding ClearSelectionCommand}" />
+                                        <MenuItem Header="{l:Tr 'Удалить выделенное', En='Delete selected'}" InputGestureText="Del" Command="{Binding DeleteSelectedCommand}" />
                                         <Separator />
                                         <MenuItem Header="{l:Tr 'Показать всё', En='Zoom to fit'}" InputGestureText="Home" Command="{Binding ZoomToFitCommand}" />
                                     </ContextMenu>
                                 </controls:CamViewport.ContextMenu>
                             </controls:CamViewport>
                             <TextBlock Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#8A939E" IsHitTestVisible="False"
-                                       Text="{l:Tr 'Колесо — масштаб · перетаскивание — сдвиг · клик — выбор контура (Ctrl — добавить) · Ctrl+A — выделить всё · Esc — снять выделение · правая кнопка — меню · Home — показать всё · крестик — ноль X0 Y0', En='Wheel — zoom · drag — pan · click — select a contour (Ctrl — add) · Ctrl+A — select all · Esc — clear selection · right click — menu · Home — fit all · cross — zero X0 Y0'}"
+                                       Text="{l:Tr 'Колесо — масштаб · перетаскивание — сдвиг · клик — выбор контура (Ctrl — добавить) · Shift+протянуть — рамкой (вправо — целиком внутри, влево — задетые) · Ctrl+A — выделить всё · Esc — снять · Del — удалить · правая кнопка — меню · Home — показать всё', En='Wheel — zoom · drag — pan · click — select a contour (Ctrl — add) · Shift+drag — by a box (to the right — wholly inside, to the left — touched) · Ctrl+A — select all · Esc — clear · Del — delete · right click — menu · Home — fit all'}"
                                        TextWrapping="Wrap" />
                         </Grid>
                     </TabItem>

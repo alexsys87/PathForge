@@ -200,19 +200,7 @@ public static class Nesting
         }
 
         project.Contours.AddRange(newContours);
-        foreach (var operation in project.Operations)
-        {
-            var extra = operation.ContourIds.Where(copyIds.ContainsKey).SelectMany(id => copyIds[id]).ToList();
-            operation.ContourIds.AddRange(extra);
-            if (operation is LaserPcbOperation pcb)
-            {
-                pcb.BoardContourIds.AddRange(pcb.BoardContourIds.Where(copyIds.ContainsKey).SelectMany(id => copyIds[id]).ToList());
-            }
-            else if (operation is CopperClearingOperation clearing)
-            {
-                clearing.BoardContourIds.AddRange(clearing.BoardContourIds.Where(copyIds.ContainsKey).SelectMany(id => copyIds[id]).ToList());
-            }
-        }
+        Projects.DrawingEdits.AddCopiesToOperations(project, copyIds);
 
         if (inHoles > 0)
         {
