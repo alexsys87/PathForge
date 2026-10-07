@@ -331,6 +331,21 @@ public class GrblTests
     }
 
     [Fact]
+    public void A_grblhal_banner_is_a_controller_restart_too()
+    {
+        var (controller, board, results) = Connect();
+        controller.StartJob(Program(300));
+        board.ProcessOne();
+
+        board.Send("GrblHAL 1.1f ['$' or '$HELP' for help]");
+
+        Assert.Equal("GrblHAL 1.1f ['$' or '$HELP' for help]", controller.Version);
+        Assert.Equal(GrblJobState.None, controller.Job);
+        Assert.False(Assert.Single(results).Success);
+        Assert.Equal(0, controller.BufferUsed);
+    }
+
+    [Fact]
     public void Alarm_aborts_the_program()
     {
         var (controller, board, results) = Connect();

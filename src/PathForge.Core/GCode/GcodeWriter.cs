@@ -6,6 +6,34 @@ using PathForge.Core.Machining;
 namespace PathForge.Core.GCode;
 
 /// <summary>
+/// G-code text with, for every move of every toolpath, the 1-based number of the line that brings the machine to
+/// its end (an arc line covers several moves; a move that writes nothing maps to the last line before it).
+/// </summary>
+public sealed record GcodeOutput(string Text, IReadOnlyList<int[]> MoveLines)
+{
+    /// <summary>Line of the move at <paramref name="index"/> counted through all toolpaths in order (0 when out of range).</summary>
+    public int LineOfMove(int index)
+    {
+        if (index < 0)
+        {
+            return 0;
+        }
+
+        foreach (var lines in MoveLines)
+        {
+            if (index < lines.Length)
+            {
+                return lines[index];
+            }
+
+            index -= lines.Length;
+        }
+
+        return 0;
+    }
+}
+
+/// <summary>
 /// Writes G-code: G0/G1 moves in absolute millimetres, M3/M5 spindle.
 /// <see cref="GcodeDialect.Generic"/> uses Tn M6 tool changes; <see cref="GcodeDialect.Grbl"/> pauses with M0,
 /// keeps every line within GRBL's 80 character buffer and writes comments in ASCII.
@@ -19,6 +47,8 @@ public sealed class GcodeWriter
     private readonly double _safeZ;
     private readonly string _format;
     private readonly StringBuilder _output = new();
+    private readonly List<int[]> _moveLines = new();
+    private int _lineCount;
     private double? _x;
     private double? _y;
     private double? _z;
@@ -49,6 +79,14 @@ public sealed class GcodeWriter
 
     public static string Write(string programName, GenerationResult result, MachineSettings machine) =>
         Write(programName, result.Toolpaths, machine, result.SafeZ);
+
+    /// <summary>Like <see cref="Write(string, GenerationResult, MachineSettings)"/>, with the line of every move.</summary>
+    public static GcodeOutput WriteWithLines(string programName, GenerationResult result, MachineSettings machine)
+    {
+        var writer = new GcodeWriter(machine, result.SafeZ);
+        writer.WriteProgram(programName, result.Toolpaths);
+        return new GcodeOutput(writer._output.ToString(), writer._moveLines);
+    }
 
     private void WriteProgram(string programName, IReadOnlyList<Toolpath> toolpaths)
     {
@@ -107,10 +145,12 @@ public sealed class GcodeWriter
         // Raster lines are straight: arc fitting would only cost time.
         var arcs = UseArcs && toolpath.Operation is not LaserRasterOperation;
         var moves = toolpath.Moves;
+        var lines = new int[moves.Count];
+        _moveLines.Add(lines);
         var k = 0;
         while (k < moves.Count)
         {
-            if (arcs && TryWriteArcRun(moves, ref k, toolpath.Tool.FeedRate))
+            if (arcs && TryWriteArcRun(moves, ref k, toolpath.Tool.FeedRate, lines))
             {
                 continue;
             }
@@ -129,6 +169,7 @@ public sealed class GcodeWriter
                     break;
             }
 
+            lines[k] = _lineCount;
             k++;
         }
     }
@@ -156,7 +197,7 @@ public sealed class GcodeWriter
     /// Writes a run of cutting moves at constant Z starting at <paramref name="k"/>, replacing points that
     /// lie on circles with G2/G3. Returns false when there is no such run.
     /// </summary>
-    private bool TryWriteArcRun(List<ToolMove> moves, ref int k, double feed)
+    private bool TryWriteArcRun(List<ToolMove> moves, ref int k, double feed, int[] lines)
     {
         var z = _current.Z;
         var power = moves[k].Power;
@@ -180,6 +221,7 @@ public sealed class GcodeWriter
             points.Add(moves[i].Target.XY);
         }
 
+        var done = 0;
         foreach (var piece in ArcFitter.Fit(points))
         {
             var target = points[piece.End];
@@ -191,6 +233,17 @@ public sealed class GcodeWriter
             {
                 Feed(target.X, target.Y, z, feed, power);
             }
+
+            // Point i of the run is the end of move k + i - 1.
+            for (; done < piece.End; done++)
+            {
+                lines[k + done] = _lineCount;
+            }
+        }
+
+        for (; done < end - k; done++)
+        {
+            lines[k + done] = _lineCount;
         }
 
         k = end;
@@ -357,6 +410,7 @@ public sealed class GcodeWriter
         }
 
         _output.Append(line).Append('\n');
+        _lineCount++;
     }
 
     private string CommentText(string text)

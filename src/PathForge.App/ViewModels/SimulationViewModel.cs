@@ -143,6 +143,13 @@ public sealed partial class SimulationViewModel : ObservableObject
 
     private static string NoToolpathsText => Loc.T("Нет траекторий: добавьте операции и выберите контуры.", "No toolpaths: add operations and select contours.");
 
+    /// <summary>The toolpaths the current simulation was built from (null without one).</summary>
+    public GenerationResult? Generation { get; private set; }
+
+    /// <summary>Index of the move being simulated, counted through all toolpaths (-1 without a simulation).</summary>
+    [ObservableProperty]
+    private int currentMoveIndex = -1;
+
     /// <summary>The 3D tab is visible: only then the simulation is computed.</summary>
     public bool IsActive
     {
@@ -186,9 +193,11 @@ public sealed partial class SimulationViewModel : ObservableObject
         HeightMapText = _heightMap is null ? "" : Loc.T(
             $"Карта высот {_heightMap.CountX}×{_heightMap.CountY}, перепад {_heightMap.Max - _heightMap.Min:0.000} мм",
             $"Height map {_heightMap.CountX}×{_heightMap.CountY}, range {_heightMap.Max - _heightMap.Min:0.000} mm");
+        Generation = generation;
         if (generation.Toolpaths.Count == 0)
         {
             _simulation = null;
+            CurrentMoveIndex = -1;
             _comparison = null;
             _deviation = null;
             HasModel = false;
@@ -348,6 +357,7 @@ public sealed partial class SimulationViewModel : ObservableObject
             UpdateTexts(simulation);
         }
 
+        CurrentMoveIndex = simulation.CurrentMoveIndex;
         var tip = simulation.ToolPosition;
         Frame = new SimulationFrame(_surface, _version, simulation.CurrentToolpath?.Tool, new Point3D(tip.X, tip.Y, tip.Z),
             ShowComparison && HasModel ? _deviation : null, ComparisonTolerance, ShowPath ? simulation.CurrentToolpath : null,

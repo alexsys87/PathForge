@@ -18,6 +18,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         _viewModel = new MainViewModel(new WpfDialogService(), App.Appearance, App.Preferences);
         _viewModel.ZoomToFitRequested += (_, _) => Viewport.ZoomToFit();
+        _viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.CurrentGcodeLine))
+            {
+                ShowCurrentGcodeLine();
+            }
+        };
         DataContext = _viewModel;
         Drop += OnFileDrop;
 
@@ -30,6 +37,41 @@ public partial class MainWindow : Window
         PreviewKeyUp += OnJogKey;
 
         RestoreLayout(App.Preferences.Window);
+    }
+
+    /// <summary>Keeps the highlighted G-code line in view (nothing moves while it is visible).</summary>
+    private void ShowCurrentGcodeLine()
+    {
+        if (_viewModel.CurrentGcodeLine is { } line && GcodeList.IsVisible)
+        {
+            GcodeList.ScrollIntoView(line);
+        }
+    }
+
+    private void OnShowCurrentGcodeLine(object sender, RoutedEventArgs e) => ShowCurrentGcodeLine();
+
+    /// <summary>Ctrl+C in the G-code panel: the selected lines in program order, or the whole program.</summary>
+    private void OnCopyGcode(object sender, ExecutedRoutedEventArgs e)
+    {
+        var selected = GcodeList.SelectedItems.OfType<GcodeLineViewModel>().OrderBy(l => l.Number).Select(l => l.Text).ToList();
+        CopyText(selected.Count > 0 ? string.Join(Environment.NewLine, selected) : AllGcodeText());
+        e.Handled = true;
+    }
+
+    private void OnCopyAllGcode(object sender, RoutedEventArgs e) => CopyText(AllGcodeText());
+
+    private string AllGcodeText() => string.Join(Environment.NewLine, _viewModel.GcodeLines.Select(l => l.Text));
+
+    private static void CopyText(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            // The clipboard is held by another program: nothing to do but leave it.
+        }
     }
 
     /// <summary>

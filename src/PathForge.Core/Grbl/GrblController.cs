@@ -138,6 +138,19 @@ public sealed class GrblController : IDisposable
     /// </summary>
     public int LastAcknowledgedLine { get; private set; }
 
+    /// <summary>
+    /// Source line the machine is most likely executing now (0 = none). GRBL answers "ok" when a line enters its
+    /// planner, ahead of the machine; when the status report has the planner fill (Bf field, $10 with +2) the
+    /// line is found that many motion lines back, otherwise it is the last accepted line.
+    /// </summary>
+    public int ExecutingLine { get; private set; }
+
+    /// <summary>Source lines of the last accepted motion lines, oldest first (for <see cref="ExecutingLine"/>).</summary>
+    private readonly List<int> _acceptedMotionLines = new();
+
+    /// <summary>Planner size learned from the largest free count reported (0 = not known yet).</summary>
+    private int _plannerSize;
+
     /// <summary>Bytes of GRBL's serial buffer occupied by lines that were not answered yet.</summary>
     public int BufferUsed
     {
@@ -353,6 +366,8 @@ public sealed class GrblController : IDisposable
             SentCommands = 0;
             AcknowledgedCommands = 0;
             LastAcknowledgedLine = 0;
+            ExecutingLine = 0;
+            _acceptedMotionLines.Clear();
             JobMessage = "";
             Job = GrblJobState.Running;
             _checkMode = check;
@@ -557,7 +572,7 @@ public sealed class GrblController : IDisposable
             {
                 OnAlarm(alarm);
             }
-            else if (line.StartsWith("Grbl ", StringComparison.Ordinal))
+            else if (line.StartsWith("Grbl ", StringComparison.Ordinal) || line.StartsWith("GrblHAL ", StringComparison.Ordinal))
             {
                 OnStartup(line);
             }
@@ -577,6 +592,7 @@ public sealed class GrblController : IDisposable
     private void OnStatus(GrblStatus status)
     {
         Status = status;
+        UpdateExecutingLine(status);
         if (_stopRequested && (status.IsHoldComplete || status.State == GrblState.Idle))
         {
             ResetController(Loc.T("Программа остановлена.", "Program stopped."));
@@ -619,6 +635,14 @@ public sealed class GrblController : IDisposable
             if (error is null && !_checkMode)
             {
                 LastAcknowledgedLine = line.SourceLine;
+                if (IsMotion(line.Text))
+                {
+                    _acceptedMotionLines.Add(line.SourceLine);
+                    if (_acceptedMotionLines.Count > 256)
+                    {
+                        _acceptedMotionLines.RemoveRange(0, 128);
+                    }
+                }
             }
 
             if (error is { } code)
@@ -876,6 +900,54 @@ public sealed class GrblController : IDisposable
         Changed?.Invoke();
     }
 
+    private void UpdateExecutingLine(GrblStatus status)
+    {
+        if (status.PlannerFree is { } free)
+        {
+            // Idle with an empty planner reports its full size; the largest count seen is the size.
+            _plannerSize = Math.Max(_plannerSize, free);
+        }
+
+        if (Job == GrblJobState.None || _checkMode)
+        {
+            ExecutingLine = 0;
+            return;
+        }
+
+        ExecutingLine = ExecutingLineFor(_acceptedMotionLines, LastAcknowledgedLine, _plannerSize, status.PlannerFree);
+    }
+
+    /// <summary>
+    /// The executing line: with <paramref name="plannerFree"/> known, the motion line as many places back from the
+    /// last accepted one as there are blocks still in the planner (the oldest block is being executed); otherwise,
+    /// or with the planner empty, the last accepted line.
+    /// </summary>
+    internal static int ExecutingLineFor(IReadOnlyList<int> acceptedMotionLines, int lastAccepted, int plannerSize, int? plannerFree)
+    {
+        if (plannerFree is not { } free || plannerSize <= 0 || acceptedMotionLines.Count == 0)
+        {
+            return lastAccepted;
+        }
+
+        var queued = plannerSize - free;
+        return queued <= 0 ? lastAccepted : acceptedMotionLines[Math.Max(0, acceptedMotionLines.Count - queued)];
+    }
+
+    /// <summary>The line moves the machine and so takes a planner block (axis words or an arc).</summary>
+    internal static bool IsMotion(string text)
+    {
+        for (var i = 0; i + 1 < text.Length; i++)
+        {
+            var next = text[i + 1];
+            if (text[i] is 'X' or 'Y' or 'Z' && (char.IsDigit(next) || next is '-' or '+' or '.'))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void FinishJob(bool success, string message)
     {
         // An aborted check (alarm, reset, lost connection) ends check mode too: GRBL leaves it on reset.
@@ -883,6 +955,7 @@ public sealed class GrblController : IDisposable
         _checkErrors.Clear();
         Job = GrblJobState.None;
         JobMessage = "";
+        ExecutingLine = 0;
         _program = new List<GrblLine>();
         _next = 0;
         _drainAndWait = false;
