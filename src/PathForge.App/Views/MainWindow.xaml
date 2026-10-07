@@ -1564,8 +1564,45 @@
                 <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrushLight}" />
                 <TabControl x:Name="BottomTabs" Grid.Row="2">
                     <TabItem Header="G-code">
-                        <TextBox Text="{Binding Gcode, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" Margin="0" ToolTip="{l:Tr 'Готовый G-code всех включённых операций', En='Generated G-code of all enabled operations'}"
-                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" VerticalContentAlignment="Top" />
+                        <ListBox x:Name="GcodeList" ItemsSource="{Binding GcodeLines}" FontFamily="Consolas" Margin="0" SelectionMode="Extended"
+                                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                 ToolTip="{l:Tr 'Готовый G-code всех включённых операций (во время работы станка — выполняемая программа). Подсвечена строка, которую сейчас выполняет станок или 3D-симуляция. Ctrl+C — копировать выделенные строки (без выделения — всю программу).', En='Generated G-code of all enabled operations (while the machine works — the running program). The line the machine or the 3D simulation is executing now is highlighted. Ctrl+C copies the selected lines (with nothing selected — the whole program).'}">
+                            <ListBox.CommandBindings>
+                                <CommandBinding Command="ApplicationCommands.Copy" Executed="OnCopyGcode" />
+                            </ListBox.CommandBindings>
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="{l:Tr 'Копировать', En='Copy'}" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C" />
+                                    <MenuItem Header="{l:Tr 'Копировать всю программу', En='Copy the whole program'}" Click="OnCopyAllGcode" />
+                                    <MenuItem Header="{l:Tr 'К текущей строке', En='Go to the current line'}" Click="OnShowCurrentGcodeLine" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Line" Padding="2,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock x:Name="Number" MinWidth="56" Margin="0,0,10,0" TextAlignment="Right" Opacity="0.55" Text="{Binding Number}" />
+                                            <TextBlock x:Name="Code" Text="{Binding Text}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                            <Setter TargetName="Line" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                            <Setter TargetName="Number" Property="Foreground" Value="White" />
+                                            <Setter TargetName="Code" Property="Foreground" Value="White" />
+                                            <Setter TargetName="Code" Property="FontWeight" Value="SemiBold" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </TabItem>
                     <TabItem Header="{l:Tr 'Сообщения', En='Messages'}">
                         <ListBox ItemsSource="{Binding Messages}" ToolTip="{l:Tr 'Сообщения программы', En='Program messages'}" />

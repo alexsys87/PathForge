@@ -151,6 +151,9 @@ public sealed class StockSimulation
 
     public bool IsFinished => _moveIndex >= Moves.Count;
 
+    /// <summary>Index in <see cref="Moves"/> of the move being made (the last one once finished; -1 without moves).</summary>
+    public int CurrentMoveIndex => Math.Min(_moveIndex, Moves.Count - 1);
+
     /// <summary>Number of rapid moves that went through material.</summary>
     public int RapidHits { get; private set; }
 

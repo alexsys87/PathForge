@@ -22,6 +22,8 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _regenerateTimer;
     private CamProject _project = CamProject.CreateDefault();
     private GenerationResult _generation = new();
+    private GcodeOutput? _gcodeOutput;
+    private string? _shownGcode;
     private bool _suppressChanges;
 
     public MainViewModel(IDialogService dialogs, IAppearanceService appearance, UiPreferences preferences)
@@ -39,6 +41,20 @@ public sealed partial class MainViewModel : ObservableObject
             () => _project.Machine.SpindleDelaySeconds);
         Control.JobFinished += message => Messages.Add(Loc.T("Станок: ", "Machine: ") + message);
         Simulation = new SimulationViewModel(() => (_project, _generation));
+        Simulation.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(SimulationViewModel.CurrentMoveIndex) or nameof(SimulationViewModel.IsActive))
+            {
+                UpdateGcodeView();
+            }
+        };
+        Control.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MachineControlViewModel.IsJobActive) or nameof(MachineControlViewModel.JobGcode) or nameof(MachineControlViewModel.ExecutingLine))
+            {
+                UpdateGcodeView();
+            }
+        };
         _regenerateTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _regenerateTimer.Tick += (_, _) =>
         {
@@ -187,6 +203,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string gcode = "";
+
+    /// <summary>
+    /// Lines shown in the G-code panel: the program running on the machine while a job is active, otherwise the
+    /// project's G-code.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<GcodeLineViewModel> gcodeLines = Array.Empty<GcodeLineViewModel>();
+
+    /// <summary>The line being machined (job) or simulated (3D simulation tab), highlighted in the panel.</summary>
+    [ObservableProperty]
+    private GcodeLineViewModel? currentGcodeLine;
 
     [ObservableProperty]
     private string statistics = "";
@@ -1438,9 +1465,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _regenerateTimer.Stop();
         _generation = ToolpathGenerator.Generate(_project);
-        Gcode = _generation.Toolpaths.Count == 0
-            ? Loc.T("(Нет траекторий: добавьте операцию и выберите контуры)", "(No toolpaths: add an operation and select contours)")
-            : GcodeWriter.Write(_project.Name, _generation, _project.Machine);
+        _gcodeOutput = _generation.Toolpaths.Count == 0 ? null : GcodeWriter.WriteWithLines(_project.Name, _generation, _project.Machine);
+        Gcode = _gcodeOutput?.Text ?? Loc.T("(Нет траекторий: добавьте операцию и выберите контуры)", "(No toolpaths: add an operation and select contours)");
 
         var start = new Vec3(0, 0, _generation.SafeZ);
         var stats = ToolpathStatistics.Compute(_generation.Toolpaths, _project.Machine, start);
@@ -1471,8 +1497,66 @@ public sealed partial class MainViewModel : ObservableObject
 
         UpdateScene();
         Simulation.MarkStale();
+        UpdateGcodeView();
         Control.RefreshLeveling();
         CommitHistory();
+    }
+
+    partial void OnGcodeChanged(string value) => UpdateGcodeView();
+
+    /// <summary>
+    /// Shows the running program or the project's G-code and highlights the line being machined or simulated.
+    /// </summary>
+    private void UpdateGcodeView()
+    {
+        var job = Control.IsJobActive ? Control.JobGcode : null;
+        var text = job ?? Gcode;
+        if (!ReferenceEquals(text, _shownGcode))
+        {
+            _shownGcode = text;
+            CurrentGcodeLine = null;
+            GcodeLines = SplitLines(text);
+        }
+
+        var number = 0;
+        if (job is not null)
+        {
+            number = Control.ExecutingLine;
+        }
+        else if (Simulation.IsActive && _gcodeOutput is { } output && ReferenceEquals(Simulation.Generation, _generation))
+        {
+            number = output.LineOfMove(Simulation.CurrentMoveIndex);
+        }
+
+        var current = number >= 1 && number <= GcodeLines.Count ? GcodeLines[number - 1] : null;
+        if (!ReferenceEquals(current, CurrentGcodeLine))
+        {
+            if (CurrentGcodeLine is not null)
+            {
+                CurrentGcodeLine.IsCurrent = false;
+            }
+
+            if (current is not null)
+            {
+                current.IsCurrent = true;
+            }
+
+            CurrentGcodeLine = current;
+        }
+    }
+
+    /// <summary>Lines numbered as the GRBL sender counts them.</summary>
+    private static IReadOnlyList<GcodeLineViewModel> SplitLines(string text)
+    {
+        var source = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n', '\r');
+        var count = source.Length > 0 && source[^1].Length == 0 ? source.Length - 1 : source.Length;
+        var lines = new GcodeLineViewModel[count];
+        for (var i = 0; i < count; i++)
+        {
+            lines[i] = new GcodeLineViewModel(i + 1, source[i]);
+        }
+
+        return lines;
     }
 
     private void UpdateScene()

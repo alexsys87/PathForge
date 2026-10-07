@@ -1070,10 +1070,19 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         if (Run(c => c.StartJob(job.Lines)))
         {
             _lastJobLines = job.Lines;
+            JobGcode = job.Gcode;
             _jobStarted = DateTime.Now;
             Refresh();
         }
     }
+
+    /// <summary>Text of the program running on the machine (with the height map applied), null when none was started.</summary>
+    [ObservableProperty]
+    private string? jobGcode;
+
+    /// <summary>Line of <see cref="JobGcode"/> the machine is executing (0 = none).</summary>
+    [ObservableProperty]
+    private int executingLine;
 
     /// <summary>Program line to continue from (filled in after a job was stopped or interrupted).</summary>
     [ObservableProperty]
@@ -1124,6 +1133,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         if (Run(c => c.StartJob(resume.Lines)))
         {
             _lastJobLines = resume.Lines;
+            JobGcode = job.Gcode;
             _jobStarted = DateTime.Now;
             Refresh();
         }
@@ -1200,10 +1210,10 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             return null;
         }
 
-        return new PreparedJob(program.Name, prepared.Lines, prepared.CommandCount, levelingNote);
+        return new PreparedJob(program.Name, prepared.Lines, prepared.CommandCount, levelingNote, gcode);
     }
 
-    private sealed record PreparedJob(string Name, IReadOnlyList<GrblLine> Lines, int CommandCount, string LevelingNote);
+    private sealed record PreparedJob(string Name, IReadOnlyList<GrblLine> Lines, int CommandCount, string LevelingNote, string Gcode);
 
     [RelayCommand]
     private void Pause() => Run(c => c.Pause());
@@ -1312,6 +1322,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             WorkX = WorkY = WorkZ = "—";
             MachineText = FeedText = OverridesText = "";
             IsAlarm = CanControl = IsJobActive = CanStartJob = CanPause = CanResume = false;
+            ExecutingLine = 0;
             _probe = null;
             IsProbing = false;
             JobMessage = "";
@@ -1352,6 +1363,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         IsAlarm = status.State == GrblState.Alarm;
         CanControl = controller.CanSendCommands && status.State is GrblState.Idle or GrblState.Jog or GrblState.Alarm;
         IsJobActive = job != GrblJobState.None;
+        ExecutingLine = IsJobActive ? controller.ExecutingLine : 0;
         CanStartJob = job == GrblJobState.None && status.State == GrblState.Idle;
         CanPause = job == GrblJobState.Running;
         CanResume = job is GrblJobState.Paused or GrblJobState.Error or GrblJobState.ProgramStop;
