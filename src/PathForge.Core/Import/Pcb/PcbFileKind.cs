@@ -113,13 +113,30 @@ public static class PcbFileDetector
 
     /// <summary>
     /// Paste, solder mask or silk screen by the usual file (or layer) name: Altium .GTP/.GTS/.GTO and the bottom
-    /// ones, KiCad F_Paste / F_Mask / F_Silkscreen, EasyEDA TopPasteMaskLayer / TopSolderMaskLayer / TopSilkLayer.
+    /// ones, KiCad F_Paste / F_Mask / F_Silkscreen, EasyEDA TopPasteMaskLayer / TopSolderMaskLayer / TopSilkLayer,
+    /// Eagle tCream / tStop / tPlace and the bottom ones.
     /// Null for any other name.
     /// </summary>
     public static PcbFileKind? AuxiliaryLayerKind(string fileName)
     {
         var lower = Path.GetFileName(fileName).ToLowerInvariant();
         var extension = Path.GetExtension(lower);
+        // Layers of an Eagle board: "board.brd: tCream" and so on.
+        if (lower.EndsWith(": tcream", StringComparison.Ordinal) || lower.EndsWith(": bcream", StringComparison.Ordinal))
+        {
+            return PcbFileKind.Paste;
+        }
+
+        if (lower.EndsWith(": tstop", StringComparison.Ordinal) || lower.EndsWith(": bstop", StringComparison.Ordinal))
+        {
+            return PcbFileKind.SolderMask;
+        }
+
+        if (lower.EndsWith(": tplace", StringComparison.Ordinal) || lower.EndsWith(": bplace", StringComparison.Ordinal))
+        {
+            return PcbFileKind.Silkscreen;
+        }
+
         // Paste first: EasyEDA calls the paste layer "PasteMask".
         if (extension is ".gtp" or ".gbp" || lower.Contains("paste"))
         {
@@ -139,11 +156,15 @@ public static class PcbFileDetector
         return null;
     }
 
-    /// <summary>The file name is the usual one of a board outline (Altium .GKO / .GM1, KiCad Edge_Cuts, EasyEDA BoardOutline…).</summary>
+    /// <summary>
+    /// The file name is the usual one of a board outline (Altium .GKO / .GM1, KiCad Edge_Cuts, EasyEDA BoardOutline…),
+    /// or the layer is the outline of an Eagle board ("board.brd: Dimension").
+    /// </summary>
     public static bool IsOutlineFileName(string fileName)
     {
         var lower = Path.GetFileName(fileName).ToLowerInvariant();
         return Path.GetExtension(lower) is ".gko" or ".gm1" or ".gml" or ".gmo" ||
+               lower.EndsWith(": dimension", StringComparison.Ordinal) ||
                lower.Contains("edge_cuts") || lower.Contains("edge.cuts") || lower.Contains("boardoutline") ||
                lower.Contains("outline") || lower.Contains("profile");
     }

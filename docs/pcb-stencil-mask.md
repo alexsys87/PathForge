@@ -34,11 +34,13 @@
 1. В САПР выведите вместе с медью и контуром ещё и слои **пасты**, **маски** и **шелкографии** нужной стороны
    (с тем же началом координат):
 
-   | | KiCad | Altium | EasyEDA |
-   |---|---|---|---|
-   | Паста | `F_Paste` / `B_Paste` | `.GTP` / `.GBP` | `TopPasteMaskLayer` |
-   | Маска | `F_Mask` / `B_Mask` | `.GTS` / `.GBS` | `TopSolderMaskLayer` |
-   | Шелкография | `F_Silkscreen` / `B_Silkscreen` | `.GTO` / `.GBO` | `TopSilkLayer` |
+   | | KiCad | Altium | EasyEDA | Eagle (`*.brd`) |
+   |---|---|---|---|---|
+   | Паста | `F_Paste` / `B_Paste` | `.GTP` / `.GBP` | `TopPasteMaskLayer` | `tCream` / `bCream` |
+   | Маска | `F_Mask` / `B_Mask` | `.GTS` / `.GBS` | `TopSolderMaskLayer` | `tStop` / `bStop` |
+   | Шелкография | `F_Silkscreen` / `B_Silkscreen` | `.GTO` / `.GBO` | `TopSilkLayer` | `tPlace` / `bPlace` |
+
+   Плату Eagle выводить не нужно: «Добавить плату Eagle (.brd)» сразу даёт эти слои (надписи не переносятся).
 
 2. **Файл → Печатная плата → «Добавить файлы платы (несколько сразу)…»** — выделите все файлы. Паста, маска
    и шелкография узнаются по атрибутам X2 или по именам и добавляются **скрытыми слоями**: они не мешают выделять
