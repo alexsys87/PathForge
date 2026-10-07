@@ -124,4 +124,88 @@ public class NestingTests
         Assert.Equal(letter.MinY, text.Y, 6);
         Assert.True(text.X < 100);
     }
+
+    /// <summary>A 100 × 100 frame with a 70 × 70 window and two small 20 × 20 parts far away.</summary>
+    private static CamProject FrameProject()
+    {
+        var project = new CamProject();
+        project.Contours.Add(Rectangle(1, 0, 400, 100, 500));
+        project.Contours.Add(Rectangle(2, 15, 415, 85, 485));
+        project.Contours.Add(Rectangle(3, 300, 400, 320, 420));
+        project.Contours.Add(Rectangle(4, 400, 400, 420, 420));
+        project.Operations.Add(new ProfileOperation { ContourIds = { 1, 2, 3, 4 } });
+        return project;
+    }
+
+    private static bool Inside(Bounds2 inner, Bounds2 outer, double gap) =>
+        inner.MinX >= outer.MinX + gap - 0.01 && inner.MaxX <= outer.MaxX - gap + 0.01 &&
+        inner.MinY >= outer.MinY + gap - 0.01 && inner.MaxY <= outer.MaxY - gap + 0.01;
+
+    [Fact]
+    public void Small_parts_go_into_the_hole_of_a_larger_part_when_holes_are_used()
+    {
+        var project = FrameProject();
+        var settings = new NestingSettings { SheetWidth = 200, SheetHeight = 150, Margin = 5, Spacing = 4, UseHoles = true };
+
+        var result = Nesting.Arrange(project, Array.Empty<int>(), settings);
+
+        Assert.Equal(3, result.Placed);
+        var window = project.Contours.Single(c => c.Id == 2).GetBounds();
+        var small = project.Contours.Where(c => c.Id is 3 or 4).Select(c => c.GetBounds()).ToList();
+        Assert.All(small, b => Assert.True(Inside(b, window, 4), $"{b} not in {window}"));
+        // Apart from each other too.
+        Assert.True(Distance(project.Contours.Single(c => c.Id == 3), project.Contours.Single(c => c.Id == 4)) >= 4 - 0.01);
+        Assert.Contains(result.Warnings, w => w.Contains("отверстиях") || w.Contains("holes"));
+    }
+
+    [Fact]
+    public void Without_holes_small_parts_stay_outside_the_frame()
+    {
+        var project = FrameProject();
+        var settings = new NestingSettings { SheetWidth = 200, SheetHeight = 150, Margin = 5, Spacing = 4 };
+
+        Nesting.Arrange(project, Array.Empty<int>(), settings);
+
+        var frame = project.Contours.Single(c => c.Id == 1).GetBounds();
+        var small = project.Contours.Where(c => c.Id is 3 or 4).Select(c => c.GetBounds()).ToList();
+        Assert.All(small, b => Assert.False(b.MaxX > frame.MinX && b.MinX < frame.MaxX && b.MaxY > frame.MinY && b.MinY < frame.MaxY, $"{b} overlaps {frame}"));
+    }
+
+    [Fact]
+    public void Parts_too_big_for_the_hole_are_placed_outside()
+    {
+        var project = FrameProject();
+        project.Contours[2] = Rectangle(3, 300, 400, 368, 468);
+        var settings = new NestingSettings { SheetWidth = 250, SheetHeight = 150, Margin = 5, Spacing = 4, UseHoles = true };
+
+        Nesting.Arrange(project, Array.Empty<int>(), settings);
+
+        var frame = project.Contours.Single(c => c.Id == 1).GetBounds();
+        var big = project.Contours.Single(c => c.Id == 3).GetBounds();
+        Assert.True(Distance(project.Contours.Single(c => c.Id == 1), project.Contours.Single(c => c.Id == 3)) >= 4 - 0.01);
+        Assert.False(big.MinX > frame.MinX && big.MaxX < frame.MaxX && big.MinY > frame.MinY && big.MaxY < frame.MaxY);
+    }
+
+    [Fact]
+    public void A_part_already_in_a_hole_is_a_part_of_its_own_and_letters_are_never_holes()
+    {
+        var contours = new List<Contour>
+        {
+            Rectangle(1, 0, 0, 100, 100),
+            Rectangle(2, 10, 10, 90, 90),
+            Rectangle(3, 20, 20, 40, 40),
+            Rectangle(4, 60, 60, 70, 70),
+        };
+        contours[3].TextId = "t";
+
+        var parts = Nesting.FindParts(contours, new List<string>(), holesAreThrough: true);
+
+        Assert.Equal(new[] { 1, 3 }, parts.Select(p => p.Contours[0].Id).OrderBy(i => i));
+        var frame = parts.Single(p => p.Contours[0].Id == 1);
+        Assert.Single(frame.Holes);
+        // The letter inside the window belongs to the frame, as an engraving.
+        Assert.Contains(frame.Contours, c => c.Id == 4);
+        // Without the option everything inside the outer border moves with it as one part.
+        Assert.Equal(4, Nesting.FindParts(contours, new List<string>()).Single().Contours.Count);
+    }
 }

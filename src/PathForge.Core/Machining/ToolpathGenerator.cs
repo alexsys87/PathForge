@@ -64,7 +64,8 @@ public static partial class ToolpathGenerator
                 var boundary = relief.LimitToContours
                     ? relief.ContourIds.Where(contours.ContainsKey).Select(id => contours[id]).ToList()
                     : new List<Contour>();
-                GenerateRelief(relief, boundary, new OperationContext(project.Machine, operation, tool, reliefWriter, result.Warnings, label));
+                var stock = relief.RestMachining ? StockBefore(project, result.Toolpaths, relief, tool) : null;
+                GenerateRelief(relief, boundary, new OperationContext(project.Machine, operation, tool, reliefWriter, result.Warnings, label), stock);
                 reliefWriter.Retract();
                 if (reliefWriter.Moves.Count > 0)
                 {

@@ -1,5 +1,6 @@
 using PathForge.Core.Geometry;
 using PathForge.Core.Localization;
+using PathForge.Core.Simulation;
 
 namespace PathForge.Core.Machining;
 
@@ -9,7 +10,8 @@ public static partial class ToolpathGenerator
     private const int MaxReliefCells = 4_000_000;
 
     /// <param name="boundary">Contours that limit the machined area (<see cref="ReliefOperation.LimitToContours"/>); empty = no limit.</param>
-    private static void GenerateRelief(ReliefOperation operation, IReadOnlyList<Contour> boundary, OperationContext context)
+    /// <param name="stock">Rest machining: the stock left by the operations before this one (drawing coordinates); null = untouched stock.</param>
+    private static void GenerateRelief(ReliefOperation operation, IReadOnlyList<Contour> boundary, OperationContext context, HeightField? stock = null)
     {
         var tool = context.Tool;
         var hasSource = operation.Source == ReliefSource.Image
@@ -47,6 +49,22 @@ public static partial class ToolpathGenerator
         }
 
         var startZ = operation.StartZ;
+        // Rest machining: only where the stock left by the earlier operations stands above where this tool goes.
+        var rest = stock is null ? null : new RestStock(stock, toolTip, tool, startZ, Math.Max(0.005, operation.RestTolerance));
+        if (rest is not null)
+        {
+            var finishMask = rest.Mask(area, cell => startZ + cell);
+            if (!finishMask.Any(m => m))
+            {
+                context.Warnings.Add(Loc.T(
+                    $"{context.Label}: остатков нет — предыдущие операции уже обработали модель с допуском {operation.RestTolerance:0.###} мм.",
+                    $"{context.Label}: nothing left — the earlier operations already machined the model within {operation.RestTolerance:0.###} mm."));
+                return;
+            }
+
+            area = finishMask;
+        }
+
         if (operation.Roughing)
         {
             var roughStep = Math.Max(resolution, tool.StepOver);
@@ -54,7 +72,8 @@ public static partial class ToolpathGenerator
             foreach (var level in PassDepths(startZ, operation.Depth, tool.StepDown))
             {
                 var lift = operation.RoughAllowance;
-                var pass = RasterPass(operation, toolTip, roughStep, cell => Math.Min(startZ, Math.Max(level, startZ + cell + lift)), area);
+                double Rough(double cell) => Math.Min(startZ, Math.Max(level, startZ + cell + lift));
+                var pass = RasterPass(operation, toolTip, roughStep, Rough, rest is null ? area : rest.Mask(area, Rough));
                 // Skip levels that would only cut air.
                 if (pass.All(run => run.All(p => p.Z >= previous - 1e-3)))
                 {
@@ -85,6 +104,72 @@ public static partial class ToolpathGenerator
 
             CutWaterlines(operation, toolTip, levels, context);
         }
+    }
+
+    /// <summary>
+    /// Stock left for a rest machining relief by the operations before it, as the lowest tool-tip height at which
+    /// this cutter touches it (the drop-cutter of the stock surface): the tool removes material at a cell only
+    /// where it goes lower than that.
+    /// </summary>
+    private sealed class RestStock
+    {
+        private readonly HeightMap _touch;
+        private readonly HeightMap _tip;
+        private readonly double _startZ;
+        private readonly double _tolerance;
+
+        public RestStock(HeightField stock, HeightMap tip, Tool tool, double startZ, double tolerance)
+        {
+            _tip = tip;
+            _startZ = startZ;
+            _tolerance = tolerance;
+            var surface = new HeightMap(tip.Columns, tip.Rows, tip.CellSize, tip.OriginX, tip.OriginY);
+            for (var r = 0; r < tip.Rows; r++)
+            {
+                for (var c = 0; c < tip.Columns; c++)
+                {
+                    surface.Z[r * tip.Columns + c] = (float)(stock.HeightAt(new Vec2(tip.CellX(c), tip.CellY(r))) - startZ);
+                }
+            }
+
+            _touch = surface.DropCutter(ToolRadius(tool), ToolProfile(tool));
+        }
+
+        /// <summary>
+        /// Cells (within <paramref name="area"/>, null = all) where the tool, its tip at <paramref name="z"/> of the
+        /// tip-map height, would still cut material.
+        /// </summary>
+        public bool[] Mask(bool[]? area, Func<double, double> z)
+        {
+            var mask = new bool[_tip.Z.Length];
+            for (var k = 0; k < mask.Length; k++)
+            {
+                mask[k] = (area is null || area[k]) && _startZ + _touch.Z[k] > z(_tip.Z[k]) + _tolerance;
+            }
+
+            return mask;
+        }
+    }
+
+    /// <summary>
+    /// The stock the earlier toolpaths (still in drawing coordinates) leave over a relief, for rest machining.
+    /// Null when there are none: the relief is then machined in full.
+    /// </summary>
+    private static HeightField? StockBefore(Projects.CamProject project, IReadOnlyList<Toolpath> earlier, ReliefOperation relief, Tool tool)
+    {
+        var milled = earlier.Where(t => t.Tool.Kind != ToolKind.Laser).ToList();
+        if (milled.Count == 0)
+        {
+            return null;
+        }
+
+        var margin = ToolRadius(tool) + 1;
+        var area = new Bounds2(relief.X - margin, relief.Y - margin, relief.X + relief.WidthMm + margin, relief.Y + relief.HeightMm + margin);
+        // Z0 is the stock top in drawing coordinates (the zero shift is applied to the finished toolpaths).
+        var simulation = StockSimulation.ForArea(milled, new Vec3(0, 0, project.Machine.SafeZ), area,
+            Math.Clamp(relief.Resolution, 0.05, 1), 0, -project.Stock.Thickness, project.Machine.RapidRate);
+        simulation.RunToEnd();
+        return simulation.Field;
     }
 
     /// <summary>

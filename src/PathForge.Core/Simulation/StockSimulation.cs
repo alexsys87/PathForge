@@ -37,29 +37,7 @@ public sealed class StockSimulation
         var top = project.Stock.ZShift;
         var bottom = top - project.Stock.Thickness;
         var start = new Vec3(0, 0, generation.SafeZ);
-
-        // Time line of all moves.
-        var moves = new List<SimulationMove>();
-        var position = start;
-        var time = 0.0;
-        foreach (var toolpath in generation.Toolpaths)
-        {
-            foreach (var move in toolpath.Moves)
-            {
-                var length = position.DistanceTo(move.Target);
-                var rate = move.Kind switch
-                {
-                    MoveKind.Rapid => project.Machine.RapidRate,
-                    MoveKind.Plunge => move.FeedOr(toolpath.Tool.PlungeRate),
-                    _ => move.FeedOr(toolpath.Tool.FeedRate),
-                };
-                var duration = length / Math.Max(1, rate);
-                moves.Add(new SimulationMove(toolpath, position, move.Target, move.Kind, move.Power, time, duration));
-                time += duration;
-                position = move.Target;
-            }
-        }
-
+        var (moves, time) = TimeLine(generation.Toolpaths, start, project.Machine.RapidRate);
         Moves = moves;
         TotalTime = time;
         ToolPosition = start;
@@ -86,10 +64,59 @@ public sealed class StockSimulation
         }
 
         var margin = maxRadius + 2;
-        var minX = area.MinX - margin;
-        var minY = area.MinY - margin;
-        var sizeX = area.Width + 2 * margin;
-        var sizeY = area.Height + 2 * margin;
+        Field = CreateField(new Bounds2(area.MinX - margin, area.MinY - margin, area.MaxX + margin, area.MaxY + margin), cellSize, maxCells, top, bottom);
+    }
+
+    private StockSimulation(List<SimulationMove> moves, double totalTime, Vec3 start, HeightField field)
+    {
+        Moves = moves;
+        TotalTime = totalTime;
+        ToolPosition = start;
+        Field = field;
+    }
+
+    /// <summary>
+    /// Simulation of some toolpaths (in any coordinates) over a given area only, e.g. the stock left for a later
+    /// operation by the ones before it.
+    /// </summary>
+    internal static StockSimulation ForArea(IReadOnlyList<Toolpath> toolpaths, Vec3 start, Bounds2 area, double cellSize, double top, double bottom,
+        double rapidRate, int maxCells = DefaultMaxCells)
+    {
+        var (moves, time) = TimeLine(toolpaths, start, rapidRate);
+        return new StockSimulation(moves, time, start, CreateField(area, cellSize, maxCells, top, bottom));
+    }
+
+    /// <summary>Every move with its place on the time line (minutes).</summary>
+    private static (List<SimulationMove> Moves, double Time) TimeLine(IReadOnlyList<Toolpath> toolpaths, Vec3 start, double rapidRate)
+    {
+        var moves = new List<SimulationMove>();
+        var position = start;
+        var time = 0.0;
+        foreach (var toolpath in toolpaths)
+        {
+            foreach (var move in toolpath.Moves)
+            {
+                var length = position.DistanceTo(move.Target);
+                var rate = move.Kind switch
+                {
+                    MoveKind.Rapid => rapidRate,
+                    MoveKind.Plunge => move.FeedOr(toolpath.Tool.PlungeRate),
+                    _ => move.FeedOr(toolpath.Tool.FeedRate),
+                };
+                var duration = length / Math.Max(1, rate);
+                moves.Add(new SimulationMove(toolpath, position, move.Target, move.Kind, move.Power, time, duration));
+                time += duration;
+                position = move.Target;
+            }
+        }
+
+        return (moves, time);
+    }
+
+    private static HeightField CreateField(Bounds2 area, double? cellSize, int maxCells, double top, double bottom)
+    {
+        var sizeX = Math.Max(area.Width, 1e-3);
+        var sizeY = Math.Max(area.Height, 1e-3);
         var cell = cellSize ?? Math.Clamp(Math.Sqrt(sizeX * sizeY / Math.Max(1000, maxCells)), 0.05, 2);
         var width = Math.Max(1, (int)Math.Ceiling(sizeX / cell));
         var height = Math.Max(1, (int)Math.Ceiling(sizeY / cell));
@@ -101,7 +128,7 @@ public sealed class StockSimulation
             height = Math.Max(1, (int)Math.Ceiling(sizeY / cell));
         }
 
-        Field = new HeightField(new Vec2(minX, minY), width, height, cell, top, bottom);
+        return new HeightField(new Vec2(area.MinX, area.MinY), width, height, cell, top, bottom);
     }
 
     public HeightField Field { get; }

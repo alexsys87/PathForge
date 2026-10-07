@@ -5,6 +5,7 @@
         xmlns:controls="clr-namespace:PathForge.App.Controls"
         xmlns:l="clr-namespace:PathForge.App.Localization"
         Title="{Binding Title}"
+        Icon="/Assets/PathForge.ico"
         Background="{DynamicResource WindowBrush}"
         Foreground="{DynamicResource TextBrush}"
         Width="1280" Height="800" MinWidth="900" MinHeight="560"
@@ -586,9 +587,9 @@
                     <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:Choices.RasterModes}" ToolTip="{l:Tr 'Как оттенки серого превращаются в мощность: плавно, дизерингом или порогом', En='How shades of grey turn into power: smoothly, dithered or as a threshold'}"
                               DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" />
                     <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Мощность мин., %', En='Min power, %'}" />
-                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PowerMinPercent}" ToolTip="{l:Tr 'Мощность для самых тёмных точек (обычно 0–20 %)', En='Power for the darkest spots (usually 0–20 %)'}" />
+                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PowerMinPercent}" ToolTip="{l:Tr 'Мощность для самых светлых выжигаемых точек (обычно 0–20 %)', En='Power for the lightest burnt spots (usually 0–20 %)'}" />
                     <TextBlock Grid.Row="7" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Мощность макс., %', En='Max power, %'}" />
-                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding PowerMaxPercent}" ToolTip="{l:Tr 'Мощность для самых светлых точек (обычно 100 %)', En='Power for the lightest spots (usually 100 %)'}" />
+                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding PowerMaxPercent}" ToolTip="{l:Tr 'Мощность для самых тёмных точек (обычно 40–100 %)', En='Power for the darkest spots (usually 40–100 %)'}" />
                     <TextBlock Grid.Row="8" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Скорость, мм/мин', En='Speed, mm/min'}" />
                     <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Speed}" ToolTip="{l:Tr 'Скорость строк гравировки, мм/мин', En='Speed of the engraving lines, mm/min'}" />
                     <TextBlock Grid.Row="9" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Перебег, мм', En='Overscan, mm'}" />
@@ -615,6 +616,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -687,6 +690,11 @@
                     <TextBox Grid.Row="18" Grid.Column="1" Text="{Binding SteepAngle}" ToolTip="{l:Tr 'Waterline только там, где поверхность круче этого угла (от горизонтали); пологие места остаются строкам. 0 — уровни везде. Обычно 30–45° вместе с чистовой «Строки и уровни».', En='Waterline only where the surface is steeper than this angle (from the horizontal); gentle areas are left to the lines. 0 — levels everywhere. Usually 30–45° with the “Lines and levels” finishing.'}" />
                     <CheckBox Grid.Row="19" Grid.Column="1" Content="{l:Tr 'Только внутри контуров', En='Only inside the contours'}" IsChecked="{Binding LimitToContours}"
                               ToolTip="{l:Tr 'Обрабатывать рельеф только внутри назначенных операции замкнутых контуров (центр фрезы не выходит за контур, вложенные контуры — отверстия). Выделите контуры и нажмите «Назначить выделенные».', En='Machine the relief only inside the closed contours assigned to the operation (the tool centre stays inside, nested contours are holes). Select contours and press “Assign selected”.'}" />
+                    <CheckBox Grid.Row="20" Grid.Column="1" Content="{l:Tr 'Дообработка остатков (меньшей фрезой)', En='Rest machining (smaller tool)'}" IsChecked="{Binding RestMachining}"
+                              ToolTip="{l:Tr 'PathForge симулирует все операции перед этой и сравнивает остаток заготовки с моделью: эта фреза (обычно меньшая) проходит только там, где над моделью остался материал — узкие впадины, углы, ступени, куда крупная фреза не достала. Шаг и стратегия — как у обычного рельефа. Кнопка «+ Дообработка остатков» на вкладке «3D-симуляция» создаёт такую операцию сама.', En='PathForge simulates all operations before this one and compares the remaining stock with the model: this (usually smaller) tool goes only where material is left above the model — narrow valleys, corners, steps the larger tool could not reach. Step and strategy are those of a normal relief. The “+ Rest machining” button on the “3D simulation” tab creates such an operation for you.'}" />
+                    <TextBlock Grid.Row="21" Style="{StaticResource FieldLabel}" Text="{l:Tr 'Допуск остатков, мм', En='Rest tolerance, mm'}" />
+                    <TextBox Grid.Row="21" Grid.Column="1" Text="{Binding RestTolerance}"
+                             ToolTip="{l:Tr 'Только для дообработки: остаток тоньше этого не обрабатывается заново (0,03–0,1 мм). Меньше — дольше, но чище.', En='Rest machining only: material thinner than this is not machined again (0.03–0.1 mm). Smaller takes longer but is cleaner.'}" />
                 </Grid>
                 <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                            Text="{l:Tr 'Расчёт учитывает форму фрезы (сферическая, гравёр, концевая), поэтому она не врезается в соседние склоны. Черновые проходы идут по уровням шага по глубине инструмента.', En='The calculation takes the tool shape into account (ball nose, V-bit, end mill), so it does not gouge neighbouring slopes. Roughing passes follow the levels of the tool step-down.'}" />
@@ -899,6 +907,8 @@
                                     <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Margin="6,0,0,0" VerticalAlignment="Center" Content="{l:Tr 'Поворачивать', En='Rotate'}" IsChecked="{Binding AllowRotation}"
                                               ToolTip="{l:Tr 'Разрешить поворот деталей на 90°, 180°, 270° для плотной раскладки (выключите для фанеры с волокнами или рисунка). Детали с текстом не поворачиваются.', En='Allow turning the parts by 90°, 180°, 270° for a tighter layout (turn off for wood grain or a pattern). Parts with text are not turned.'}" />
                                 </Grid>
+                                <CheckBox Margin="0,3,0,0" Content="{l:Tr 'Детали в отверстиях других деталей', En='Parts in holes of other parts'}" IsChecked="{Binding UseHoles}"
+                                          ToolTip="{l:Tr 'Мелкие детали ставятся в вырезаемые насквозь отверстия крупных (с тем же зазором) — материал внутри рамок и колец не пропадает. Все замкнутые контуры внутри детали, кроме текста, считаются сквозными отверстиями, а замкнутый контур внутри отверстия — отдельной деталью. Не включайте, если внутри деталей есть карманы с островами.', En='Small parts are placed in the through holes of large ones (with the same gap) — the material inside frames and rings is not wasted. All closed contours inside a part except text are taken as through holes, and a closed contour inside a hole as a part of its own. Do not turn on if the parts contain pockets with islands.'}" />
                                 <WrapPanel Margin="0,3,0,0">
                                     <Button Content="{l:Tr 'Разложить', En='Lay out'}"
                                             ToolTip="{l:Tr 'Разложить выделенные детали (или все, если ничего не выделено). Отменить — Ctrl+Z.', En='Lay out the selected parts (or all when nothing is selected). Undo with Ctrl+Z.'}"
@@ -1507,6 +1517,9 @@
                                         <CheckBox Content="{l:Tr 'Сравнить с моделью, допуск, мм', En='Compare with the model, tolerance, mm'}" IsChecked="{Binding ShowComparison}" IsEnabled="{Binding HasModel}" VerticalAlignment="Center"
                                                   ToolTip="{l:Tr 'Раскрасить заготовку по отличию от 3D-модели рельефа (картинка или STL): зелёный — в допуске, синий — остался материал (недорез: фреза не достала или крупный шаг), красный — срезано лишнее (зарез). Доступно, если в проекте есть рельеф.', En='Colour the stock by its difference from the relief 3D model (picture or STL): green — within tolerance, blue — material left (the tool could not reach or the step is large), red — cut too deep (gouge). Available when the project has a relief.'}" />
                                         <TextBox Width="50" Margin="4,0,0,0" Text="{Binding ComparisonTolerance}" IsEnabled="{Binding ShowComparison}" ToolTip="{l:Tr 'Отклонение, которое считается допустимым', En='Deviation counted as acceptable'}" />
+                                        <Button Margin="8,0,0,0" Content="{l:Tr '+ Дообработка остатков', En='+ Rest machining'}" IsEnabled="{Binding HasModel}"
+                                                ToolTip="{l:Tr 'Добавить после рельефа операцию дообработки: копию рельефа меньшей фрезой (сферической или гравёром из инструментов проекта), которая проходит только там, где по результату симуляции над моделью остался материал (синие места при сравнении).', En='Add a rest machining operation after the relief: a copy of the relief with a smaller tool (a ball nose or V-bit from the project tools) that goes only where the simulation leaves material above the model (the blue areas of the comparison).'}"
+                                                Command="{Binding DataContext.AddReliefRestCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                         <CheckBox Content="{l:Tr 'Карта высот, увеличение ×', En='Height map, exaggeration ×'}" IsChecked="{Binding ShowHeightMap}" IsEnabled="{Binding HasHeightMap}" VerticalAlignment="Center" Margin="12,0,0,0"
                                                   ToolTip="{l:Tr 'Показать снятую щупом карту высот платы (вкладка «Пульт» → «Карта высот») цветной полупрозрачной поверхностью над заготовкой: синее — ниже, красное — выше. Неровности в сотые доли миллиметра растянуты по высоте в заданное число раз.', En='Show the height map probed on the board (“Control” tab → “Height map”) as a coloured see-through surface over the stock: blue is lower, red is higher. Unevenness of hundredths of a millimetre is stretched vertically by the given factor.'}" />
                                         <TextBox Width="50" Margin="4,0,0,0" Text="{Binding HeightMapScale}" IsEnabled="{Binding ShowHeightMap}" ToolTip="{l:Tr 'Во сколько раз растянуть высоты карты', En='How many times to stretch the map heights'}" />
