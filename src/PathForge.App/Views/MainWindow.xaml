@@ -843,6 +843,7 @@
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Плата лазером', En='+ Laser PCB'}" ToolTip="{l:Tr 'Добавить операцию «Плата лазером»: медь покрыта краской, лазер выжигает краску вокруг дорожек (полосой или со всей платы), затем плата травится. Выделите медь (и контур платы) перед нажатием.', En='Add a “Laser PCB” operation: the copper is painted, the laser burns the paint around the tracks (a strip or the whole board), then the board is etched. Select the copper (and the board outline) first.'}" Command="{Binding AddLaserPcbCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr '+ Картинка', En='+ Picture'}" ToolTip="{l:Tr 'Добавить лазерную гравировку картинки (PNG, JPG, BMP…): оттенки серого, дизеринг или порог, строка за строкой.', En='Add a laser engraving of a picture (PNG, JPG, BMP…): grayscale, dithering or threshold, line by line.'}" Command="{Binding AddLaserRasterCommand}" />
                 <Separator />
+                <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Выделить всё', En='Select all'}" ToolTip="{l:Tr 'Выделить все контуры на видимых слоях (Ctrl+A; то же — меню «Выделение» и правая кнопка мыши на чертеже). Снять выделение — Esc.', En='Select all contours on visible layers (Ctrl+A; also the “Selection” menu and a right click on the drawing). Clear the selection with Esc.'}" Command="{Binding SelectAllCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Выбрать окружности', En='Select circles'}" ToolTip="{l:Tr 'Выделить все окружности на видимых слоях — например, все отверстия под сверление.', En='Select all circles on visible layers — for example, all holes to drill.'}" Command="{Binding SelectCirclesCommand}" />
                 <Button Style="{StaticResource ToolBarButton}" Content="{l:Tr 'Показать всё', En='Zoom to fit'}" ToolTip="{l:Tr 'Показать весь чертёж и траектории в окне (Home).', En='Fit the whole drawing and toolpaths in the view (Home).'}" Command="{Binding ZoomToFitCommand}" />
                 <Separator />
@@ -1501,9 +1502,21 @@
                                                   Scene="{Binding Scene}"
                                                   MachinePosition="{Binding Control.ToolPosition}"
                                                   ContourClickCommand="{Binding ContourClickedCommand}"
-                                                  CursorText="{Binding CursorText, Mode=OneWayToSource}" />
+                                                  CursorText="{Binding CursorText, Mode=OneWayToSource}">
+                                <controls:CamViewport.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{l:Tr 'Выделить всё', En='Select all'}" InputGestureText="Ctrl+A" Command="{Binding SelectAllCommand}" />
+                                        <MenuItem Header="{l:Tr 'Выделить окружности', En='Select circles'}" Command="{Binding SelectCirclesCommand}" />
+                                        <MenuItem Header="{l:Tr 'Выделить отверстия того же диаметра', En='Select holes of the same diameter'}" Command="{Binding SelectSameDiameterCommand}" />
+                                        <MenuItem Header="{l:Tr 'Снять выделение', En='Clear selection'}" InputGestureText="Esc" Command="{Binding ClearSelectionCommand}" />
+                                        <Separator />
+                                        <MenuItem Header="{l:Tr 'Показать всё', En='Zoom to fit'}" InputGestureText="Home" Command="{Binding ZoomToFitCommand}" />
+                                    </ContextMenu>
+                                </controls:CamViewport.ContextMenu>
+                            </controls:CamViewport>
                             <TextBlock Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#8A939E" IsHitTestVisible="False"
-                                       Text="{l:Tr 'Колесо — масштаб · перетаскивание — сдвиг · клик — выбор контура (Ctrl — добавить) · Home — показать всё · крестик — ноль X0 Y0', En='Wheel — zoom · drag — pan · click — select a contour (Ctrl — add) · Home — fit all · cross — zero X0 Y0'}" />
+                                       Text="{l:Tr 'Колесо — масштаб · перетаскивание — сдвиг · клик — выбор контура (Ctrl — добавить) · Ctrl+A — выделить всё · Esc — снять выделение · правая кнопка — меню · Home — показать всё · крестик — ноль X0 Y0', En='Wheel — zoom · drag — pan · click — select a contour (Ctrl — add) · Ctrl+A — select all · Esc — clear selection · right click — menu · Home — fit all · cross — zero X0 Y0'}"
+                                       TextWrapping="Wrap" />
                         </Grid>
                     </TabItem>
                     <TabItem Header="{l:Tr '3D-симуляция', En='3D simulation'}" IsSelected="{Binding Simulation.IsActive, Mode=TwoWay}">
