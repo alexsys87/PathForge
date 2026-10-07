@@ -852,12 +852,12 @@
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="360" MinWidth="280" />
+                <ColumnDefinition x:Name="LeftPanelColumn" Width="360" MinWidth="280" />
                 <ColumnDefinition Width="5" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TabControl Grid.Column="0" Background="{DynamicResource PanelBrush}">
+            <TabControl x:Name="LeftTabs" Grid.Column="0" Background="{DynamicResource PanelBrush}">
                 <TabItem Header="{l:Tr 'Операции', En='Operations'}">
                     <Grid Margin="6">
                         <Grid.RowDefinitions>
@@ -1474,9 +1474,9 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" MinHeight="200" />
                     <RowDefinition Height="5" />
-                    <RowDefinition Height="200" MinHeight="80" />
+                    <RowDefinition x:Name="BottomPanelRow" Height="200" MinHeight="80" />
                 </Grid.RowDefinitions>
-                <TabControl Grid.Row="0" Padding="0">
+                <TabControl x:Name="ViewTabs" Grid.Row="0" Padding="0">
                     <TabItem Header="{l:Tr 'Чертёж (2D)', En='Drawing (2D)'}">
                         <Grid>
                             <controls:CamViewport x:Name="Viewport"
@@ -1544,7 +1544,7 @@
                     </TabItem>
                 </TabControl>
                 <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrushLight}" />
-                <TabControl Grid.Row="2">
+                <TabControl x:Name="BottomTabs" Grid.Row="2">
                     <TabItem Header="G-code">
                         <TextBox Text="{Binding Gcode, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" Margin="0" ToolTip="{l:Tr 'Готовый G-code всех включённых операций', En='Generated G-code of all enabled operations'}"
                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" VerticalContentAlignment="Top" />
