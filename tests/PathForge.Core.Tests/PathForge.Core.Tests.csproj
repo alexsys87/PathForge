@@ -21,6 +21,7 @@
   <ItemGroup>
     <None Include="..\..\samples\*.dxf;..\..\samples\*.svg;..\..\samples\*.stl" LinkBase="samples" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\samples\pcb-demo\*" LinkBase="samples\pcb-demo" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\pcb-eagle\*" LinkBase="samples\pcb-eagle" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\samples\pcb-altium\*" LinkBase="samples\pcb-altium" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fonts\*.otf;fonts\*.ttf" LinkBase="fonts" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -79,10 +79,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// KiCad (*.gbr), Altium Designer / Protel (*.GTL top, *.GBL bottom, *.G1… inner, *.GP1… planes,
-    /// *.GKO keep-out, *.GM1… mechanical) and other generators (*.ger, *.pho, *.art).
+    /// *.GKO keep-out, *.GM1… mechanical) and other generators (*.ger, *.pho, *.art); Eagle boards (*.brd).
     /// </summary>
     private static string PcbFilesFilter =>
-        Loc.T("Файлы платы", "PCB files") + " (*.gbr;*.gtl;*.gbl;*.gko;*.gm*;*.g?;*.drl;*.xln;*.txt)|*.gbr;*.ger;*.gtl;*.gbl;*.gko;*.gm*;*.gml;*.g1;*.g2;*.g3;*.g4;*.cmp;*.sol;*.drl;*.xln;*.exc;*.drd;*.txt;*.nc" + AllFiles;
+        Loc.T("Файлы платы", "PCB files") + " (*.gbr;*.gtl;*.gbl;*.gko;*.gm*;*.g?;*.drl;*.xln;*.txt;*.brd)|*.gbr;*.ger;*.gtl;*.gbl;*.gko;*.gm*;*.gml;*.g1;*.g2;*.g3;*.g4;*.cmp;*.sol;*.drl;*.xln;*.exc;*.drd;*.txt;*.nc;*.brd" + AllFiles;
 
     private static string GerberFilter =>
         "Gerber (*.gbr;*.gtl;*.gbl;*.gko;*.gm*;*.ger)|*.gbr;*.gtl;*.gbl;*.g1;*.g2;*.g3;*.g4;*.g5;*.g6;*.gp1;*.gp2;*.gp3;*.gp4;" +
@@ -91,6 +91,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>KiCad/Eagle (*.drl, *.xln) and Altium Designer NC drill (*.txt, e.g. Board-RoundHoles.TXT and -SlotHoles.TXT).</summary>
     private static string DrillFilter =>
         Loc.T("Сверловка Excellon", "Excellon drill files") + " (*.drl;*.xln;*.txt)|*.drl;*.xln;*.txt;*.exc;*.drd;*.nc" + AllFiles;
+
+    /// <summary>Eagle 6+ and Fusion Electronics board (XML).</summary>
+    private static string EagleFilter =>
+        Loc.T("Плата Eagle", "Eagle board") + " (*.brd)|*.brd" + AllFiles;
 
     private static string GcodeFilter =>
         "G-code (*.nc)|*.nc|G-code (*.gcode)|*.gcode|" + Loc.T("Текст", "Text") + " (*.txt)|*.txt";
@@ -625,7 +629,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ImportPcbFiles()
     {
-        var paths = _dialogs.OpenFiles(Loc.T("Добавить файлы платы (Gerber и сверловка)", "Add PCB files (Gerber and drills)"), PcbFilesFilter);
+        var paths = _dialogs.OpenFiles(Loc.T("Добавить файлы платы (Gerber, сверловка, Eagle .brd)", "Add PCB files (Gerber, drills, Eagle .brd)"), PcbFilesFilter);
         if (paths is null || paths.Length == 0)
         {
             return;
@@ -634,22 +638,28 @@ public sealed partial class MainViewModel : ObservableObject
         ImportPcbFiles(paths, path =>
         {
             var text = File.ReadAllText(path);
+            if (Path.GetExtension(path).Equals(".brd", StringComparison.OrdinalIgnoreCase) || EagleBoardReader.IsEagleXml(text))
+            {
+                return ReadEagleBoard(path, text);
+            }
+
             var (kind, reason) = PcbFileDetector.Detect(path, text);
+            var layer = Path.GetFileName(path);
             switch (kind)
             {
                 case PcbFileKind.Copper:
                 case PcbFileKind.Outline:
-                    var gerber = GerberReader.Read(text, kind == PcbFileKind.Copper ? GerberMode.Copper : GerberMode.Outline, Path.GetFileName(path));
-                    return (gerber.Contours, gerber.Warnings, KindName(kind), false);
+                    var gerber = GerberReader.Read(text, kind == PcbFileKind.Copper ? GerberMode.Copper : GerberMode.Outline, layer);
+                    return new[] { new PcbPart(layer, gerber.Contours, gerber.Warnings, KindName(kind), false) };
                 case PcbFileKind.Drill:
                     var drill = ExcellonReader.Read(text);
-                    return (drill.ToContours(), drill.Warnings, KindName(kind), false);
+                    return new[] { new PcbPart(layer, drill.ToContours(), drill.Warnings, KindName(kind), false) };
                 case PcbFileKind.Paste or PcbFileKind.SolderMask or PcbFileKind.Silkscreen:
                     // Pads, openings and legend strokes are areas, like copper.
-                    var layer = GerberReader.Read(text, GerberMode.Copper, Path.GetFileName(path));
-                    return (layer.Contours, layer.Warnings, KindName(kind), true);
+                    var area = GerberReader.Read(text, GerberMode.Copper, layer);
+                    return new[] { new PcbPart(layer, area.Contours, area.Warnings, KindName(kind), true) };
                 default:
-                    return (new List<Contour>(), new List<string>(), reason, false);
+                    return new[] { new PcbPart(layer, new List<Contour>(), new List<string>(), reason, false) };
             }
         });
 
@@ -664,6 +674,70 @@ public sealed partial class MainViewModel : ObservableObject
         };
     }
 
+    /// <summary>
+    /// An Eagle board (*.brd) at once: top and bottom copper with the polygon pours, the outline, drills, paste,
+    /// solder mask and silk screen. Paste, mask and silk screen start hidden, like those Gerber layers, and so does
+    /// one of the copper sides: the bottom, or the top when only the bottom is routed (a one-sided board whose top
+    /// has nothing but the pads of the through-hole parts).
+    /// </summary>
+    [RelayCommand]
+    private void ImportEagleBoard()
+    {
+        var paths = _dialogs.OpenFiles(Loc.T("Добавить плату Eagle", "Add Eagle board"), EagleFilter);
+        if (paths is null || paths.Length == 0)
+        {
+            return;
+        }
+
+        ImportPcbFiles(paths, path => ReadEagleBoard(path, File.ReadAllText(path)));
+    }
+
+    private static IReadOnlyList<PcbPart> ReadEagleBoard(string path, string text)
+    {
+        var file = Path.GetFileName(path);
+        if (EagleBoardReader.UnsupportedReason(text) is { } reason)
+        {
+            return new[] { new PcbPart(file, new List<Contour>(), new List<string>(), reason, false) };
+        }
+
+        var board = EagleBoardReader.Read(text, file);
+        var topRouted = board.Layers.Any(l => l.Kind == PcbFileKind.Copper && !l.Bottom && l.Routed);
+        var bottomRouted = board.Layers.Any(l => l.Kind == PcbFileKind.Copper && l.Bottom && l.Routed);
+        var parts = board.Layers.Select((layer, index) =>
+        {
+            // One copper side stays visible: the top, or the bottom of a board routed only there.
+            var hidden = layer.Kind is PcbFileKind.Paste or PcbFileKind.SolderMask or PcbFileKind.Silkscreen ||
+                         (layer.Kind == PcbFileKind.Copper && (layer.Bottom ? topRouted : !topRouted && bottomRouted));
+            var note = layer.Kind switch
+            {
+                PcbFileKind.Copper => layer.Bottom ? Loc.T("медь снизу", "bottom copper") : Loc.T("медь сверху", "top copper"),
+                PcbFileKind.Outline => Loc.T("контур платы", "board outline"),
+                PcbFileKind.Drill => Loc.T("отверстия", "holes"),
+                PcbFileKind.Paste => Loc.T("паста", "paste"),
+                PcbFileKind.SolderMask => Loc.T("маска", "solder mask"),
+                _ => Loc.T("шелкография", "silk screen"),
+            };
+            if (hidden)
+            {
+                note += Loc.T(", слой скрыт", ", layer hidden");
+            }
+
+            // The warnings of the board are shown once, after its last layer.
+            var warnings = index == board.Layers.Count - 1 ? board.Warnings : new List<string>();
+            return new PcbPart(layer.Name, layer.Contours, warnings, note, hidden);
+        }).ToList();
+
+        if (parts.Count == 0)
+        {
+            parts.Add(new PcbPart(file, new List<Contour>(), board.Warnings, Loc.T("в плате нет меди, контура и отверстий", "the board has no copper, outline or holes"), false));
+        }
+
+        return parts;
+    }
+
+    /// <summary>A layer read from a PCB file; <see cref="Note"/> is its kind for the message, or why the file was skipped.</summary>
+    private sealed record PcbPart(string Layer, List<Contour> Contours, List<string> Warnings, string Note, bool Hidden);
+
     /// <summary>PCB layers are added to the drawing (copper, drills and outline come from separate files).</summary>
     private void ImportPcbFile(string filter, string title, Func<string, (List<Contour> Contours, List<string> Warnings)> read)
     {
@@ -676,70 +750,77 @@ public sealed partial class MainViewModel : ObservableObject
         ImportPcbFiles(paths, path =>
         {
             var (contours, warnings) = read(path);
-            return (contours, warnings, "", false);
+            return new[] { new PcbPart(Path.GetFileName(path), contours, warnings, "", false) };
         });
     }
 
     /// <param name="read">
-    /// Contours and warnings of a file, its kind for the message (or why it was skipped when there are no contours),
-    /// and whether its layer starts hidden.
+    /// Layers of a file (one for a Gerber or drill file, several for an Eagle board): contours and warnings, the
+    /// kind for the message (or why the file was skipped when there are no contours) and whether the layer starts hidden.
     /// </param>
-    private void ImportPcbFiles(IReadOnlyList<string> paths, Func<string, (List<Contour> Contours, List<string> Warnings, string Note, bool Hidden)> read)
+    private void ImportPcbFiles(IReadOnlyList<string> paths, Func<string, IReadOnlyList<PcbPart>> read)
     {
         var added = new List<int>();
         var hiddenAdded = false;
         foreach (var path in paths)
         {
-            var layer = Path.GetFileName(path);
+            var file = Path.GetFileName(path);
             try
             {
-                var (contours, warnings, note, hidden) = read(path);
-                if (contours.Count == 0 && note.Length > 0)
+                foreach (var (layer, contours, warnings, note, hidden) in read(path))
                 {
-                    Messages.Add(Loc.T($"{layer}: пропущен — {note}.", $"{layer}: skipped — {note}."));
-                    continue;
-                }
-
-                var nextId = _project.NextContourId();
-                foreach (var contour in contours)
-                {
-                    contour.Id = nextId++;
-                    if (string.IsNullOrEmpty(contour.Layer))
+                    if (contours.Count == 0 && note.Length > 0)
                     {
-                        contour.Layer = layer;
-                    }
-                }
+                        Messages.Add(Loc.T($"{layer}: пропущен — {note}.", $"{layer}: skipped — {note}."));
+                        foreach (var warning in warnings)
+                        {
+                            Messages.Add($"{layer}: {warning}");
+                        }
 
-                _project.Contours.AddRange(contours);
-                if (hidden)
-                {
-                    hiddenAdded |= contours.Count > 0;
-                    if (!_project.HiddenLayers.Contains(layer))
+                        continue;
+                    }
+
+                    var nextId = _project.NextContourId();
+                    foreach (var contour in contours)
                     {
-                        _project.HiddenLayers.Add(layer);
+                        contour.Id = nextId++;
+                        if (string.IsNullOrEmpty(contour.Layer))
+                        {
+                            contour.Layer = layer;
+                        }
                     }
-                }
-                else
-                {
-                    added.AddRange(contours.Select(c => c.Id));
-                }
 
-                _project.SourceFile ??= path;
-                if (ProjectPath is null && _project.Contours.Count == contours.Count)
-                {
-                    _project.Name = Path.GetFileNameWithoutExtension(path);
-                }
+                    _project.Contours.AddRange(contours);
+                    if (hidden)
+                    {
+                        hiddenAdded |= contours.Count > 0;
+                        if (!_project.HiddenLayers.Contains(layer))
+                        {
+                            _project.HiddenLayers.Add(layer);
+                        }
+                    }
+                    else
+                    {
+                        added.AddRange(contours.Select(c => c.Id));
+                    }
 
-                var kind = note.Length > 0 ? $" ({note})" : "";
-                Messages.Add(Loc.T($"{layer}{kind}: добавлено контуров {contours.Count}.", $"{layer}{kind}: contours added: {contours.Count}."));
-                foreach (var warning in warnings)
-                {
-                    Messages.Add($"{layer}: {warning}");
+                    _project.SourceFile ??= path;
+                    if (ProjectPath is null && _project.Contours.Count == contours.Count)
+                    {
+                        _project.Name = Path.GetFileNameWithoutExtension(path);
+                    }
+
+                    var kind = note.Length > 0 ? $" ({note})" : "";
+                    Messages.Add(Loc.T($"{layer}{kind}: добавлено контуров {contours.Count}.", $"{layer}{kind}: contours added: {contours.Count}."));
+                    foreach (var warning in warnings)
+                    {
+                        Messages.Add($"{file}: {warning}");
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _dialogs.ShowError(Loc.T($"Не удалось прочитать {layer}:\n{ex.Message}", $"Could not read {layer}:\n{ex.Message}"));
+                _dialogs.ShowError(Loc.T($"Не удалось прочитать {file}:\n{ex.Message}", $"Could not read {file}:\n{ex.Message}"));
             }
         }
 
