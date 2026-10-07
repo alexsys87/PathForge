@@ -242,7 +242,13 @@ public class Cnc3018Tests
     {
         Assert.All(ToolPresets.Cnc3018, p =>
         {
-            Assert.InRange(p.Template.Diameter, 0.1, 6.35);
+            // ER11 collets take shanks up to 7 mm; only surfacing bits have a larger head.
+            Assert.InRange(p.Template.Diameter, 0.1, p.NameEn.Contains("Surfacing") ? 13 : 6.35);
+            Assert.InRange(p.Template.StepOver, 0.01, p.Template.Diameter);
+            if (p.Template.Kind == ToolKind.VBit)
+            {
+                Assert.InRange(p.Template.TipDiameter, 0, p.Template.Diameter);
+            }
             Assert.InRange(p.Template.FeedRate, 50, 1000);
             Assert.InRange(p.Template.PlungeRate, 20, p.Template.FeedRate);
             Assert.InRange(p.Template.StepDown, 0.05, 3);
@@ -251,6 +257,16 @@ public class Cnc3018Tests
                 Assert.InRange(p.Template.SpindleRpm, 1000, 10000);
             }
         });
+
+        // Every preset can be told apart in the list, in both languages; a group adds its presets only once.
+        Assert.Equal(ToolPresets.Cnc3018.Count, ToolPresets.Cnc3018.Select(p => p.GroupRu + p.NameRu).Distinct().Count());
+        Assert.Equal(ToolPresets.Cnc3018.Count, ToolPresets.Cnc3018.Select(p => p.GroupEn + p.NameEn).Distinct().Count());
+        Assert.True(ToolPresets.Cnc3018.Count >= 50);
+        var pcb = ToolPresets.Cnc3018.First(p => p.NameEn == "Drill Ø0.8");
+        var drills = ToolPresets.SameGroup(pcb).Where(p => p.Template.Kind == ToolKind.Drill).Select(p => p.Template.Diameter).ToList();
+        Assert.Equal(new[] { 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.5 }, drills);
+        Assert.True(ToolPresets.Matches(pcb, pcb.Create(7)));
+        Assert.False(ToolPresets.Matches(pcb, ToolPresets.Cnc3018.First(p => p.NameEn == "Drill Ø1.0").Create(7)));
 
         var project = CamProject.CreateDefault();
         Assert.Equal(GcodeDialect.Grbl, project.Machine.Dialect);
