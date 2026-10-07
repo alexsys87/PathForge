@@ -29,7 +29,33 @@ public enum MachineConnectionKind
     WebSocketBridge,
 }
 
-/// <summary>Interface language, colour theme and machine connection, kept between runs in %AppData%\PathForge\settings.json.</summary>
+/// <summary>Main window as the user left it: normal bounds (device-independent pixels), maximized, panel sizes and open tabs.</summary>
+public sealed class WindowLayout
+{
+    public double Left { get; set; }
+
+    public double Top { get; set; }
+
+    public double Width { get; set; }
+
+    public double Height { get; set; }
+
+    public bool Maximized { get; set; }
+
+    /// <summary>Width of the left panel (operations, layers, tools, machine, control).</summary>
+    public double LeftPanelWidth { get; set; }
+
+    /// <summary>Height of the bottom panel (G-code, messages).</summary>
+    public double BottomPanelHeight { get; set; }
+
+    public int LeftTab { get; set; }
+
+    public int ViewTab { get; set; }
+
+    public int BottomTab { get; set; }
+}
+
+/// <summary>Interface language, colour theme, machine connection and window layout, kept between runs in %AppData%\PathForge\settings.json.</summary>
 public sealed class UiPreferences
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -49,6 +75,9 @@ public sealed class UiPreferences
     public string MachineHost { get; set; } = "192.168.4.1";
 
     public int MachineNetworkPort { get; set; } = TelnetTransport.DefaultPort;
+
+    /// <summary>Size and position of the main window and its panels at the last close (null before the first close).</summary>
+    public WindowLayout? Window { get; set; }
 
     private static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PathForge", "settings.json");

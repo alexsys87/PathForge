@@ -42,6 +42,12 @@ public sealed class NestingViewModel : ModelWrapper
         set => Set(Model.AllowRotation, value, v => Model.AllowRotation = v);
     }
 
+    public double RotationStep
+    {
+        get => Model.RotationStep;
+        set => Set(Model.RotationStep, Math.Clamp(value, 1, 180), v => Model.RotationStep = v);
+    }
+
     public bool UseHoles
     {
         get => Model.UseHoles;

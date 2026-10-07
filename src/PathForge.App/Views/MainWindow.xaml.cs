@@ -28,6 +28,80 @@ public partial class MainWindow : Window
             .AddValueChanged(ControlTab, (_, _) => UpdateJogInputContext());
         PreviewKeyDown += OnJogKey;
         PreviewKeyUp += OnJogKey;
+
+        RestoreLayout(App.Preferences.Window);
+    }
+
+    /// <summary>
+    /// Puts the window and its panels back as they were at the last close. A window that would now be off every
+    /// screen (a monitor was unplugged, the resolution changed) opens centred instead.
+    /// </summary>
+    private void RestoreLayout(WindowLayout? layout)
+    {
+        if (layout is null)
+        {
+            return;
+        }
+
+        var screen = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+        var bounds = new Rect(layout.Left, layout.Top, Math.Max(MinWidth, layout.Width), Math.Max(MinHeight, layout.Height));
+        var visible = Rect.Intersect(screen, bounds);
+        if (layout.Width > 0 && layout.Height > 0 && !visible.IsEmpty && visible.Width >= 200 && visible.Height >= 100 &&
+            bounds.Top >= screen.Top - 1)
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = bounds.Left;
+            Top = bounds.Top;
+            Width = Math.Min(bounds.Width, screen.Width);
+            Height = Math.Min(bounds.Height, screen.Height);
+        }
+
+        if (layout.Maximized)
+        {
+            WindowState = WindowState.Maximized;
+        }
+
+        if (layout.LeftPanelWidth > 0)
+        {
+            LeftPanelColumn.Width = new GridLength(Math.Clamp(layout.LeftPanelWidth, LeftPanelColumn.MinWidth, 1200));
+        }
+
+        if (layout.BottomPanelHeight > 0)
+        {
+            BottomPanelRow.Height = new GridLength(Math.Clamp(layout.BottomPanelHeight, BottomPanelRow.MinHeight, 900));
+        }
+
+        SelectTab(LeftTabs, layout.LeftTab);
+        SelectTab(ViewTabs, layout.ViewTab);
+        SelectTab(BottomTabs, layout.BottomTab);
+    }
+
+    private static void SelectTab(TabControl tabs, int index)
+    {
+        if (index >= 0 && index < tabs.Items.Count)
+        {
+            tabs.SelectedIndex = index;
+        }
+    }
+
+    /// <summary>The window as it is now; when maximized or minimized, the bounds it returns to.</summary>
+    private WindowLayout CurrentLayout()
+    {
+        var normal = WindowState == WindowState.Normal ? new Rect(Left, Top, ActualWidth, ActualHeight) : RestoreBounds;
+        return new WindowLayout
+        {
+            Left = normal.Left,
+            Top = normal.Top,
+            Width = normal.Width,
+            Height = normal.Height,
+            Maximized = WindowState == WindowState.Maximized,
+            LeftPanelWidth = LeftPanelColumn.ActualWidth,
+            BottomPanelHeight = BottomPanelRow.ActualHeight,
+            LeftTab = LeftTabs.SelectedIndex,
+            ViewTab = ViewTabs.SelectedIndex,
+            BottomTab = BottomTabs.SelectedIndex,
+        };
     }
 
     private void UpdateJogInputContext() => _viewModel.Control.SetJogInputContext(IsActive && ControlTab.IsSelected);
@@ -52,6 +126,11 @@ public partial class MainWindow : Window
         if (!_viewModel.Control.ConfirmClose() || !_viewModel.ConfirmDiscardChanges())
         {
             e.Cancel = true;
+        }
+        else
+        {
+            App.Preferences.Window = CurrentLayout();
+            App.Preferences.Save();
         }
 
         base.OnClosing(e);

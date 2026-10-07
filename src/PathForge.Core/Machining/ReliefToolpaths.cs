@@ -157,19 +157,9 @@ public static partial class ToolpathGenerator
     /// </summary>
     private static HeightField? StockBefore(Projects.CamProject project, IReadOnlyList<Toolpath> earlier, ReliefOperation relief, Tool tool)
     {
-        var milled = earlier.Where(t => t.Tool.Kind != ToolKind.Laser).ToList();
-        if (milled.Count == 0)
-        {
-            return null;
-        }
-
         var margin = ToolRadius(tool) + 1;
         var area = new Bounds2(relief.X - margin, relief.Y - margin, relief.X + relief.WidthMm + margin, relief.Y + relief.HeightMm + margin);
-        // Z0 is the stock top in drawing coordinates (the zero shift is applied to the finished toolpaths).
-        var simulation = StockSimulation.ForArea(milled, new Vec3(0, 0, project.Machine.SafeZ), area,
-            Math.Clamp(relief.Resolution, 0.05, 1), 0, -project.Stock.Thickness, project.Machine.RapidRate);
-        simulation.RunToEnd();
-        return simulation.Field;
+        return MilledStock(project, earlier, area, Math.Clamp(relief.Resolution, 0.05, 1));
     }
 
     /// <summary>

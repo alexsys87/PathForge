@@ -17,8 +17,14 @@ public sealed class NestingSettings
     /// <summary>Gap between parts (mm): at least the cutter diameter, better a little more.</summary>
     public double Spacing { get; set; } = 5;
 
-    /// <summary>Parts may be turned by 90°, 180° and 270° to fit better.</summary>
+    /// <summary>Parts may be turned to fit better, in steps of <see cref="RotationStep"/>.</summary>
     public bool AllowRotation { get; set; } = true;
+
+    /// <summary>
+    /// Angle between the tried turns (degrees): 90 tries 0°, 90°, 180°, 270°; 15 tries 24 turns. Smaller steps fit
+    /// odd shapes tighter but take longer.
+    /// </summary>
+    public double RotationStep { get; set; } = 90;
 
     /// <summary>How many copies of every part to lay out.</summary>
     public int Copies { get; set; } = 1;
@@ -72,7 +78,7 @@ public static class Nesting
         }
 
         var texts = project.Texts.ToDictionary(t => t.Id);
-        var rotatable = settings.AllowRotation;
+        var turns = RotationAngles(settings.AllowRotation ? settings.RotationStep : 0);
         var placed = new List<Placed>();
         var spacing = Math.Max(0, settings.Spacing);
         var area = new Bounds2(settings.Margin, settings.Margin, settings.SheetWidth - settings.Margin, settings.SheetHeight - settings.Margin);
@@ -84,12 +90,15 @@ public static class Nesting
         var nextId = project.NextContourId();
         var newContours = new List<Contour>();
         var copyIds = new Dictionary<int, List<int>>();
+        // The originals are moved in place before their copies are made: copies start from the geometry as it was.
+        var source = parts.SelectMany(p => p.Contours).Distinct().ToDictionary(c => c, c => c.Segments);
 
         foreach (var part in all.OrderByDescending(p => p.Area))
         {
             // Text items cannot be turned: parts with text keep their orientation.
-            var angles = rotatable && part.Contours.All(c => c.TextId is null) ? new[] { 0, 90, 180, 270 } : new[] { 0 };
-            // The turns are tried in parallel; a place in a hole wins, then the lowest, then leftmost (ties: the smaller turn).
+            var angles = part.Contours.All(c => c.TextId is null) ? turns : new[] { 0.0 };
+            // The turns are tried in parallel; a place in a hole wins, then the one that raises the top of the layout
+            // least, then the lowest, then leftmost (ties: the smaller turn).
             var options = new (Affine2 Transform, Placed Place, bool InHole)?[angles.Length];
             Parallel.For(0, angles.Length, k =>
             {
@@ -110,6 +119,7 @@ public static class Nesting
             });
 
             (Affine2 Transform, Placed Place, bool InHole)? best = null;
+            var layoutTop = placed.Count == 0 ? double.NegativeInfinity : placed.Max(p => p.Box.MaxY);
             foreach (var option in options)
             {
                 if (option is not { } candidate)
@@ -117,11 +127,20 @@ public static class Nesting
                     continue;
                 }
 
-                var better = best is not { } current ||
-                             (candidate.InHole && !current.InHole) ||
+                if (best is not { } current)
+                {
+                    best = candidate;
+                    continue;
+                }
+
+                var topCandidate = Math.Max(layoutTop, candidate.Place.Box.MaxY);
+                var topCurrent = Math.Max(layoutTop, current.Place.Box.MaxY);
+                var better = (candidate.InHole && !current.InHole) ||
                              (candidate.InHole == current.InHole &&
-                              (candidate.Place.Box.MinY < current.Place.Box.MinY - Tolerance ||
-                               (Math.Abs(candidate.Place.Box.MinY - current.Place.Box.MinY) <= Tolerance && candidate.Place.Box.MinX < current.Place.Box.MinX)));
+                              (topCandidate < topCurrent - Tolerance ||
+                               (Math.Abs(topCandidate - topCurrent) <= Tolerance &&
+                                (candidate.Place.Box.MinY < current.Place.Box.MinY - Tolerance ||
+                                 (Math.Abs(candidate.Place.Box.MinY - current.Place.Box.MinY) <= Tolerance && candidate.Place.Box.MinX < current.Place.Box.MinX - Tolerance)))));
                 if (better)
                 {
                     best = candidate;
@@ -168,7 +187,7 @@ public static class Nesting
                 foreach (var contour in part.Contours)
                 {
                     // A copy of a text's letters is ordinary geometry: only the original text stays editable.
-                    var copy = new Contour(nextId++, contour.Transformed(transform).Segments, contour.Layer);
+                    var copy = new Contour(nextId++, source[contour].Select(segment => segment.Transform(transform)), contour.Layer);
                     newContours.Add(copy);
                     if (!copyIds.TryGetValue(contour.Id, out var ids))
                     {
@@ -208,6 +227,21 @@ public static class Nesting
         }
 
         return new NestingResult(placedCount, notPlaced, 100 * usedArea / sheet, warnings);
+    }
+
+    /// <summary>
+    /// Turns to try for a step of <paramref name="step"/> degrees (0 — no turning): whole circle split evenly, at
+    /// most 360 turns, starting with 0°.
+    /// </summary>
+    internal static double[] RotationAngles(double step)
+    {
+        if (!(step > 0) || step >= 360)
+        {
+            return new[] { 0.0 };
+        }
+
+        var count = Math.Clamp((int)Math.Round(360 / Math.Max(step, 1)), 1, 360);
+        return Enumerable.Range(0, count).Select(k => k * 360.0 / count).ToArray();
     }
 
     /// <summary>
