@@ -79,6 +79,8 @@ public sealed record LaserTestGrid(List<Contour> Contours, List<LaserVectorOpera
                     PowerPercent = Math.Round(power, 1),
                     Speed = speed,
                     FillSpacing = settings.FillSpacing,
+                    // Air assist for the cutting test (as when cutting), none for the engraving test.
+                    AirAssist = settings.Mode == LaserVectorMode.Line,
                     ToolId = toolId,
                     ContourIds = new List<int> { square.Id },
                 });
@@ -141,7 +143,10 @@ public sealed record LaserTestGrid(List<Contour> Contours, List<LaserVectorOpera
     }, Layer);
 }
 
-/// <summary>Digits drawn like a seven-segment display: enough for test card labels without a font.</summary>
+/// <summary>
+/// Digits drawn like a seven-segment display: enough for test card labels without a font. A minus is the middle
+/// segment, a decimal point a short tick at the bottom.
+/// </summary>
 internal static class SegmentDigits
 {
     // Segments a…g as in a display: a top, b top right, c bottom right, d bottom, e bottom left, f top left, g middle.
@@ -164,6 +169,14 @@ internal static class SegmentDigits
                 {
                     yield return contour;
                 }
+            }
+            else if (ch == '-')
+            {
+                yield return new Contour(0, new Segment[] { new LineSegment(new Vec2(x, at.Y + height / 2), new Vec2(x + w, at.Y + height / 2)) });
+            }
+            else if (ch == '.')
+            {
+                yield return new Contour(0, new Segment[] { new LineSegment(new Vec2(x + w / 2, at.Y), new Vec2(x + w / 2, at.Y + height * 0.12)) });
             }
 
             x += height * 0.8;

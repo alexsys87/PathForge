@@ -61,6 +61,12 @@ public static class Choices
         new Choice<GcodeDialect>(GcodeDialect.Generic, "Общий (LinuxCNC, Mach3)", "Generic (LinuxCNC, Mach3)"),
     };
 
+    public static IReadOnlyList<Choice<CoolantCommand>> CoolantCommands { get; } = new[]
+    {
+        new Choice<CoolantCommand>(CoolantCommand.Flood, "M8 (Flood — обычно)", "M8 (Flood — usual)"),
+        new Choice<CoolantCommand>(CoolantCommand.Mist, "M7 (Mist)", "M7 (Mist)"),
+    };
+
     public static IReadOnlyList<Choice<OriginAnchor>> Origins { get; } = new[]
     {
         new Choice<OriginAnchor>(OriginAnchor.LowerLeft, "Левый нижний угол", "Lower left corner"),

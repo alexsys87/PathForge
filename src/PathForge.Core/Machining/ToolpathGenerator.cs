@@ -812,7 +812,8 @@ public static partial class ToolpathGenerator
     /// Orders contours so that contours lying inside others come first (the part stays attached
     /// while its inner features are cut), then by nearest neighbour.
     /// </summary>
-    private static List<Contour> OrderInsideFirst(List<Contour> contours, Vec2 from)
+    /// <param name="openFromNearerEnd">Open contours are cut from their nearer end, so the next one is looked for from the other end.</param>
+    private static List<Contour> OrderInsideFirst(List<Contour> contours, Vec2 from, bool openFromNearerEnd = false)
     {
         var flattened = contours.Select(c => c.Flatten(0.1)).ToList();
         var nesting = new int[contours.Count];
@@ -842,9 +843,14 @@ public static partial class ToolpathGenerator
                 var best = remaining.MinBy(i => flattened[i].Count == 0 ? double.MaxValue : flattened[i].Min(p => p.DistanceTo(position)));
                 remaining.Remove(best);
                 ordered.Add(contours[best]);
-                if (flattened[best].Count > 0)
+                var points = flattened[best];
+                if (openFromNearerEnd && !contours[best].IsClosed && points.Count > 1)
                 {
-                    position = flattened[best][0];
+                    position = points[0].DistanceTo(position) <= points[^1].DistanceTo(position) ? points[^1] : points[0];
+                }
+                else if (points.Count > 0)
+                {
+                    position = points[0];
                 }
             }
         }

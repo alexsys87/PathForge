@@ -38,7 +38,8 @@ public sealed partial class MainViewModel : ObservableObject
                 OnProjectChanged();
             },
             ProgramCutBounds,
-            () => _project.Machine.SpindleDelaySeconds);
+            () => _project.Machine.SpindleDelaySeconds,
+            () => _project.Machine);
         Control.JobFinished += message => Messages.Add(Loc.T("Станок: ", "Machine: ") + message);
         Simulation = new SimulationViewModel(() => (_project, _generation));
         Simulation.PropertyChanged += (_, e) =>
@@ -764,9 +765,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Laser ------------------------------------------------------------------------------
 
+    /// <summary>A new laser operation cuts on the line, with air assist (filling switches it off).</summary>
     [RelayCommand]
     private void AddLaserVector() =>
-        AddOperation(new LaserVectorOperation { Name = NewName("Лазер", "Laser") }, LaserTool());
+        AddOperation(new LaserVectorOperation { Name = NewName("Лазер", "Laser"), AirAssist = true }, LaserTool());
 
     /// <summary>
     /// PCB by laser on a painted blank. Selected contours on a board outline layer (by the file name) become the
@@ -804,6 +806,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Settings of the power × speed test card.</summary>
     public LaserTestGridViewModel LaserTest { get; } = new();
+
+    /// <summary>Settings of the focus test.</summary>
+    public LaserFocusTestViewModel LaserFocus { get; } = new();
+
+    /// <summary>Area and pattern of the living hinge.</summary>
+    public LivingHingeViewModel LivingHinge { get; } = new();
 
     /// <summary>Sheet and gaps for laying out parts.</summary>
     public NestingViewModel Nesting { get; } = new();
@@ -977,6 +985,104 @@ public sealed partial class MainViewModel : ObservableObject
         OnProjectChanged();
         Regenerate();
         ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Adds a focus test: lines burned at different Z heights with their Z burned next to them, to the right of the
+    /// drawing. The thinnest line shows where the beam is in focus.
+    /// </summary>
+    [RelayCommand]
+    private void AddLaserFocusTest()
+    {
+        var laser = LaserTool();
+        var drawing = _project.DrawingBounds();
+        var settings = LaserFocus.Model;
+        settings.X = drawing.IsEmpty ? 0 : drawing.MaxX + 10;
+        settings.Y = drawing.IsEmpty ? 0 : drawing.MinY;
+        var test = LaserFocusTest.Build(settings, laser?.Id ?? "", _project.NextContourId());
+        _project.Contours.AddRange(test.Contours);
+        foreach (var operation in test.Operations)
+        {
+            _project.Operations.Add(operation);
+            Operations.Add(OperationViewModel.Create(operation, OnProjectChanged));
+        }
+
+        SelectedOperation = Operations[^1];
+        RefreshLayers();
+        Messages.Add(Loc.T(
+            $"Тест фокуса: {test.Operations.Count - 1} линий, нижняя на Z {settings.ZFrom:0.##}, верхняя на Z {settings.ZTo:0.##} мм, Z подписан слева. " +
+            "Лазер должен стоять на оси Z, а перед запуском — сфокусирован на поверхности (Z0). Найдите под лупой самую тонкую линию, " +
+            "сдвиньте лазер по Z на её значение и выставьте там Z0 заново.",
+            $"Focus test: {test.Operations.Count - 1} lines, the bottom one at Z {settings.ZFrom:0.##}, the top one at Z {settings.ZTo:0.##} mm, Z burned on the left. " +
+            "The laser must sit on the Z axis and be focused on the surface (Z0) before the start. Find the thinnest line under a loupe, " +
+            "jog the laser in Z by its value and set Z0 there again."));
+        OnProjectChanged();
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Takes the living hinge area from the bounding box of the selected contours.</summary>
+    [RelayCommand]
+    private void LivingHingeFromSelection()
+    {
+        var selected = _project.Contours.Where(c => SelectedContourIds.Contains(c.Id)).ToList();
+        if (selected.Count == 0)
+        {
+            Messages.Add(Loc.T("Гибкий шарнир: выделите на чертеже прямоугольник области шарнира.", "Living hinge: select the rectangle of the hinge area on the drawing."));
+            return;
+        }
+
+        LivingHinge.SetArea(selected.Aggregate(Bounds2.Empty, (b, c) => b.Union(c.GetBounds())));
+    }
+
+    /// <summary>
+    /// Adds the slots of a living hinge and a laser operation that cuts them, placed before the first laser cut so
+    /// the panel is still held by the sheet while the slots are cut. Power and speed come from that cut.
+    /// </summary>
+    [RelayCommand]
+    private void AddLivingHinge()
+    {
+        var laser = LaserTool();
+        var hinge = PathForge.Core.Machining.LivingHinge.Build(LivingHinge.Model, laser?.Id ?? "", _project.NextContourId());
+        foreach (var warning in hinge.Warnings)
+        {
+            Messages.Add(warning);
+        }
+
+        if (hinge.Contours.Count == 0)
+        {
+            return;
+        }
+
+        var operation = hinge.Operation;
+        operation.Name = NewName("Гибкий шарнир", "Living hinge");
+        var index = _project.Operations.FindIndex(o => o is LaserVectorOperation { Mode: LaserVectorMode.Line, Enabled: true });
+        if (index >= 0)
+        {
+            var cut = (LaserVectorOperation)_project.Operations[index];
+            (operation.PowerPercent, operation.Speed, operation.Passes, operation.ZStepPerPass, operation.StartZ, operation.ToolId) =
+                (cut.PowerPercent, cut.Speed, cut.Passes, cut.ZStepPerPass, cut.StartZ, cut.ToolId);
+        }
+        else
+        {
+            index = _project.Operations.Count;
+        }
+
+        _project.Contours.AddRange(hinge.Contours);
+        _project.Operations.Insert(index, operation);
+        var vm = OperationViewModel.Create(operation, OnProjectChanged);
+        Operations.Insert(index, vm);
+        SelectedOperation = vm;
+        RefreshLayers();
+        Messages.Add(Loc.T(
+            $"{operation.Name}: {hinge.Contours.Count} прорезей " +
+            (index < _project.Operations.Count - 1 ? $"перед резкой «{_project.Operations[index + 1].Name}», мощность и скорость взяты из неё. " : "— задайте мощность и скорость резки. ") +
+            "Сначала вырежьте пробный шарнир из обрезка: если ломается — увеличьте шаг линий или длину прорезей, если не гнётся — уменьшите шаг.",
+            $"{operation.Name}: {hinge.Contours.Count} slots " +
+            (index < _project.Operations.Count - 1 ? $"before the cut “{_project.Operations[index + 1].Name}”, power and speed taken from it. " : "— set the cutting power and speed. ") +
+            "Cut a test hinge from scrap first: if it breaks, increase the line spacing or the slot length; if it does not bend, reduce the spacing."));
+        OnProjectChanged();
+        Regenerate();
     }
 
     [RelayCommand]

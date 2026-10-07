@@ -35,6 +35,12 @@ public sealed class MachineSettingsViewModel : ModelWrapper
         set => Set(Model.UseArcs, value, v => Model.UseArcs = v);
     }
 
+    public CoolantCommand AirAssistCommand
+    {
+        get => Model.AirAssistCommand;
+        set => Set(Model.AirAssistCommand, value, v => Model.AirAssistCommand = v);
+    }
+
     public GcodeDialect Dialect
     {
         get => Model.Dialect;

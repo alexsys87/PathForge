@@ -56,6 +56,8 @@
 | **Лазер** — резка, обводка, заливка контуров | [laser-vector.md](laser-vector.md) |
 | **Картинка** — гравировка фото и рисунков | [laser-picture.md](laser-picture.md) |
 | **Тест-сетка лазера** — подбор мощности и скорости | [laser-test-card.md](laser-test-card.md) |
+| **Тест фокуса** — линии на разной высоте Z, выбрать самую тонкую | [laser-focus-test.md](laser-focus-test.md) |
+| **Гибкий шарнир** (living hinge) — прорези для гнутых панелей из фанеры | [living-hinge.md](living-hinge.md) |
 | **Плата лазером** — краска + травление | [../pcb-laser.md](../pcb-laser.md) |
 
 ## Подготовка и проверка

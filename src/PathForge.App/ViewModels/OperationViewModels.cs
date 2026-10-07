@@ -62,6 +62,13 @@ public abstract class OperationViewModel : ModelWrapper
         set => Set(Model.RampAngle, Math.Clamp(value, 0.5, 45), v => Model.RampAngle = v);
     }
 
+    /// <summary>Air assist (M8/M7) on during this operation.</summary>
+    public bool AirAssist
+    {
+        get => Model.AirAssist;
+        set => Set(Model.AirAssist, value, v => Model.AirAssist = v);
+    }
+
     public int ContourCount => Model.ContourIds.Count;
 
     public void SetContours(IEnumerable<int> ids)
@@ -411,11 +418,23 @@ public sealed class LaserVectorOperationViewModel : OperationViewModel
 
     public override string Summary => Loc.T($"Лазер · {_model.PowerPercent:0}% · {_model.Speed:0} мм/мин · контуров: {_model.ContourIds.Count}", $"Laser · {_model.PowerPercent:0}% · {_model.Speed:0} mm/min · contours: {_model.ContourIds.Count}");
 
+    /// <summary>The cutting mode switches the air assist on, filling (engraving) switches it off.</summary>
     public LaserVectorMode Mode
     {
         get => _model.Mode;
-        set => Set(_model.Mode, value, v => _model.Mode = v);
+        set
+        {
+            if (value == _model.Mode)
+            {
+                return;
+            }
+
+            Set(_model.Mode, value, v => _model.Mode = v);
+            AirAssist = value == LaserVectorMode.Line;
+        }
     }
+
+    public bool IsLine => _model.Mode != LaserVectorMode.Fill;
 
     public double PowerPercent
     {
@@ -463,6 +482,24 @@ public sealed class LaserVectorOperationViewModel : OperationViewModel
     {
         get => _model.KerfWidth;
         set => Set(_model.KerfWidth, Math.Clamp(value, 0, 5), v => _model.KerfWidth = v);
+    }
+
+    public int TabCount
+    {
+        get => _model.TabCount;
+        set => Set(_model.TabCount, Math.Clamp(value, 0, 50), v => _model.TabCount = v);
+    }
+
+    public double TabWidth
+    {
+        get => _model.TabWidth;
+        set => Set(_model.TabWidth, Math.Clamp(value, 0.05, 10), v => _model.TabWidth = v);
+    }
+
+    protected override void OnModelChanged()
+    {
+        base.OnModelChanged();
+        OnPropertyChanged(nameof(IsLine));
     }
 }
 
