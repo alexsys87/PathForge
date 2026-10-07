@@ -208,4 +208,71 @@ public class NestingTests
         // Without the option everything inside the outer border moves with it as one part.
         Assert.Equal(4, Nesting.FindParts(contours, new List<string>()).Single().Contours.Count);
     }
+    [Theory]
+    [InlineData(90, 4)]
+    [InlineData(45, 8)]
+    [InlineData(15, 24)]
+    [InlineData(7, 51)]
+    [InlineData(0, 1)]
+    [InlineData(400, 1)]
+    public void Rotation_step_splits_the_full_circle_evenly(double step, int count)
+    {
+        var angles = Nesting.RotationAngles(step);
+
+        Assert.Equal(count, angles.Length);
+        Assert.Equal(0, angles[0]);
+        Assert.All(angles.Skip(1).Zip(angles), pair => Assert.Equal(360.0 / count, pair.First - pair.Second, 6));
+    }
+
+    /// <summary>A 100 × 10 bar drawn turned by 30° (its bounds are about 92 × 59).</summary>
+    private static Contour TiltedBar(int id, double x, double y)
+    {
+        var turn = Affine2.Then(Affine2.Rotation(Math.PI / 6), Affine2.Translation(x, y));
+        var corners = new[] { new Vec2(0, 0), new Vec2(100, 0), new Vec2(100, 10), new Vec2(0, 10) }.Select(turn.Apply).ToArray();
+        return Polygon(id, corners.Select(c => (c.X, c.Y)).ToArray());
+    }
+
+    [Fact]
+    public void A_fine_rotation_step_straightens_a_tilted_part_that_quarter_turns_cannot_fit()
+    {
+        var quarter = new CamProject();
+        quarter.Contours.Add(TiltedBar(1, 500, 500));
+        var coarse = Nesting.Arrange(quarter, Array.Empty<int>(), new NestingSettings { SheetWidth = 110, SheetHeight = 30, Margin = 2, Spacing = 2, RotationStep = 90 });
+        Assert.Equal(0, coarse.Placed);
+
+        var fine = new CamProject();
+        fine.Contours.Add(TiltedBar(1, 500, 500));
+        var result = Nesting.Arrange(fine, Array.Empty<int>(), new NestingSettings { SheetWidth = 110, SheetHeight = 30, Margin = 2, Spacing = 2, RotationStep = 15 });
+
+        Assert.Equal(1, result.Placed);
+        var bounds = fine.Contours[0].GetBounds();
+        Assert.Equal(100, bounds.Width, 3);
+        Assert.Equal(10, bounds.Height, 3);
+    }
+
+    [Fact]
+    public void Turned_copies_keep_the_gap_and_stay_on_the_sheet()
+    {
+        var project = new CamProject();
+        project.Contours.Add(TiltedBar(1, 500, 500));
+        project.Operations.Add(new ProfileOperation { ContourIds = { 1 } });
+        var settings = new NestingSettings { SheetWidth = 120, SheetHeight = 80, Margin = 3, Spacing = 3, RotationStep = 15, Copies = 4 };
+
+        var result = Nesting.Arrange(project, Array.Empty<int>(), settings);
+
+        Assert.Equal(4, result.Placed);
+        foreach (var contour in project.Contours)
+        {
+            var b = contour.GetBounds();
+            Assert.True(b.MinX >= 3 - 1e-6 && b.MinY >= 3 - 1e-6 && b.MaxX <= 117 + 1e-6 && b.MaxY <= 77 + 1e-6, $"{b}");
+        }
+
+        for (var i = 0; i < project.Contours.Count; i++)
+        {
+            for (var j = i + 1; j < project.Contours.Count; j++)
+            {
+                Assert.True(Distance(project.Contours[i], project.Contours[j]) >= 3 - 0.01);
+            }
+        }
+    }
 }

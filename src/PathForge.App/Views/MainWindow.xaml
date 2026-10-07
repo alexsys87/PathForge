@@ -894,6 +894,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Text="{l:Tr 'Лист X × Y, мм', En='Sheet X × Y, mm'}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SheetWidth}" ToolTip="{l:Tr 'Ширина листа (по X). Лист начинается в нуле чертежа.', En='Sheet width (along X). The sheet starts at the drawing origin.'}" />
@@ -905,7 +906,10 @@
                                     <TextBlock Grid.Row="2" Text="{l:Tr 'Копий', En='Copies'}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Copies}" ToolTip="{l:Tr 'Сколько экземпляров каждой детали разложить; операции получат все копии', En='How many copies of each part to lay out; the operations get all copies'}" />
                                     <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Margin="6,0,0,0" VerticalAlignment="Center" Content="{l:Tr 'Поворачивать', En='Rotate'}" IsChecked="{Binding AllowRotation}"
-                                              ToolTip="{l:Tr 'Разрешить поворот деталей на 90°, 180°, 270° для плотной раскладки (выключите для фанеры с волокнами или рисунка). Детали с текстом не поворачиваются.', En='Allow turning the parts by 90°, 180°, 270° for a tighter layout (turn off for wood grain or a pattern). Parts with text are not turned.'}" />
+                                              ToolTip="{l:Tr 'Разрешить поворот деталей для плотной раскладки, с шагом из поля «Шаг поворота» (выключите для фанеры с волокнами или рисунка). Детали с текстом не поворачиваются.', En='Allow turning the parts for a tighter layout, in steps of “Turn step” (turn off for wood grain or a pattern). Parts with text are not turned.'}" />
+                                    <TextBlock Grid.Row="3" Text="{l:Tr 'Шаг поворота, °', En='Turn step, °'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RotationStep}" IsEnabled="{Binding AllowRotation}"
+                                             ToolTip="{l:Tr 'Через сколько градусов пробовать повороты: 90 — только 0°, 90°, 180°, 270°; 45, 15, 5 — любой угол с этим шагом. Мельче шаг — плотнее раскладка деталей сложной формы и тех, что нарисованы наклонно, но дольше расчёт.', En='How many degrees apart the tried turns are: 90 — only 0°, 90°, 180°, 270°; 45, 15, 5 — any angle in that step. A smaller step lays out odd shapes and parts drawn at an angle tighter but takes longer.'}" />
                                 </Grid>
                                 <CheckBox Margin="0,3,0,0" Content="{l:Tr 'Детали в отверстиях других деталей', En='Parts in holes of other parts'}" IsChecked="{Binding UseHoles}"
                                           ToolTip="{l:Tr 'Мелкие детали ставятся в вырезаемые насквозь отверстия крупных (с тем же зазором) — материал внутри рамок и колец не пропадает. Все замкнутые контуры внутри детали, кроме текста, считаются сквозными отверстиями, а замкнутый контур внутри отверстия — отдельной деталью. Не включайте, если внутри деталей есть карманы с островами.', En='Small parts are placed in the through holes of large ones (with the same gap) — the material inside frames and rings is not wasted. All closed contours inside a part except text are taken as through holes, and a closed contour inside a hole as a part of its own. Do not turn on if the parts contain pockets with islands.'}" />
