@@ -4,7 +4,10 @@ using PathForge.Core.Localization;
 
 namespace PathForge.Core.Machining;
 
-/// <summary>PCB by laser: the paint on the copper is burned away wherever the etchant has to remove copper.</summary>
+/// <summary>
+/// PCB by laser: the paint on the copper is burned away wherever the etchant has to remove copper; or, on a board
+/// with solder mask, the mask is burned away inside the openings and the silk screen is burned into it.
+/// </summary>
 public static partial class ToolpathGenerator
 {
     private static void GenerateLaserPcb(LaserPcbOperation operation, Tool tool, Dictionary<int, Contour> contours, PathWriter writer,
@@ -49,7 +52,31 @@ public static partial class ToolpathGenerator
         var copperRings = ClipperBridge.FromPaths(copper);
         if (copperRings.Count == 0)
         {
-            warnings.Add(Loc.T($"{label}: после уменьшения меди ничего не осталось.", $"{label}: nothing is left of the copper after shrinking it."));
+            warnings.Add(Loc.T($"{label}: после уменьшения контуров ничего не осталось.", $"{label}: nothing is left of the contours after shrinking them."));
+            return;
+        }
+
+        var power = Math.Clamp(operation.PowerPercent, 0, 100) / 100;
+        var z = operation.StartZ;
+        var passes = Math.Max(1, operation.Passes);
+        if (operation.Clearing == LaserPcbClearing.Inside)
+        {
+            // The beam centre stays half a spot inside: the burned edge lands on the contour.
+            var inside = ClipperBridge.FromPaths(ClipperBridge.Offset(copper, -spot / 2));
+            var lost = copperRings.Count(r => Polyline.IsCounterClockwise(r)) - inside.Count(r => Polyline.IsCounterClockwise(r));
+            if (lost > 0)
+            {
+                warnings.Add(Loc.T(
+                    $"{label}: {lost} шт. уже пятна лазера {spot:0.###} мм — не выжигаются. Сфокусируйте лазер точнее или увеличьте «Расширить».",
+                    $"{label}: {lost} shapes are narrower than the laser spot {spot:0.###} mm — not burned. Focus the laser better or increase “Grow”."));
+            }
+
+            if (inside.Count == 0)
+            {
+                return;
+            }
+
+            BurnHatched(operation, inside, spacing, power, z, passes, writer, warnings, label);
             return;
         }
 
@@ -65,9 +92,6 @@ public static partial class ToolpathGenerator
                 "Focus the laser better (smaller spot) or reduce “Grow copper”."));
         }
 
-        var power = Math.Clamp(operation.PowerPercent, 0, 100) / 100;
-        var z = operation.StartZ;
-        var passes = Math.Max(1, operation.Passes);
         if (operation.Clearing == LaserPcbClearing.Isolation)
         {
             var levels = LaserIsolationRings(copper, spot, operation.IsolationWidth, spacing);
@@ -82,7 +106,7 @@ public static partial class ToolpathGenerator
             return;
         }
 
-        var area = LaserClearingArea(operation, contours, copperRings, warnings, label);
+        var area = PcbClearingArea(operation.BoardContourIds, operation.Margin, contours, copperRings, warnings, label);
         // The beam centre stays half a spot inside the area to clear: the burned edge lands on the copper edge.
         var centres = ClipperBridge.FromPaths(ClipperBridge.Offset(ClipperBridge.Difference(area, copper), -spot / 2));
         if (centres.Count == 0)
@@ -91,6 +115,13 @@ public static partial class ToolpathGenerator
             return;
         }
 
+        BurnHatched(operation, centres, spacing, power, z, passes, writer, warnings, label);
+    }
+
+    /// <summary>Hatches the beam centre area pass by pass (across on every second pass when cross-hatching), then traces its outline.</summary>
+    private static void BurnHatched(LaserPcbOperation operation, List<List<Vec2>> centres, double spacing, double power, double z, int passes,
+        PathWriter writer, List<string> warnings, string label)
+    {
         var hatches = new Dictionary<double, List<(Vec2 From, Vec2 To)>>();
         for (var pass = 0; pass < passes; pass++)
         {
@@ -130,19 +161,19 @@ public static partial class ToolpathGenerator
         return levels;
     }
 
-    /// <summary>Area cleared of paint: the board outline (or the copper bounds) grown by the margin.</summary>
-    private static Paths64 LaserClearingArea(LaserPcbOperation operation, Dictionary<int, Contour> contours, List<List<Vec2>> copperRings,
+    /// <summary>Area cleared around the copper: the board outline (or the copper bounds) grown by the margin.</summary>
+    private static Paths64 PcbClearingArea(List<int> boardContourIds, double margin, Dictionary<int, Contour> contours, List<List<Vec2>> copperRings,
         List<string> warnings, string label)
     {
-        var margin = Math.Max(0, operation.Margin);
-        var outline = operation.BoardContourIds.Where(contours.ContainsKey).Select(id => contours[id]).Where(c => c.IsClosed).ToList();
+        margin = Math.Max(0, margin);
+        var outline = boardContourIds.Where(contours.ContainsKey).Select(id => contours[id]).Where(c => c.IsClosed).ToList();
         if (outline.Count > 0)
         {
             var region = ClipperBridge.EvenOddRegion(outline.Select(c => (IReadOnlyList<Vec2>)c.Flatten(FlattenTolerance)));
             return margin > 0 ? ClipperBridge.Offset(region, margin) : region;
         }
 
-        if (operation.BoardContourIds.Count > 0)
+        if (boardContourIds.Count > 0)
         {
             warnings.Add(Loc.T(
                 $"{label}: контур платы не замкнут — очищается прямоугольник вокруг меди.",

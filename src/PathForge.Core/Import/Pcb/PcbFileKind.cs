@@ -14,7 +14,16 @@ public enum PcbFileKind
     /// <summary>Excellon drill file.</summary>
     Drill,
 
-    /// <summary>A layer that is not milled (solder mask, silk screen, paste, drawings) or not a fabrication file at all.</summary>
+    /// <summary>Solder paste layer (Gerber): the windows of a paste stencil cut by laser.</summary>
+    Paste,
+
+    /// <summary>Solder mask layer (Gerber): the mask openings over the pads, burned free by laser.</summary>
+    SolderMask,
+
+    /// <summary>Silk screen / legend layer (Gerber): markings burned into the mask by laser.</summary>
+    Silkscreen,
+
+    /// <summary>A layer that is not used (drawings, courtyard, fabrication notes) or not a fabrication file at all.</summary>
     Skipped,
 }
 
@@ -55,7 +64,22 @@ public static class PcbFileDetector
                 return (PcbFileKind.Outline, "");
             }
 
-            return (PcbFileKind.Skipped, Loc.T($"слой «{function.Split(',')[0]}» не фрезеруется", $"the “{function.Split(',')[0]}” layer is not milled"));
+            if (function.StartsWith("Paste", StringComparison.OrdinalIgnoreCase))
+            {
+                return (PcbFileKind.Paste, "");
+            }
+
+            if (function.StartsWith("Soldermask", StringComparison.OrdinalIgnoreCase))
+            {
+                return (PcbFileKind.SolderMask, "");
+            }
+
+            if (function.StartsWith("Legend", StringComparison.OrdinalIgnoreCase))
+            {
+                return (PcbFileKind.Silkscreen, "");
+            }
+
+            return (PcbFileKind.Skipped, Loc.T($"слой «{function.Split(',')[0]}» не используется", $"the “{function.Split(',')[0]}” layer is not used"));
         }
 
         // Classic names: Protel/Altium extensions, KiCad and EasyEDA layer names.
@@ -65,11 +89,14 @@ public static class PcbFileDetector
             return (PcbFileKind.Outline, "");
         }
 
-        if (extension is ".gts" or ".gbs" or ".gto" or ".gbo" or ".gtp" or ".gbp" ||
-            lower.Contains("mask") || lower.Contains("silk") || lower.Contains("paste") || lower.Contains("legend") ||
-            lower.Contains("fab") || lower.Contains("courtyard") || lower.Contains("drawing"))
+        if (AuxiliaryLayerKind(name) is { } auxiliary)
         {
-            return (PcbFileKind.Skipped, Loc.T("маска, шелкография или паста не фрезеруются", "mask, silk screen and paste are not milled"));
+            return (auxiliary, "");
+        }
+
+        if (lower.Contains("fab") || lower.Contains("courtyard") || lower.Contains("drawing"))
+        {
+            return (PcbFileKind.Skipped, Loc.T("чертёжный слой не используется", "a drawing layer is not used"));
         }
 
         var innerLayer = extension.Length == 3 && extension[1] == 'g' && char.IsDigit(extension[2]); // Altium .g1, .g2…
@@ -82,6 +109,34 @@ public static class PcbFileDetector
         return (PcbFileKind.Skipped, Loc.T(
             "не удалось определить слой по имени — добавьте его отдельной командой (медь или контур)",
             "could not tell the layer from the name — add it with its own command (copper or outline)"));
+    }
+
+    /// <summary>
+    /// Paste, solder mask or silk screen by the usual file (or layer) name: Altium .GTP/.GTS/.GTO and the bottom
+    /// ones, KiCad F_Paste / F_Mask / F_Silkscreen, EasyEDA TopPasteMaskLayer / TopSolderMaskLayer / TopSilkLayer.
+    /// Null for any other name.
+    /// </summary>
+    public static PcbFileKind? AuxiliaryLayerKind(string fileName)
+    {
+        var lower = Path.GetFileName(fileName).ToLowerInvariant();
+        var extension = Path.GetExtension(lower);
+        // Paste first: EasyEDA calls the paste layer "PasteMask".
+        if (extension is ".gtp" or ".gbp" || lower.Contains("paste"))
+        {
+            return PcbFileKind.Paste;
+        }
+
+        if (extension is ".gts" or ".gbs" || lower.Contains("mask"))
+        {
+            return PcbFileKind.SolderMask;
+        }
+
+        if (extension is ".gto" or ".gbo" || lower.Contains("silk") || lower.Contains("legend"))
+        {
+            return PcbFileKind.Silkscreen;
+        }
+
+        return null;
     }
 
     /// <summary>The file name is the usual one of a board outline (Altium .GKO / .GM1, KiCad Edge_Cuts, EasyEDA BoardOutline…).</summary>

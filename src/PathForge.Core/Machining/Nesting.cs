@@ -208,6 +208,10 @@ public static class Nesting
             {
                 pcb.BoardContourIds.AddRange(pcb.BoardContourIds.Where(copyIds.ContainsKey).SelectMany(id => copyIds[id]).ToList());
             }
+            else if (operation is CopperClearingOperation clearing)
+            {
+                clearing.BoardContourIds.AddRange(clearing.BoardContourIds.Where(copyIds.ContainsKey).SelectMany(id => copyIds[id]).ToList());
+            }
         }
 
         if (inHoles > 0)

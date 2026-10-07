@@ -617,7 +617,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// A whole fabrication output at once: copper layers, board outline and drill files are told apart (X2 attributes
-    /// or file names) and each is added as its own layer; mask, silk screen and paste are skipped.
+    /// or file names) and each is added as its own layer. Paste, solder mask and silk screen are added as hidden
+    /// layers (for the stencil and the mask by laser): they stay out of the way of the copper selection.
     /// </summary>
     [RelayCommand]
     private void ImportPcbFiles()
@@ -637,12 +638,16 @@ public sealed partial class MainViewModel : ObservableObject
                 case PcbFileKind.Copper:
                 case PcbFileKind.Outline:
                     var gerber = GerberReader.Read(text, kind == PcbFileKind.Copper ? GerberMode.Copper : GerberMode.Outline, Path.GetFileName(path));
-                    return (gerber.Contours, gerber.Warnings, KindName(kind));
+                    return (gerber.Contours, gerber.Warnings, KindName(kind), false);
                 case PcbFileKind.Drill:
                     var drill = ExcellonReader.Read(text);
-                    return (drill.ToContours(), drill.Warnings, KindName(kind));
+                    return (drill.ToContours(), drill.Warnings, KindName(kind), false);
+                case PcbFileKind.Paste or PcbFileKind.SolderMask or PcbFileKind.Silkscreen:
+                    // Pads, openings and legend strokes are areas, like copper.
+                    var layer = GerberReader.Read(text, GerberMode.Copper, Path.GetFileName(path));
+                    return (layer.Contours, layer.Warnings, KindName(kind), true);
                 default:
-                    return (new List<Contour>(), new List<string>(), reason);
+                    return (new List<Contour>(), new List<string>(), reason, false);
             }
         });
 
@@ -650,6 +655,9 @@ public sealed partial class MainViewModel : ObservableObject
         {
             PcbFileKind.Copper => Loc.T("медь", "copper"),
             PcbFileKind.Outline => Loc.T("контур платы", "board outline"),
+            PcbFileKind.Paste => Loc.T("паста, слой скрыт", "paste, layer hidden"),
+            PcbFileKind.SolderMask => Loc.T("маска, слой скрыт", "solder mask, layer hidden"),
+            PcbFileKind.Silkscreen => Loc.T("шелкография, слой скрыт", "silk screen, layer hidden"),
             _ => Loc.T("сверловка", "drills"),
         };
     }
@@ -666,20 +674,24 @@ public sealed partial class MainViewModel : ObservableObject
         ImportPcbFiles(paths, path =>
         {
             var (contours, warnings) = read(path);
-            return (contours, warnings, "");
+            return (contours, warnings, "", false);
         });
     }
 
-    /// <param name="read">Contours and warnings of a file, and its kind for the message (or why it was skipped when there are no contours).</param>
-    private void ImportPcbFiles(IReadOnlyList<string> paths, Func<string, (List<Contour> Contours, List<string> Warnings, string Note)> read)
+    /// <param name="read">
+    /// Contours and warnings of a file, its kind for the message (or why it was skipped when there are no contours),
+    /// and whether its layer starts hidden.
+    /// </param>
+    private void ImportPcbFiles(IReadOnlyList<string> paths, Func<string, (List<Contour> Contours, List<string> Warnings, string Note, bool Hidden)> read)
     {
         var added = new List<int>();
+        var hiddenAdded = false;
         foreach (var path in paths)
         {
             var layer = Path.GetFileName(path);
             try
             {
-                var (contours, warnings, note) = read(path);
+                var (contours, warnings, note, hidden) = read(path);
                 if (contours.Count == 0 && note.Length > 0)
                 {
                     Messages.Add(Loc.T($"{layer}: пропущен — {note}.", $"{layer}: skipped — {note}."));
@@ -697,7 +709,19 @@ public sealed partial class MainViewModel : ObservableObject
                 }
 
                 _project.Contours.AddRange(contours);
-                added.AddRange(contours.Select(c => c.Id));
+                if (hidden)
+                {
+                    hiddenAdded |= contours.Count > 0;
+                    if (!_project.HiddenLayers.Contains(layer))
+                    {
+                        _project.HiddenLayers.Add(layer);
+                    }
+                }
+                else
+                {
+                    added.AddRange(contours.Select(c => c.Id));
+                }
+
                 _project.SourceFile ??= path;
                 if (ProjectPath is null && _project.Contours.Count == contours.Count)
                 {
@@ -717,7 +741,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
 
-        if (added.Count == 0)
+        if (added.Count == 0 && !hiddenAdded)
         {
             return;
         }
@@ -794,14 +818,235 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>Makes the selected contours the board outline of the selected laser PCB operation.</summary>
+    /// <summary>Makes the selected contours the board outline of the selected laser PCB or copper clearing operation.</summary>
     [RelayCommand]
     private void AssignBoardOutline()
     {
-        if (SelectedOperation is LaserPcbOperationViewModel pcb)
+        if (SelectedOperation is IBoardOutlineOperation operation)
         {
-            pcb.SetBoardContours(SelectedContourIds);
+            operation.SetBoardContours(SelectedContourIds);
         }
+    }
+
+    /// <summary>Selected contours split into the board outline (by the outline layer name) and the rest (copper).</summary>
+    private (List<int> Board, List<int> Copper) SplitBoardOutline()
+    {
+        var selected = _project.Contours.Where(c => SelectedContourIds.Contains(c.Id)).ToList();
+        var board = selected.Where(c => PcbFileDetector.IsOutlineFileName(c.Layer)).Select(c => c.Id).ToList();
+        if (board.Count == selected.Count)
+        {
+            board.Clear();
+        }
+
+        return (board, selected.Select(c => c.Id).Where(id => !board.Contains(id)).ToList());
+    }
+
+    /// <summary>
+    /// Excess copper removed by milling: an isolation with the engraver around the copper (unless there already is
+    /// one) and a clearing with the largest end mill of everything beyond the isolation band, inside the board outline.
+    /// </summary>
+    [RelayCommand]
+    private void AddCopperClearing()
+    {
+        var (board, copper) = SplitBoardOutline();
+        if (copper.Count == 0)
+        {
+            Messages.Add(Loc.T("Удаление меди: выделите медь (и контур платы) на чертеже.", "Copper clearing: select the copper (and the board outline) on the drawing."));
+            return;
+        }
+
+        var mill = _project.Tools.Where(t => t.Kind == ToolKind.EndMill && t.Diameter <= 3.2).MaxBy(t => t.Diameter);
+        if (mill is null)
+        {
+            Messages.Add(Loc.T(
+                "Удаление меди: добавьте концевую фрезу («Инструменты» → пресет «Текстолит (платы): Фреза Ø2 (удаление лишней меди)»).",
+                "Copper clearing: add an end mill (“Tools” → preset “PCB (FR4): End mill Ø2 (removing excess copper)”)."));
+            return;
+        }
+
+        var isolation = _project.Operations.OfType<IsolationOperation>().FirstOrDefault(o => o.ContourIds.Intersect(copper).Any());
+        if (isolation is null)
+        {
+            var vbit = _project.Tools.FirstOrDefault(t => t.Kind == ToolKind.VBit);
+            if (vbit is null)
+            {
+                Messages.Add(Loc.T("Для изоляции добавьте гравёр: «Инструменты» → пресет «Текстолит (платы): Гравёр 20°».", "For isolation add an engraver: “Tools” → preset “PCB (FR4): Engraver 20°”."));
+                return;
+            }
+
+            isolation = new IsolationOperation { Name = NewName("Изоляция", "Isolation") };
+            AddOperation(isolation, vbit, copper);
+        }
+
+        var engraver = _project.Tools.FirstOrDefault(t => t.Id == isolation.ToolId);
+        var band = engraver is null ? 0.4 : ToolpathGenerator.IsolationBandWidth(isolation, engraver);
+        var clearing = new CopperClearingOperation
+        {
+            Name = NewName("Удаление меди", "Copper clearing"),
+            Depth = isolation.Depth,
+            // The mill overlaps the isolation band a little: no copper hair between them.
+            KeepDistance = Math.Round(Math.Max(0, band - 0.05), 3),
+            BoardContourIds = board,
+        };
+        AddOperation(clearing, mill, copper);
+        Messages.Add(Loc.T(
+            $"{clearing.Name}: фреза «{mill.Name}» снимает медь дальше {clearing.KeepDistance:0.##} мм от дорожек, ближе — изоляция «{isolation.Name}» гравёром. " +
+            (board.Count > 0 ? "Область — контур платы с полями." : "Контура платы нет — очищается прямоугольник вокруг меди; контур можно назначить кнопкой «Назначить выделенный»."),
+            $"{clearing.Name}: the mill “{mill.Name}” removes the copper farther than {clearing.KeepDistance:0.##} mm from the tracks, closer in the isolation “{isolation.Name}” with the engraver. " +
+            (board.Count > 0 ? "The area is the board outline with a margin." : "There is no board outline — the rectangle around the copper is cleared; an outline can be assigned with “Assign selected”.")));
+    }
+
+    /// <summary>
+    /// Drilling by diameter: the selected holes (or all the drill layers) are grouped by size, each size gets the
+    /// nearest drill among the tools and one drilling operation is added per drill, thinnest first.
+    /// </summary>
+    [RelayCommand]
+    private void AddDrillsByDiameter()
+    {
+        var holes = SelectedContourIds.Count > 0
+            ? _project.Contours.Where(c => SelectedContourIds.Contains(c.Id)).ToList()
+            : _project.Contours.Where(c => IsVisible(c) && (c.TryGetCircle(out _, out _) || c.TryGetSlot(out _, out _, out _)) && c.Layer.Contains('Ø')).ToList();
+        var existing = _project.Operations.OfType<DrillOperation>().FirstOrDefault();
+        var depth = existing?.Depth ?? Math.Round(Math.Min(_project.Stock.Thickness, 1.6) + 0.4, 2);
+        var plan = DrillPlanner.Plan(holes, _project.Tools, depth, existing?.PeckDepth ?? 0);
+        foreach (var operation in plan.Operations)
+        {
+            _project.Operations.Add(operation);
+            Operations.Add(OperationViewModel.Create(operation, OnProjectChanged));
+        }
+
+        foreach (var group in plan.Groups)
+        {
+            Messages.Add(Loc.T(
+                $"Сверло «{group.Drill.Name}»: отверстия {string.Join(", ", group.Diameters.Select(d => $"Ø{d:0.###}"))} — {group.ContourIds.Count} шт.",
+                $"Drill “{group.Drill.Name}”: holes {string.Join(", ", group.Diameters.Select(d => $"Ø{d:0.###}"))} — {group.ContourIds.Count}."));
+        }
+
+        foreach (var warning in plan.Warnings)
+        {
+            Messages.Add(warning);
+        }
+
+        if (plan.Operations.Count == 0)
+        {
+            return;
+        }
+
+        SelectedOperation = Operations[^1];
+        Messages.Add(Loc.T(
+            $"Сверловка по диаметрам: {plan.Operations.Count} операций, глубина {depth:0.##} мм. Между ними программа остановится (M0) для смены сверла — " +
+            "после смены выставьте Z0 заново.",
+            $"Drilling by diameter: {plan.Operations.Count} operations, depth {depth:0.##} mm. Between them the program stops (M0) for the drill change — " +
+            "set Z0 again after changing the drill."));
+        OnProjectChanged();
+    }
+
+    /// <summary>Settings of the solder paste stencil.</summary>
+    public PasteStencilViewModel PasteStencil { get; } = new();
+
+    /// <summary>
+    /// The selected contours, or else all the contours of the only imported layer of that kind (paste, mask, silk
+    /// screen); null after a message when that is ambiguous or there is none.
+    /// </summary>
+    private List<Contour>? ContoursOfLayerKind(PcbFileKind kind, string what)
+    {
+        if (SelectedContourIds.Count > 0)
+        {
+            return _project.Contours.Where(c => SelectedContourIds.Contains(c.Id)).ToList();
+        }
+
+        var layers = _project.Contours.Select(c => c.Layer).Distinct().Where(l => PcbFileDetector.AuxiliaryLayerKind(l) == kind).ToList();
+        if (layers.Count == 1)
+        {
+            return _project.Contours.Where(c => c.Layer == layers[0]).ToList();
+        }
+
+        Messages.Add(layers.Count == 0
+            ? Loc.T($"Нет слоя «{what}»: добавьте его файл («Печатная плата» → «Добавить файлы платы») или выделите контуры.",
+                $"There is no “{what}” layer: add its file (“PCB” → “Add PCB files”) or select the contours.")
+            : Loc.T($"Слоёв «{what}» несколько ({string.Join(", ", layers)}): покажите нужный на вкладке «Слои» и выделите его.",
+                $"There are several “{what}” layers ({string.Join(", ", layers)}): show the right one on the “Layers” tab and select it."));
+        return null;
+    }
+
+    /// <summary>
+    /// Solder paste stencil: the paste windows, reduced, and a frame around them on their own layer, cut from film
+    /// by laser with the windows to size.
+    /// </summary>
+    [RelayCommand]
+    private void AddPasteStencil()
+    {
+        var laser = LaserTool();
+        if (ContoursOfLayerKind(PcbFileKind.Paste, Loc.T("паста", "paste")) is not { } paste)
+        {
+            return;
+        }
+
+        var stencil = PathForge.Core.Machining.PasteStencil.Build(paste, PasteStencil.Model, laser?.Id ?? "", laser?.Diameter ?? 0.1, _project.NextContourId());
+        foreach (var warning in stencil.Warnings)
+        {
+            Messages.Add(warning);
+        }
+
+        if (stencil.Contours.Count == 0)
+        {
+            return;
+        }
+
+        _project.Contours.AddRange(stencil.Contours);
+        stencil.Operation.Name = NewName("Трафарет пасты", "Paste stencil");
+        _project.Operations.Add(stencil.Operation);
+        var vm = OperationViewModel.Create(stencil.Operation, OnProjectChanged);
+        Operations.Add(vm);
+        SelectedOperation = vm;
+        RefreshLayers();
+        Messages.Add(Loc.T(
+            $"{stencil.Operation.Name}: окон {stencil.Contours.Count - (PasteStencil.FrameMargin > 0 ? 1 : 0)}, уменьшены на {PasteStencil.Reduction:0.###} мм с каждой стороны; " +
+            "ширина реза = пятно лазера, окна выйдут в размер. Плёнка — каптон (полиимид) или цветной ПЭТ 0,1–0,13 мм: прозрачную синий лазер не режет. " +
+            "Трафарет для нижней стороны зеркальте.",
+            $"{stencil.Operation.Name}: {stencil.Contours.Count - (PasteStencil.FrameMargin > 0 ? 1 : 0)} windows, reduced by {PasteStencil.Reduction:0.###} mm on each side; " +
+            "kerf = the laser spot, the windows come out to size. Film: Kapton (polyimide) or coloured PET 0.1–0.13 mm: a blue laser does not cut clear film. " +
+            "Mirror the stencil for the bottom side."));
+        OnProjectChanged();
+        Regenerate();
+    }
+
+    /// <summary>Solder mask by laser: the cured mask is burned away inside the openings of the mask layer.</summary>
+    [RelayCommand]
+    private void AddLaserMask() => AddLaserInside(PcbFileKind.SolderMask, Loc.T("маска", "solder mask"), new LaserPcbOperation
+    {
+        Name = NewName("Окна маски", "Mask openings"),
+        Clearing = LaserPcbClearing.Inside,
+        PowerPercent = 100,
+        Speed = 800,
+        Passes = 2,
+        CrossHatch = true,
+    });
+
+    /// <summary>Silk screen by laser: the legend is burned into the mask at low power.</summary>
+    [RelayCommand]
+    private void AddLaserSilkscreen() => AddLaserInside(PcbFileKind.Silkscreen, Loc.T("шелкография", "silk screen"), new LaserPcbOperation
+    {
+        Name = NewName("Шелкография", "Silk screen"),
+        Clearing = LaserPcbClearing.Inside,
+        PowerPercent = 40,
+        Speed = 1500,
+        Passes = 1,
+        CrossHatch = false,
+    });
+
+    private void AddLaserInside(PcbFileKind kind, string what, LaserPcbOperation operation)
+    {
+        var laser = LaserTool();
+        if (ContoursOfLayerKind(kind, what) is not { } contours)
+        {
+            return;
+        }
+
+        AddOperation(operation, laser, contours.Select(c => c.Id));
+        Messages.Add(Loc.T(
+            $"{operation.Name}: лазер выжигает внутри {operation.ContourIds.Count} контуров, край выжженного — по контуру. Мощность и скорость подберите тест-сеткой на обрезке с той же маской.",
+            $"{operation.Name}: the laser burns inside {operation.ContourIds.Count} contours, the burned edge on the contour. Find the power and speed with the test card on a scrap with the same mask."));
     }
 
     /// <summary>Settings of the power × speed test card.</summary>
@@ -1671,6 +1916,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (SelectedOperation?.Model is LaserPcbOperation pcb)
         {
             operationContours.UnionWith(pcb.BoardContourIds);
+        }
+        else if (SelectedOperation?.Model is CopperClearingOperation clearing)
+        {
+            operationContours.UnionWith(clearing.BoardContourIds);
         }
 
         var contours = new List<SceneContour>(_project.Contours.Count);

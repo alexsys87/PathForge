@@ -91,6 +91,7 @@ public abstract class OperationViewModel : ModelWrapper
         PocketOperation p => new PocketOperationViewModel(p, changed),
         DrillOperation d => new DrillOperationViewModel(d, changed),
         IsolationOperation i => new IsolationOperationViewModel(i, changed),
+        CopperClearingOperation c => new CopperClearingOperationViewModel(c, changed),
         LaserVectorOperation l => new LaserVectorOperationViewModel(l, changed),
         LaserRasterOperation r => new LaserRasterOperationViewModel(r, changed),
         LaserPcbOperation b => new LaserPcbOperationViewModel(b, changed),
@@ -404,6 +405,51 @@ public sealed class IsolationOperationViewModel : OperationViewModel
     }
 }
 
+/// <summary>A board-outline-limited operation: the outline contours are assigned separately from the copper.</summary>
+public interface IBoardOutlineOperation
+{
+    void SetBoardContours(IEnumerable<int> ids);
+}
+
+public sealed class CopperClearingOperationViewModel : OperationViewModel, IBoardOutlineOperation
+{
+    private readonly CopperClearingOperation _model;
+
+    public CopperClearingOperationViewModel(CopperClearingOperation model, Action changed)
+        : base(model, changed)
+    {
+        _model = model;
+    }
+
+    public override string KindLabel => Loc.T("Удаление меди", "Copper clearing");
+
+    public double Margin
+    {
+        get => _model.Margin;
+        set => Set(_model.Margin, Math.Clamp(value, 0, 50), v => _model.Margin = v);
+    }
+
+    public double KeepDistance
+    {
+        get => _model.KeepDistance;
+        set => Set(_model.KeepDistance, Math.Clamp(value, 0, 10), v => _model.KeepDistance = v);
+    }
+
+    public CutDirection Direction
+    {
+        get => _model.Direction;
+        set => Set(_model.Direction, value, v => _model.Direction = v);
+    }
+
+    public int BoardContourCount => _model.BoardContourIds.Count;
+
+    public void SetBoardContours(IEnumerable<int> ids)
+    {
+        var list = ids.Distinct().OrderBy(i => i).ToList();
+        Set(_model.BoardContourIds, list, v => _model.BoardContourIds = v, nameof(BoardContourCount));
+    }
+}
+
 public sealed class LaserVectorOperationViewModel : OperationViewModel
 {
     private readonly LaserVectorOperation _model;
@@ -503,7 +549,7 @@ public sealed class LaserVectorOperationViewModel : OperationViewModel
     }
 }
 
-public sealed class LaserPcbOperationViewModel : OperationViewModel
+public sealed class LaserPcbOperationViewModel : OperationViewModel, IBoardOutlineOperation
 {
     private readonly LaserPcbOperation _model;
 
@@ -515,9 +561,13 @@ public sealed class LaserPcbOperationViewModel : OperationViewModel
 
     public override string KindLabel => Loc.T("Плата лазером", "Laser PCB");
 
-    public override string Summary => Loc.T(
-        $"Плата лазером · {_model.PowerPercent:0}% · {_model.Speed:0} мм/мин · контуров меди: {_model.ContourIds.Count}",
-        $"Laser PCB · {_model.PowerPercent:0}% · {_model.Speed:0} mm/min · copper contours: {_model.ContourIds.Count}");
+    public override string Summary => ClearsInside
+        ? Loc.T(
+            $"Плата лазером · внутри контуров · {_model.PowerPercent:0}% · {_model.Speed:0} мм/мин · контуров: {_model.ContourIds.Count}",
+            $"Laser PCB · inside contours · {_model.PowerPercent:0}% · {_model.Speed:0} mm/min · contours: {_model.ContourIds.Count}")
+        : Loc.T(
+            $"Плата лазером · {_model.PowerPercent:0}% · {_model.Speed:0} мм/мин · контуров меди: {_model.ContourIds.Count}",
+            $"Laser PCB · {_model.PowerPercent:0}% · {_model.Speed:0} mm/min · copper contours: {_model.ContourIds.Count}");
 
     public LaserPcbClearing Clearing
     {
@@ -527,13 +577,25 @@ public sealed class LaserPcbOperationViewModel : OperationViewModel
             Set(_model.Clearing, value, v => _model.Clearing = v);
             OnPropertyChanged(nameof(ClearsAll));
             OnPropertyChanged(nameof(ClearsStrip));
+            OnPropertyChanged(nameof(ClearsInside));
+            OnPropertyChanged(nameof(ClearsAround));
+            OnPropertyChanged(nameof(Hatches));
         }
     }
 
     /// <summary>Settings of each mode are shown only in that mode.</summary>
     public bool ClearsAll => _model.Clearing == LaserPcbClearing.All;
 
-    public bool ClearsStrip => !ClearsAll;
+    public bool ClearsStrip => _model.Clearing == LaserPcbClearing.Isolation;
+
+    /// <summary>Solder mask openings or silk screen: burned inside the contours.</summary>
+    public bool ClearsInside => _model.Clearing == LaserPcbClearing.Inside;
+
+    /// <summary>Paint around the copper (strip or all of it).</summary>
+    public bool ClearsAround => !ClearsInside;
+
+    /// <summary>The area is hatched (all the paint, or inside the contours).</summary>
+    public bool Hatches => !ClearsStrip;
 
     public double IsolationWidth
     {
