@@ -89,6 +89,7 @@ public abstract class OperationViewModel : ModelWrapper
         LaserPcbOperation b => new LaserPcbOperationViewModel(b, changed),
         ReliefOperation r => new ReliefOperationViewModel(r, changed),
         VCarveOperation v => new VCarveOperationViewModel(v, changed),
+        FacingOperation f => new FacingOperationViewModel(f, changed),
         _ => throw new NotSupportedException(model.GetType().Name),
     };
 }
@@ -210,6 +211,104 @@ public sealed class PocketOperationViewModel : OperationViewModel
         get => _model.Allowance;
         set => Set(_model.Allowance, Math.Max(0, value), v => _model.Allowance = v);
     }
+
+    public override string Summary => _model.RestFromDiameter > 0
+        ? Loc.T($"{KindLabel} · дообработка после Ø{_model.RestFromDiameter:0.##} · {Model.Depth:0.##} мм", $"{KindLabel} · rest after Ø{_model.RestFromDiameter:0.##} · {Model.Depth:0.##} mm")
+        : _model.Strategy == PocketStrategy.Adaptive
+            ? Loc.T($"{KindLabel} адаптивный · {Model.Depth:0.##} мм · контуров: {Model.ContourIds.Count}", $"Adaptive {KindLabel.ToLowerInvariant()} · {Model.Depth:0.##} mm · contours: {Model.ContourIds.Count}")
+            : base.Summary;
+
+    public PocketStrategy Strategy
+    {
+        get => _model.Strategy;
+        set => Set(_model.Strategy, value, v => _model.Strategy = v);
+    }
+
+    public double AdaptiveStepOverPercent
+    {
+        get => _model.AdaptiveStepOverPercent;
+        set => Set(_model.AdaptiveStepOverPercent, Math.Clamp(value, 2, 50), v => _model.AdaptiveStepOverPercent = v);
+    }
+
+    public double RestFromDiameter
+    {
+        get => _model.RestFromDiameter;
+        set => Set(_model.RestFromDiameter, Math.Clamp(value, 0, 100), v => _model.RestFromDiameter = v);
+    }
+
+    public double RestFromAllowance
+    {
+        get => _model.RestFromAllowance;
+        set => Set(_model.RestFromAllowance, Math.Clamp(value, 0, 10), v => _model.RestFromAllowance = v);
+    }
+}
+
+public sealed class FacingOperationViewModel : OperationViewModel
+{
+    private readonly FacingOperation _model;
+
+    public FacingOperationViewModel(FacingOperation model, Action changed)
+        : base(model, changed)
+    {
+        _model = model;
+    }
+
+    public override string KindLabel => Loc.T("Торцовка", "Facing");
+
+    public override string Summary => Model.ContourIds.Count > 0
+        ? Loc.T($"{KindLabel} · {Model.Depth:0.##} мм · по контурам: {Model.ContourIds.Count}", $"{KindLabel} · {Model.Depth:0.##} mm · around contours: {Model.ContourIds.Count}")
+        : Loc.T($"{KindLabel} · {Model.Depth:0.##} мм · {_model.Width:0.#}×{_model.Height:0.#} мм", $"{KindLabel} · {Model.Depth:0.##} mm · {_model.Width:0.#}×{_model.Height:0.#} mm");
+
+    public double X
+    {
+        get => _model.X;
+        set => Set(_model.X, value, v => _model.X = v);
+    }
+
+    public double Y
+    {
+        get => _model.Y;
+        set => Set(_model.Y, value, v => _model.Y = v);
+    }
+
+    public double Width
+    {
+        get => _model.Width;
+        set => Set(_model.Width, Math.Clamp(value, 0, 5000), v => _model.Width = v);
+    }
+
+    public double Height
+    {
+        get => _model.Height;
+        set => Set(_model.Height, Math.Clamp(value, 0, 5000), v => _model.Height = v);
+    }
+
+    public double Margin
+    {
+        get => _model.Margin;
+        set => Set(_model.Margin, Math.Clamp(value, 0, 500), v => _model.Margin = v);
+    }
+
+    public RasterAxis Axis
+    {
+        get => _model.Axis;
+        set => Set(_model.Axis, value, v => _model.Axis = v);
+    }
+
+    public double OverhangPercent
+    {
+        get => _model.OverhangPercent;
+        set => Set(_model.OverhangPercent, Math.Clamp(value, 0, 200), v => _model.OverhangPercent = v);
+    }
+
+    /// <summary>Sets the area to the machine's whole travel from the work zero (spoil board surfacing).</summary>
+    public void SetArea(double x, double y, double width, double height)
+    {
+        X = x;
+        Y = y;
+        Width = width;
+        Height = height;
+    }
 }
 
 public sealed class DrillOperationViewModel : OperationViewModel
@@ -228,6 +327,12 @@ public sealed class DrillOperationViewModel : OperationViewModel
     {
         get => _model.PeckDepth;
         set => Set(_model.PeckDepth, Math.Max(0, value), v => _model.PeckDepth = v);
+    }
+
+    public double SlotPitchPercent
+    {
+        get => _model.SlotPitchPercent;
+        set => Set(_model.SlotPitchPercent, Math.Clamp(value, 10, 100), v => _model.SlotPitchPercent = v);
     }
 }
 

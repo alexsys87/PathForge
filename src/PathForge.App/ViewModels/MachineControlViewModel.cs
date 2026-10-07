@@ -38,6 +38,8 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private readonly UiPreferences _preferences;
     private readonly Func<MachineProgram?> _projectProgram;
     private readonly Func<double> _safeZ;
+    private readonly Func<double> _spindleDelay;
+    private IReadOnlyList<GrblLine>? _lastJobLines;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _pollTimer;
     private GrblController? _controller;
@@ -68,8 +70,9 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private int _failedCommandsSeen;
 
     public MachineControlViewModel(IDialogService dialogs, UiPreferences preferences, Func<MachineProgram?> projectProgram, Func<double> safeZ,
-        Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds)
+        Func<LevelingMap?> getMap, Action<LevelingMap?> setMap, Func<Bounds2> programBounds, Func<double> spindleDelay)
     {
+        _spindleDelay = spindleDelay;
         _dialogs = dialogs;
         _preferences = preferences;
         ConnectionKind = preferences.MachineConnection;
@@ -1066,6 +1069,61 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
         if (Run(c => c.StartJob(job.Lines)))
         {
+            _lastJobLines = job.Lines;
+            _jobStarted = DateTime.Now;
+            Refresh();
+        }
+    }
+
+    /// <summary>Program line to continue from (filled in after a job was stopped or interrupted).</summary>
+    [ObservableProperty]
+    private int resumeLine = 1;
+
+    /// <summary>
+    /// Continues the program from <see cref="ResumeLine"/>: the modal state of the lines before it is restored and
+    /// the tool goes there safely (up, over, spindle on, down with the plunge feed). For a broken tool or a power cut.
+    /// </summary>
+    [RelayCommand]
+    private void StartFromLine()
+    {
+        if (_controller is null || PrepareProgram("run") is not { } job)
+        {
+            return;
+        }
+
+        GrblResumeResult resume;
+        try
+        {
+            resume = GrblResume.Build(job.Lines, Math.Max(1, ResumeLine), new GrblResumeOptions(_safeZ(), _spindleDelay()));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _dialogs.ShowError(ex.Message);
+            return;
+        }
+
+        var p = resume.Position;
+        string Axis(string name, double value) => double.IsNaN(value) ? "" : $" {name}{value.ToString("0.###", CultureInfo.CurrentCulture)}";
+        var message = Loc.T(
+                          $"Продолжить «{job.Name}» со строки {resume.StartLine}?\n\n" +
+                          $"Станок поднимется на безопасную высоту, переедет в{Axis("X", p.X)}{Axis("Y", p.Y)}, включит шпиндель и опустится до{Axis("Z", p.Z)}.\n\n" +
+                          "Проверьте: ноль X/Y/Z такой же, как при первом запуске (после пропадания питания выставьте его заново точно в той же точке; " +
+                          "после смены фрезы — заново Z0), в шпинделе нужная фреза",
+                          $"Continue “{job.Name}” from line {resume.StartLine}?\n\n" +
+                          $"The machine goes up to the safe height, moves to{Axis("X", p.X)}{Axis("Y", p.Y)}, starts the spindle and goes down to{Axis("Z", p.Z)}.\n\n" +
+                          "Check: the X/Y/Z zero is the same as at the first start (after a power cut set it again at exactly the same point; " +
+                          "after changing the tool set Z0 again), the right tool is in the spindle") +
+                      (resume.Tool.Length > 0 ? $" ({resume.Tool})" : "") + "." +
+                      (resume.Warnings.Count > 0 ? "\n\n⚠ " + string.Join("\n⚠ ", resume.Warnings) : "") +
+                      job.LevelingNote;
+        if (!_dialogs.Confirm(message))
+        {
+            return;
+        }
+
+        if (Run(c => c.StartJob(resume.Lines)))
+        {
+            _lastJobLines = resume.Lines;
             _jobStarted = DateTime.Now;
             Refresh();
         }
@@ -1324,6 +1382,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         }
 
         ProgressText = result.Message + Loc.T(" Время: ", " Time: ") + elapsed.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+        if (!result.Success && _controller is { LastAcknowledgedLine: > 0 } controller && _lastJobLines is { } lines)
+        {
+            // GRBL had accepted lines ahead of the machine: suggest a line a little before the last accepted one.
+            ResumeLine = GrblResume.SuggestLine(lines, controller.LastAcknowledgedLine);
+            ProgressText += Loc.T(
+                $" Продолжить можно со строки {ResumeLine} («С этой строки»).",
+                $" You can continue from line {ResumeLine} (“From this line”).");
+        }
         JobFinished?.Invoke(ProgressText);
         Refresh();
     }

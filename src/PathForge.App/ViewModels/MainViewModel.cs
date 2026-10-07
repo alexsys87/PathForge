@@ -35,7 +35,8 @@ public sealed partial class MainViewModel : ObservableObject
                 _project.LevelingMap = map;
                 OnProjectChanged();
             },
-            ProgramCutBounds);
+            ProgramCutBounds,
+            () => _project.Machine.SpindleDelaySeconds);
         Control.JobFinished += message => Messages.Add(Loc.T("Станок: ", "Machine: ") + message);
         Simulation = new SimulationViewModel(() => (_project, _generation));
         _regenerateTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -747,6 +748,104 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Sheet and gaps for laying out parts.</summary>
     public NestingViewModel Nesting { get; } = new();
 
+    /// <summary>Size and distance of the alignment holes for double-sided boards.</summary>
+    public AlignmentHolesViewModel AlignmentHoles { get; } = new();
+
+    /// <summary>
+    /// Adds (or moves) the two alignment holes of a double-sided board: outside the board outline on its horizontal
+    /// centre line, symmetric, so that the mirrored second side keeps the same work zero.
+    /// </summary>
+    [RelayCommand]
+    private void AddAlignmentHoles()
+    {
+        var board = PcbAlignment.BoardBounds(_project.Contours);
+        if (board.IsEmpty)
+        {
+            Messages.Add(Loc.T("Сначала добавьте файлы платы (медь и контур платы).", "Add the board files first (copper and board outline)."));
+            return;
+        }
+
+        var existing = _project.Contours.Where(c => c.Layer == PcbAlignment.Layer).ToList();
+        var holes = PcbAlignment.Holes(board, AlignmentHoles.Diameter, AlignmentHoles.Margin, _project.NextContourId());
+        if (existing.Count == holes.Count)
+        {
+            // Keep the ids: operations that drill the holes follow the new position.
+            for (var i = 0; i < holes.Count; i++)
+            {
+                existing[i].Segments = holes[i].Segments;
+            }
+
+            holes = existing;
+        }
+        else
+        {
+            _project.Contours.RemoveAll(c => c.Layer == PcbAlignment.Layer);
+            _project.Contours.AddRange(holes);
+        }
+
+        RefreshLayers();
+        SelectedContourIds.Clear();
+        SelectedContourIds.UnionWith(holes.Select(h => h.Id));
+        Messages.Add(Loc.T(
+            $"Базовые отверстия Ø{AlignmentHoles.Diameter:0.##} добавлены слева и справа от платы. Дальше: «+ Сверление» сверлом того же диаметра, " +
+            $"глубина = толщина платы + 2–3 мм (в жертвенный стол), первой операцией. Вставьте в отверстия штифты, для второй стороны переверните плату " +
+            "слева направо на штифты и нажмите «Зеркалить по X» — ноль X/Y не трогайте.",
+            $"Alignment holes Ø{AlignmentHoles.Diameter:0.##} added left and right of the board. Next: “+ Drill” with a drill of the same size, " +
+            "depth = board thickness + 2–3 mm (into the spoil board), as the first operation. Put pins into the holes; for the second side turn the board " +
+            "over left to right onto the pins and press “Mirror X” — do not touch the X/Y zero."));
+        OnSelectionChanged();
+        OnProjectChanged();
+        Regenerate();
+        ZoomToFitRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Face milling: the selected contours' bounding box (plus a margin) or, without a selection, the drawing or
+    /// the whole machine travel (spoil board).
+    /// </summary>
+    [RelayCommand]
+    private void AddFacing()
+    {
+        var mill = _project.Tools.Where(t => t.Kind == ToolKind.EndMill).MaxBy(t => t.Diameter);
+        var facing = new FacingOperation { Name = NewName("Торцовка", "Facing") };
+        var drawing = _project.Contours.Count > 0 ? _project.DrawingBounds() : Bounds2.Empty;
+        if (!drawing.IsEmpty)
+        {
+            (facing.X, facing.Y, facing.Width, facing.Height) = (drawing.MinX, drawing.MinY, drawing.Width, drawing.Height);
+        }
+        else if (_project.Machine.WorkAreaX > 0 && _project.Machine.WorkAreaY > 0)
+        {
+            (facing.Width, facing.Height) = (_project.Machine.WorkAreaX, _project.Machine.WorkAreaY);
+        }
+
+        AddOperation(facing, mill);
+        Messages.Add(Loc.T(
+            $"{facing.Name}: {(facing.ContourIds.Count > 0 ? "область — выделенные контуры с полями" : "задайте область (X, Y, ширина, высота) или выделите контуры и нажмите «Назначить выделенные»")}. " +
+            "Глубина за проход берётся из инструмента (для выравнивания стола 0,1–0,3 мм).",
+            $"{facing.Name}: {(facing.ContourIds.Count > 0 ? "the area is the selected contours with a margin" : "set the area (X, Y, width, height) or select contours and press “Assign selected”")}. " +
+            "The depth per pass comes from the tool (0.1–0.3 mm for spoil board surfacing)."));
+    }
+
+    /// <summary>Sets the facing area to the machine's whole travel (spoil board surfacing).</summary>
+    [RelayCommand]
+    private void FacingFromMachine()
+    {
+        if (SelectedOperation is not FacingOperationViewModel facing)
+        {
+            return;
+        }
+
+        if (_project.Machine.WorkAreaX <= 0 || _project.Machine.WorkAreaY <= 0)
+        {
+            Messages.Add(Loc.T("У профиля станка не задано рабочее поле.", "The machine profile has no work area."));
+            return;
+        }
+
+        facing.SetContours(Array.Empty<int>());
+        facing.SetArea(0, 0, _project.Machine.WorkAreaX, _project.Machine.WorkAreaY);
+        facing.RefreshSummary();
+    }
+
     /// <summary>Fills the sheet size and gap from the machine and the largest cutter (before the first layout).</summary>
     [RelayCommand]
     private void SuggestNestingSheet()
@@ -938,7 +1037,7 @@ public sealed partial class MainViewModel : ObservableObject
         var vm = OperationViewModel.Create(operation, OnProjectChanged);
         Operations.Add(vm);
         SelectedOperation = vm;
-        if (operation.ContourIds.Count == 0 && operation is not LaserRasterOperation)
+        if (operation.ContourIds.Count == 0 && operation is not (LaserRasterOperation or FacingOperation))
         {
             Messages.Add(Loc.T($"{operation.Name}: выделите контуры на чертеже и нажмите «Назначить выделенные».", $"{operation.Name}: select contours on the drawing and press “Assign selected”."));
         }
@@ -1375,8 +1474,8 @@ public sealed partial class MainViewModel : ObservableObject
                 position = toolpath.Moves[^1].Target;
             }
 
-            // Reliefs and pictures have no contours: their toolpaths define what "show all" covers.
-            if (toolpath.Operation is ReliefOperation or LaserRasterOperation)
+            // Reliefs, pictures and facing areas may have no contours: their toolpaths define what "show all" covers.
+            if (toolpath.Operation is ReliefOperation or LaserRasterOperation or FacingOperation)
             {
                 bounds = bounds.Union(Bounds2.Of(toolpath.Moves.Where(m => m.Kind != MoveKind.Rapid).Select(m => m.Target.XY)));
             }
