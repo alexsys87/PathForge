@@ -42,6 +42,12 @@ public sealed class NestingViewModel : ModelWrapper
         set => Set(Model.AllowRotation, value, v => Model.AllowRotation = v);
     }
 
+    public bool UseHoles
+    {
+        get => Model.UseHoles;
+        set => Set(Model.UseHoles, value, v => Model.UseHoles = v);
+    }
+
     public int Copies
     {
         get => Model.Copies;
