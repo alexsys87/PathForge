@@ -11,7 +11,8 @@ namespace PathForge.App.Controls;
 
 /// <summary>
 /// 2D view of contours and toolpaths (top view, Y up). Wheel zooms around the cursor,
-/// dragging with any mouse button pans, a left click selects contours (Ctrl adds).
+/// dragging with any mouse button pans, a left click selects contours (Ctrl adds), a right click without dragging
+/// opens the context menu.
 /// </summary>
 public sealed class CamViewport : FrameworkElement
 {
@@ -236,6 +237,12 @@ public sealed class CamViewport : FrameworkElement
         _dragging = false;
         Cursor = null;
         ReleaseMouseCapture();
+
+        if (!wasDragging && e.ChangedButton == MouseButton.Right)
+        {
+            // Left unhandled so that the context menu (select all, clear selection…) opens.
+            return;
+        }
 
         if (!wasDragging && e.ChangedButton == MouseButton.Left)
         {
