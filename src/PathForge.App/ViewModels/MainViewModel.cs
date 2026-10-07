@@ -1543,6 +1543,50 @@ public sealed partial class MainViewModel : ObservableObject
         OnProjectChanged();
     }
 
+    /// <summary>Adds every preset of the selected preset's group (e.g. all PCB drills) that the project does not have yet.</summary>
+    [RelayCommand]
+    private void AddToolPresetGroup()
+    {
+        if (SelectedToolPreset is null)
+        {
+            Messages.Add(Loc.T("Выберите в списке пресет нужной группы.", "Choose a preset of the wanted group in the list."));
+            return;
+        }
+
+        AddToolPresets(ToolPresets.SameGroup(SelectedToolPreset), SelectedToolPreset.Group);
+    }
+
+    /// <summary>Adds the whole preset library (popular ER11 cutters for the 3018) that the project does not have yet.</summary>
+    [RelayCommand]
+    private void AddAllToolPresets() =>
+        AddToolPresets(ToolPresets.Cnc3018.Where(p => p.Template.Kind != ToolKind.Laser || _project.Machine.LaserMode), Loc.T("все пресеты", "all presets"));
+
+    private void AddToolPresets(IEnumerable<ToolPreset> presets, string what)
+    {
+        var added = 0;
+        foreach (var preset in presets)
+        {
+            if (_project.Tools.Any(t => ToolPresets.Matches(preset, t)))
+            {
+                continue;
+            }
+
+            var tool = preset.Create(_project.Tools.Count == 0 ? 1 : _project.Tools.Max(t => t.Number) + 1);
+            _project.Tools.Add(tool);
+            Tools.Add(new ToolViewModel(tool, OnProjectChanged));
+            added++;
+        }
+
+        Messages.Add(added == 0
+            ? Loc.T($"Инструменты ({what}): все уже есть в проекте.", $"Tools ({what}): all are in the project already.")
+            : Loc.T($"Инструменты ({what}): добавлено {added}.", $"Tools ({what}): {added} added."));
+        if (added > 0)
+        {
+            SelectedTool = Tools[^1];
+            OnProjectChanged();
+        }
+    }
+
     [RelayCommand]
     private void ApplyProfile()
     {
