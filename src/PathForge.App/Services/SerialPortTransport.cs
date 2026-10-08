@@ -6,7 +6,10 @@ using PathForge.Core.Localization;
 
 namespace PathForge.App.Services;
 
-/// <summary>GRBL connection over a (USB) serial port. Opening the port resets most Arduino-based boards.</summary>
+/// <summary>
+/// GRBL connection over a (USB) serial port. DTR and RTS are kept low and there is no hardware flow control, so opening
+/// the port does not reset the board (use the soft reset if a restart is needed).
+/// </summary>
 public sealed class SerialPortTransport : IGrblTransport
 {
     private readonly SerialPort _port;
@@ -20,7 +23,12 @@ public sealed class SerialPortTransport : IGrblTransport
         {
             Encoding = Encoding.ASCII,
             NewLine = "\n",
-            DtrEnable = true,
+
+            // No hardware flow control and no modem-control lines. On the MKS DLC32 (ESP32 behind a CH340) DTR/RTS are
+            // wired to the auto-reset circuit (EN/GPIO0): asserting them on open resets the board into its bootloader.
+            Handshake = Handshake.None,
+            DtrEnable = false,
+            RtsEnable = false,
             WriteTimeout = 2000,
             ReadTimeout = 500,
         };
