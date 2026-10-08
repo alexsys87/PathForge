@@ -60,10 +60,31 @@ public partial class MainWindow : Window
 
     private void OnCopyAllGcode(object sender, RoutedEventArgs e) => CopyText(AllGcodeText());
 
+    /// <summary>
+    /// Ctrl+C in the console log: the selected lines, or the whole log, in the order they happened
+    /// (the list shows the newest on top).
+    /// </summary>
+    private void OnCopyConsoleLog(object sender, ExecutedRoutedEventArgs e)
+    {
+        var log = _viewModel.Control.Log;
+        var selected = ConsoleLog.SelectedItems.OfType<ConsoleLogLine>().OrderByDescending(log.IndexOf).ToList();
+        CopyText(selected.Count > 0 ? string.Join(Environment.NewLine, selected.Select(l => l.Text)) : AllConsoleLogText());
+        e.Handled = true;
+    }
+
+    private void OnCopyAllConsoleLog(object sender, RoutedEventArgs e) => CopyText(AllConsoleLogText());
+
+    private string AllConsoleLogText() => string.Join(Environment.NewLine, _viewModel.Control.Log.Reverse().Select(l => l.Text));
+
     private string AllGcodeText() => string.Join(Environment.NewLine, _viewModel.GcodeLines.Select(l => l.Text));
 
     private static void CopyText(string text)
     {
+        if (text.Length == 0)
+        {
+            return;
+        }
+
         try
         {
             Clipboard.SetText(text);

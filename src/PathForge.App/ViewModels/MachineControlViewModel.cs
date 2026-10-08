@@ -120,7 +120,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     public IReadOnlyList<double> JogSteps { get; } = new[] { 0.01, 0.1, 0.5, 1, 5, 10, 50 };
 
     /// <summary>Newest entries first.</summary>
-    public ObservableCollection<string> Log { get; } = new();
+    public ObservableCollection<ConsoleLogLine> Log { get; } = new();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
@@ -1485,7 +1485,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             GrblLogKind.Error => "⚠ ",
             _ => "• ",
         };
-        Log.Insert(0, prefix + GrblMessages.Describe(entry.Text));
+        Log.Insert(0, new ConsoleLogLine(prefix + GrblMessages.Describe(entry.Text)));
         while (Log.Count > MaxLogLines)
         {
             Log.RemoveAt(Log.Count - 1);
@@ -1505,4 +1505,20 @@ public sealed record ConnectionKindOption(MachineConnectionKind Kind, string Nam
         new(MachineConnectionKind.WebSocket, Loc.T("Сеть: WebSocket (MKS DLC32, Grbl_Esp32)", "Network: WebSocket (MKS DLC32, Grbl_Esp32)")),
         new(MachineConnectionKind.WebSocketBridge, Loc.T("Сеть: WebSocket-мост (ESP8266, FluidNC)", "Network: WebSocket bridge (ESP8266, FluidNC)")),
     };
+}
+
+/// <summary>
+/// A line of the console log. A class of its own (not a string) so that equal lines such as "← ok" stay separate
+/// items: the list selects and copies exactly the lines picked.
+/// </summary>
+public sealed class ConsoleLogLine
+{
+    public ConsoleLogLine(string text)
+    {
+        Text = text;
+    }
+
+    public string Text { get; }
+
+    public override string ToString() => Text;
 }

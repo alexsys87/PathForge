@@ -1788,7 +1788,18 @@
                                     </TextBox.InputBindings>
                                 </TextBox>
                             </DockPanel>
-                            <ListBox Height="200" Margin="0,4,0,0" ItemsSource="{Binding Log}" FontFamily="Consolas" FontSize="11" ToolTip="{l:Tr 'Журнал команд и ответов GRBL', En='Log of GRBL commands and replies'}" />
+                            <ListBox x:Name="ConsoleLog" Height="200" Margin="0,4,0,0" ItemsSource="{Binding Log}" DisplayMemberPath="Text" FontFamily="Consolas" FontSize="11" SelectionMode="Extended"
+                                     ToolTip="{l:Tr 'Журнал команд и ответов GRBL (новые сверху). Ctrl+C — копировать выделенные строки (без выделения — весь журнал); Shift/Ctrl+щелчок выделяют несколько строк, Ctrl+A — все.', En='Log of GRBL commands and replies (newest on top). Ctrl+C copies the selected lines (with nothing selected — the whole log); Shift/Ctrl+click selects several lines, Ctrl+A — all.'}">
+                                <ListBox.CommandBindings>
+                                    <CommandBinding Command="ApplicationCommands.Copy" Executed="OnCopyConsoleLog" />
+                                </ListBox.CommandBindings>
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{l:Tr 'Копировать', En='Copy'}" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C" />
+                                        <MenuItem Header="{l:Tr 'Копировать весь журнал', En='Copy the whole log'}" Click="OnCopyAllConsoleLog" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                            </ListBox>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
