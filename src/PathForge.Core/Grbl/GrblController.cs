@@ -720,6 +720,8 @@ public sealed class GrblController : IDisposable
     private void OnStartup(string banner)
     {
         Version = banner;
+        // GRBL restarted: the spindle / laser is off, whatever the last report said.
+        Status = Status with { SpindleOn = false };
         Write(GrblLogKind.Info, banner);
         _pending.Clear();
         _bufferUsed = 0;
@@ -888,6 +890,8 @@ public sealed class GrblController : IDisposable
     private void ResetController(string message)
     {
         Realtime(Reset);
+        // A reset switches the spindle / laser off; the next accessory report would only confirm it.
+        Status = Status with { SpindleOn = false };
         _pending.Clear();
         _bufferUsed = 0;
         _manual.Clear();

@@ -52,6 +52,17 @@ public sealed record GrblStatus
     /// <summary>Active input pins (X, Y, Z limits, P probe, D door, H hold, R reset, S start).</summary>
     public string Pins { get; init; } = "";
 
+    /// <summary>
+    /// The spindle (or laser) output is enabled: the accessory state A:S (clockwise) or A:C (counter-clockwise).
+    /// GRBL sends the accessory state only together with the override report (Ov:), in every 10th status report while
+    /// idle and every 20th while moving, and writes no A: field while nothing is active. So a report with Ov: and
+    /// without A: means "off", and a report with neither keeps the value of the previous one.
+    /// </summary>
+    public bool SpindleOn { get; init; }
+
+    /// <summary>Status reports that carried the accessory state (Ov: or A:) since the controller was created.</summary>
+    public int AccessoryReports { get; init; }
+
     public bool IsHoldComplete => State == GrblState.Hold && SubState == 0;
 
     /// <summary>
@@ -88,6 +99,8 @@ public sealed record GrblStatus
         int feedOv = previous.FeedOverride, rapidOv = previous.RapidOverride, spindleOv = previous.SpindleOverride;
         int? plannerFree = null, bufferFree = null;
         var pins = "";
+        string? accessory = null;
+        var overrideSeen = false;
         foreach (var field in fields.Skip(1))
         {
             var separator = field.IndexOf(':', StringComparison.Ordinal);
@@ -117,6 +130,7 @@ public sealed record GrblStatus
                     feed = Number(values, 0);
                     break;
                 case "Ov":
+                    overrideSeen = true;
                     feedOv = (int)Number(values, 0, feedOv);
                     rapidOv = (int)Number(values, 1, rapidOv);
                     spindleOv = (int)Number(values, 2, spindleOv);
@@ -124,6 +138,10 @@ public sealed record GrblStatus
                 case "Bf":
                     plannerFree = (int)Number(values, 0);
                     bufferFree = (int)Number(values, 1);
+                    break;
+                case "A":
+                    // Accessory state: S = spindle (laser) on, C = counter-clockwise, F = flood, M = mist.
+                    accessory = values[0];
                     break;
                 case "Pn":
                     pins = values[0];
@@ -148,6 +166,10 @@ public sealed record GrblStatus
             PlannerFree = plannerFree,
             BufferFree = bufferFree,
             Pins = pins,
+            SpindleOn = accessory is not null
+                ? accessory.Contains('S') || accessory.Contains('C')
+                : overrideSeen ? false : previous.SpindleOn,
+            AccessoryReports = previous.AccessoryReports + (overrideSeen || accessory is not null ? 1 : 0),
         };
         return true;
     }
