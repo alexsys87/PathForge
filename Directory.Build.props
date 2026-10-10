@@ -4,6 +4,24 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NuGet Audit messages are not code errors: a vulnerability report (NU1901-NU1904) appears when
+         the advisory database is updated, without any change in the repository, and NU1900 appears
+         when the database cannot be fetched (offline build, proxy). -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
     <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- Target frameworks: .NET 8 always, .NET 10 in addition when the build tool supports it
+       (.NET 10 SDK / MSBuild 18+, i.e. Visual Studio 2026 or the dotnet CLI with the .NET 10 SDK).
+       Visual Studio 2022 and the .NET 8 SDK build net8.0 only, as before.
+       Override on the command line: -p:PathForgeNet10=false (net8 only) or =true (both). -->
+  <PropertyGroup>
+    <PathForgeNet10 Condition="'$(PathForgeNet10)' == '' And $([MSBuild]::VersionGreaterThanOrEquals('$(MSBuildVersion)', '18.0'))">true</PathForgeNet10>
+    <PathForgeNet10 Condition="'$(PathForgeNet10)' == ''">false</PathForgeNet10>
+
+    <PathForgeTfms>net8.0</PathForgeTfms>
+    <PathForgeTfms Condition="'$(PathForgeNet10)' == 'true'">net8.0;net10.0</PathForgeTfms>
+    <PathForgeWindowsTfms>net8.0-windows</PathForgeWindowsTfms>
+    <PathForgeWindowsTfms Condition="'$(PathForgeNet10)' == 'true'">net8.0-windows;net10.0-windows</PathForgeWindowsTfms>
   </PropertyGroup>
 </Project>

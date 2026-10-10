@@ -1,6 +1,6 @@
 # <img src="docs/images/icon.png" width="48" height="48" alt=""> PathForge
 
-Простая CAM-программа для фрезерных станков с ЧПУ и лазерных модулей на **WPF / .NET 8** (Visual Studio 2022):
+Простая CAM-программа для фрезерных станков с ЧПУ и лазерных модулей на **WPF / .NET 8 и .NET 10** (Visual Studio 2022 или 2026):
 загружаете чертёж (DXF, SVG), файлы печатной платы (Gerber, Excellon, плата Eagle `.brd`) или 3D-модель (STL), выбираете контуры,
 задаёте операции — получаете G-code и запускаете его прямо из программы.
 
@@ -355,8 +355,14 @@ PathForge читает те же файлы, что и завод: **Gerber** и
 
 ## Сборка
 
-- Visual Studio 2022 (17.8+) с нагрузкой «.NET desktop development», открыть `PathForge.sln`.
-- Или из командной строки: `dotnet build PathForge.sln`, тесты: `dotnet test PathForge.sln`.
+- Visual Studio 2022 (17.8+) с нагрузкой «.NET desktop development», открыть `PathForge.sln`. Собирается под **.NET 8**.
+- Visual Studio 2026 или командная строка с **.NET 10 SDK**: проекты собираются сразу под **.NET 8 и .NET 10**
+  (`net8.0` / `net8.0-windows` и `net10.0` / `net10.0-windows`). Набор целей выбирается в `Directory.Build.props`
+  по версии MSBuild: с MSBuild 18+ (.NET 10 SDK) — обе, иначе только .NET 8.
+- Из командной строки: `dotnet build PathForge.sln`, тесты: `dotnet test PathForge.sln` (тесты идут под каждую цель;
+  для `net8.0` нужен установленный рантайм .NET 8).
+- Только .NET 8 при любом SDK: `dotnet build PathForge.sln -p:PathForgeNet10=false`;
+  принудительно обе цели: `-p:PathForgeNet10=true`. Одну цель — `dotnet build -f net10.0-windows src/PathForge.App`.
 
 ### Один exe-файл без установки .NET
 
@@ -364,24 +370,27 @@ PathForge читает те же файлы, что и завод: **Gerber** и
 скопировать на любой компьютер с Windows 10/11 x64 и запустить без установки .NET и без инсталлятора.
 
 ```
-dotnet publish src/PathForge.App/PathForge.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+dotnet publish src/PathForge.App/PathForge.App.csproj -c Release -f net8.0-windows -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 ```
 
-- Результат — `publish\PathForge.exe` (70–80 МБ: внутри вся среда выполнения .NET 8 и WPF).
+Та же команда для .NET 10 — `-f net10.0-windows` (нужен .NET 10 SDK), например `-o publish-net10`.
+`-f` обязателен, когда проект собирается под несколько целей.
+
+- Результат — `publish\PathForge.exe` (70–80 МБ: внутри вся среда выполнения .NET и WPF).
 - `-r win-x64` — для обычных 64-битных Windows; для 32-битных — `win-x86`, для ARM (Snapdragon) — `win-arm64`.
 - `IncludeNativeLibrariesForSelfExtract` кладёт в exe и родные библиотеки WPF: без него рядом с exe останутся
   несколько `.dll`. При первом запуске они распаковываются во временную папку пользователя, поэтому первый старт
   на пару секунд дольше.
 - `EnableCompressionInSingleFile` сжимает файл почти вдвое; без него запуск чуть быстрее, а файл больше.
 - Обрезка неиспользуемого кода (`PublishTrimmed`) для WPF не поддерживается — не включайте её.
-- Нужен .NET 8 SDK только на компьютере, где собирают; на компьютере со станком — ничего, кроме самого exe
+- Нужен .NET 8 (или 10) SDK только на компьютере, где собирают; на компьютере со станком — ничего, кроме самого exe
   (драйвер CH340 для USB 3018 — как и раньше).
 
 ## Структура
 
 | Проект | Назначение |
 |---|---|
-| `src/PathForge.Core` | Геометрия, импорт (DXF, SVG, STL, Gerber, Excellon, Eagle), шрифты OpenType (TrueType, CFF, вариативные), траектории (фреза и лазер), раскладка, G-code, протокол GRBL, карта высот, 3D-симуляция, проекты. `net8.0`, без зависимостей от UI |
+| `src/PathForge.Core` | Геометрия, импорт (DXF, SVG, STL, Gerber, Excellon, Eagle), шрифты OpenType (TrueType, CFF, вариативные), траектории (фреза и лазер), раскладка, G-code, протокол GRBL, карта высот, 3D-симуляция, проекты. `net8.0` и `net10.0`, без зависимостей от UI |
 | `src/PathForge.App` | WPF-приложение (MVVM, CommunityToolkit.Mvvm); иконка — `Assets/PathForge.svg` (исходник) и `PathForge.ico` |
 | `tests/PathForge.Core.Tests` | Модульные тесты ядра (xUnit) |
 | `samples` | Примеры: чертежи, 3D-модель, плата из KiCad (`pcb-demo`), та же плата в формате Altium Designer (`pcb-altium`) и плата Eagle (`pcb-eagle`) |
