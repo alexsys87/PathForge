@@ -10,6 +10,16 @@ public interface IGrblTransport : IDisposable
     event Action<Exception>? Failed;
 
     /// <summary>
+    /// A message from the transport itself that the operator should see, e.g. that the board was found in its
+    /// bootloader and is being restarted. May be raised on any thread. Transports with nothing to say need not implement it.
+    /// </summary>
+    event Action<string>? Notice
+    {
+        add { }
+        remove { }
+    }
+
+    /// <summary>
     /// Called once the event handlers are attached. A transport that reads on its own thread starts here,
     /// so that nothing the controller sends right after connecting (the startup banner) is lost.
     /// </summary>

@@ -84,6 +84,7 @@ public sealed class GrblController : IDisposable
         _rxBufferSize = rxBufferSize;
         _transport.LineReceived += OnLine;
         _transport.Failed += OnFailed;
+        _transport.Notice += OnNotice;
         IsConnected = true;
         _transport.Start();
     }
@@ -529,6 +530,7 @@ public sealed class GrblController : IDisposable
         {
             _transport.LineReceived -= OnLine;
             _transport.Failed -= OnFailed;
+            _transport.Notice -= OnNotice;
             IsConnected = false;
             _transport.Dispose();
         }
@@ -752,6 +754,8 @@ public sealed class GrblController : IDisposable
             Write(GrblLogKind.Error, Loc.T("Щуп не сработал: ", "Probe failed: ") + line);
         }
     }
+
+    private void OnNotice(string text) => Write(GrblLogKind.Info, text);
 
     private void OnFailed(Exception error)
     {

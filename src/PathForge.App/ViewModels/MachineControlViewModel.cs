@@ -240,7 +240,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
     public bool IsDisconnected => !IsConnected && !IsConnecting;
 
-    public bool IsSerial => ConnectionKind == MachineConnectionKind.Serial;
+    public bool IsSerial => ConnectionKind is MachineConnectionKind.Serial or MachineConnectionKind.SerialEsp32;
 
     public bool IsNetwork => !IsSerial;
 
@@ -695,13 +695,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// <summary>What the panel connects to: a COM port with its baud rate, or a network address with its port.</summary>
     private sealed record ConnectionTarget(MachineConnectionKind Kind, string Address, int Number)
     {
-        public bool IsNetwork => Kind != MachineConnectionKind.Serial;
+        public bool IsNetwork => Kind is not (MachineConnectionKind.Serial or MachineConnectionKind.SerialEsp32);
 
         public IGrblTransport Open() => Kind switch
         {
             MachineConnectionKind.Telnet => new TelnetTransport(Address, Number),
             MachineConnectionKind.WebSocket => new WebSocketTransport(Address, Number, WebSocketCommandRoute.Http),
             MachineConnectionKind.WebSocketBridge => new WebSocketTransport(Address, Number, WebSocketCommandRoute.WebSocket),
+            MachineConnectionKind.SerialEsp32 => new SerialPortTransport(Address, Number, esp32Board: true),
             _ => new SerialPortTransport(Address, Number),
         };
 
@@ -1501,6 +1502,7 @@ public sealed record ConnectionKindOption(MachineConnectionKind Kind, string Nam
     public static IReadOnlyList<ConnectionKindOption> All() => new ConnectionKindOption[]
     {
         new(MachineConnectionKind.Serial, Loc.T("USB (COM-порт)", "USB (COM port)")),
+        new(MachineConnectionKind.SerialEsp32, "USB: MKS DLC32 (ESP32)"),
         new(MachineConnectionKind.Telnet, Loc.T("Сеть: telnet", "Network: telnet")),
         new(MachineConnectionKind.WebSocket, Loc.T("Сеть: WebSocket (MKS DLC32, Grbl_Esp32)", "Network: WebSocket (MKS DLC32, Grbl_Esp32)")),
         new(MachineConnectionKind.WebSocketBridge, Loc.T("Сеть: WebSocket-мост (ESP8266, FluidNC)", "Network: WebSocket bridge (ESP8266, FluidNC)")),

@@ -7,31 +7,48 @@ using PathForge.Core.Localization;
 namespace PathForge.App.Services;
 
 /// <summary>
-/// GRBL connection over a (USB) serial port. DTR and RTS are kept low and there is no hardware flow control, so opening
-/// the port does not reset the board (use the soft reset if a restart is needed).
+/// GRBL connection over a (USB) serial port. Opening the port raises DTR, which resets most Arduino-based boards (the
+/// usual way GRBL starts). For an ESP32 board such as the MKS DLC32 the constructor keeps DTR and RTS low instead, because
+/// they are wired to the boot pins of the ESP32, and a board that waits in the ESP32 ROM bootloader (the driver held DTR
+/// when it was powered on) is recognised and restarted (<see cref="Esp32BootloaderRecovery"/>).
 /// </summary>
-public sealed class SerialPortTransport : IGrblTransport
+public sealed class SerialPortTransport : IGrblTransport, ISerialLink
 {
     private readonly SerialPort _port;
     private readonly object _writeLock = new();
     private readonly StringBuilder _incoming = new();
+    private readonly CancellationTokenSource _stop = new();
+    private readonly Esp32BootloaderRecovery? _recovery;
     private bool _failed;
 
-    public SerialPortTransport(string portName, int baudRate)
+    /// <param name="portName">COM port of the board.</param>
+    /// <param name="baudRate">Speed of the port (115200 for GRBL and the MKS DLC32).</param>
+    /// <param name="esp32Board">
+    /// The board is an ESP32 (MKS DLC32): DTR and RTS stay low, so opening the port does not push it into its bootloader,
+    /// and a board found waiting in the bootloader is restarted. False (the default) is the plain GRBL behaviour:
+    /// DTR is raised, which resets Arduino-based boards, and nothing else is done.
+    /// </param>
+    public SerialPortTransport(string portName, int baudRate, bool esp32Board = false)
     {
         _port = new SerialPort(portName, baudRate)
         {
             Encoding = Encoding.ASCII,
             NewLine = "\n",
 
-            // No hardware flow control and no modem-control lines. On the MKS DLC32 (ESP32 behind a CH340) DTR/RTS are
-            // wired to the auto-reset circuit (EN/GPIO0): asserting them on open resets the board into its bootloader.
+            // No hardware flow control. DTR: raised on open for Arduino boards, which restart on it. On an ESP32 board
+            // (MKS DLC32 behind a CH340) DTR/RTS are wired to the auto-reset circuit (EN/GPIO0), so asserting them
+            // resets the board into its bootloader; both stay low there.
             Handshake = Handshake.None,
-            DtrEnable = false,
+            DtrEnable = !esp32Board,
             RtsEnable = false,
             WriteTimeout = 2000,
             ReadTimeout = 500,
         };
+        if (esp32Board)
+        {
+            _recovery = new Esp32BootloaderRecovery(this, text => Notice?.Invoke(text));
+        }
+
         _port.DataReceived += OnDataReceived;
         _port.Open();
     }
@@ -40,7 +57,21 @@ public sealed class SerialPortTransport : IGrblTransport
 
     public event Action<Exception>? Failed;
 
+    public event Action<string>? Notice;
+
     public static string[] PortNames() => SerialPort.GetPortNames().Distinct().Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    /// <summary>
+    /// For an ESP32 board: starts watching for a board in the bootloader. Runs off the calling (UI) thread, because the
+    /// recovery blocks on port writes. Does nothing for other boards.
+    /// </summary>
+    public void Start()
+    {
+        if (_recovery is { } recovery)
+        {
+            _ = Task.Run(() => WatchBootloaderAsync(recovery));
+        }
+    }
 
     public void Write(string text)
     {
@@ -62,6 +93,7 @@ public sealed class SerialPortTransport : IGrblTransport
 
     public void Dispose()
     {
+        _stop.Cancel();
         _port.DataReceived -= OnDataReceived;
         try
         {
@@ -81,6 +113,45 @@ public sealed class SerialPortTransport : IGrblTransport
         }
     }
 
+    void ISerialLink.WriteRaw(byte[] data)
+    {
+        lock (_writeLock)
+        {
+            EnsureOpen();
+            _port.Write(data, 0, data.Length);
+        }
+    }
+
+    void ISerialLink.SetModemLines(bool dtr, bool rts)
+    {
+        lock (_writeLock)
+        {
+            EnsureOpen();
+            _port.DtrEnable = dtr;
+            _port.RtsEnable = rts;
+        }
+    }
+
+    void ISerialLink.DiscardReceivedText()
+    {
+        lock (_incoming)
+        {
+            _incoming.Clear();
+        }
+    }
+
+    private async Task WatchBootloaderAsync(Esp32BootloaderRecovery recovery)
+    {
+        try
+        {
+            await recovery.RunAsync(_stop.Token);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or TimeoutException)
+        {
+            // The port is gone (USB unplugged): the controller reports the lost connection by itself.
+        }
+    }
+
     private void EnsureOpen()
     {
         if (!_port.IsOpen)
@@ -91,10 +162,16 @@ public sealed class SerialPortTransport : IGrblTransport
 
     private void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
     {
-        string text;
+        byte[] data;
         try
         {
-            text = _port.ReadExisting();
+            var count = _port.BytesToRead;
+            data = new byte[count];
+            var read = count > 0 ? _port.Read(data, 0, count) : 0;
+            if (read != count)
+            {
+                Array.Resize(ref data, read);
+            }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException)
         {
@@ -102,10 +179,17 @@ public sealed class SerialPortTransport : IGrblTransport
             return;
         }
 
+        if (data.Length == 0)
+        {
+            return;
+        }
+
+        _recovery?.OnReceived(data);
+
         var lines = new List<string>();
         lock (_incoming)
         {
-            foreach (var c in text)
+            foreach (var c in Encoding.ASCII.GetString(data))
             {
                 if (c == '\n')
                 {

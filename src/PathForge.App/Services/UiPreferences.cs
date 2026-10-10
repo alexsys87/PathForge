@@ -16,8 +16,14 @@ public enum AppTheme
 /// <summary>How the control panel talks to the machine.</summary>
 public enum MachineConnectionKind
 {
-    /// <summary>USB cable, COM port.</summary>
+    /// <summary>USB cable, COM port (Arduino-based boards: opening the port resets the board).</summary>
     Serial,
+
+    /// <summary>
+    /// USB cable, COM port of an ESP32 board (MKS DLC32): DTR and RTS stay low so the board is not pushed into its bootloader,
+    /// and a board found waiting there is restarted.
+    /// </summary>
+    SerialEsp32,
 
     /// <summary>Plain TCP stream (Grbl_Esp32 telnet, port 23).</summary>
     Telnet,
