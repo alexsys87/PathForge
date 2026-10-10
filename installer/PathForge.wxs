@@ -1,0 +1,55 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <!-- Never change UpgradeCode: it identifies this product across releases. -->
+  <Package Name="PathForge" Manufacturer="alexsys87"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="6D57E85A-5036-4EE0-BDA5-C73AC7C1F5F2"
+           Scope="perMachine" InstallerVersion="500" Compressed="yes">
+    <MajorUpgrade Schedule="afterInstallInitialize"
+                  DowngradeErrorMessage="A newer version of PathForge is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Launch Condition="VersionNT64" Message="PathForge requires 64-bit Windows." />
+
+    <Icon Id="PathForgeIcon" SourceFile="$(var.AppIcon)" />
+    <Property Id="ARPPRODUCTICON" Value="PathForgeIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/alexsys87/PathForge" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="PathForge is available in the Start menu." />
+    <!-- Preserve a custom installation directory during a major upgrade. -->
+    <Property Id="INSTALLFOLDER">
+      <RegistrySearch Id="PreviousInstallFolder" Root="HKLM"
+                      Key="Software\alexsys87\PathForge"
+                      Name="InstallDir" Type="raw" Bitness="always64" />
+    </Property>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="PathForge">
+        <Component Id="MainExecutable" Guid="*" Bitness="always64">
+          <File Id="PathForgeExe" Source="$(var.PublishDir)\PathForge.exe" KeyPath="yes">
+            <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder"
+                      Name="PathForge" WorkingDirectory="INSTALLFOLDER"
+                      Advertise="yes" Icon="PathForgeIcon" />
+          </File>
+        </Component>
+        <Component Id="InstallLocation" Guid="AC190C0B-850E-4562-87DF-8D8D6629213A" Bitness="always64">
+          <RegistryValue Root="HKLM" Key="Software\alexsys87\PathForge"
+                         Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Complete" Title="PathForge" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="InstallLocation" />
+      <ComponentGroupRef Id="PublishedFiles" />
+    </Feature>
+    <!-- Minimal UI with a directory chooser, no fabricated license agreement. -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UI>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog"
+               Value="InstallDirDlg" Order="2" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog"
+               Value="WelcomeDlg" Order="2" Condition="1" />
+    </UI>
+  </Package>
+</Wix>

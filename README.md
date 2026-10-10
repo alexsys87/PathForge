@@ -365,6 +365,16 @@ PathForge читает те же файлы, что и завод: **Gerber** и
 - Только .NET 8 при любом SDK: `dotnet build PathForge.sln -p:PathForgeNet10=false`;
   принудительно обе цели: `-p:PathForgeNet10=true`. Одну цель — `dotnet build -f net10.0-windows src/PathForge.App`.
 
+### MSI-установщик для Windows x64
+
+Workflow **Windows MSI** собирает установщик со встроенным .NET 10: выбор папки,
+ярлык в меню «Пуск», обновление и удаление через Windows. После успешной сборки
+скачайте `.msi` из **Actions → Windows MSI → Artifacts**.
+
+Локальная сборка: `pwsh -File installer/build-msi.ps1 -Version 1.0.0`
+(Windows, PowerShell 7 и .NET 10 SDK).
+Подробности, тихая установка и ограничения: [installer/README.md](installer/README.md).
+
 ### Один exe-файл без установки .NET
 
 Команда (в Windows, из папки репозитория) собирает `PathForge.exe`, в котором уже есть среда .NET и WPF: его можно
