@@ -1569,7 +1569,7 @@
                                         Command="{Binding UnlockCommand}" IsEnabled="{Binding CanControl}" />
                                 <Button Content="{l:Tr 'Домой', En='Home'}"
                                         ToolTip="{l:Tr '$H — поиск дома по концевикам. Работает только если концевики установлены и включены ($22=1).', En='$H — homing on the limit switches. Works only if limit switches are installed and enabled ($22=1).'}"
-                                        Command="{Binding HomeCommand}" IsEnabled="{Binding CanControl}" />
+                                        Command="{Binding HomeCommand}" IsEnabled="{Binding CanMove}" />
                                 <Button Content="{l:Tr 'Сброс', En='Reset'}"
                                         ToolTip="{l:Tr 'Ctrl-X — немедленный сброс контроллера: движение и шпиндель останавливаются. Во время движения положение может сбиться — заново выставьте ноль.', En='Ctrl-X — immediate controller reset: motion and spindle stop. Resetting while moving may lose the position — set zero again.'}"
                                         Command="{Binding SoftResetCommand}" IsEnabled="{Binding IsConnected}" />
@@ -1612,11 +1612,11 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <Button Grid.Row="0" Grid.Column="1" Content="Y+" ToolTip="{l:Tr 'Переместить фрезу назад (Y+) на выбранный шаг: на 3018 стол едет к вам.', En='Move the tool back (Y+) by the selected step: on a 3018 the table moves towards you.'}" Command="{Binding JogCommand}" CommandParameter="Y+" />
-                                <Button Grid.Row="1" Grid.Column="0" Content="X−" ToolTip="{l:Tr 'Переместить фрезу влево (X−) на выбранный шаг.', En='Move the tool left (X−) by the selected step.'}" Command="{Binding JogCommand}" CommandParameter="X-" />
+                                <Button Grid.Row="0" Grid.Column="1" Content="Y+" ToolTip="{l:Tr 'Переместить фрезу назад (Y+) на выбранный шаг: на 3018 стол едет к вам.', En='Move the tool back (Y+) by the selected step: on a 3018 the table moves towards you.'}" IsEnabled="{Binding CanMove}" Command="{Binding JogCommand}" CommandParameter="Y+" />
+                                <Button Grid.Row="1" Grid.Column="0" Content="X−" ToolTip="{l:Tr 'Переместить фрезу влево (X−) на выбранный шаг.', En='Move the tool left (X−) by the selected step.'}" IsEnabled="{Binding CanMove}" Command="{Binding JogCommand}" CommandParameter="X-" />
                                 <Button Grid.Row="1" Grid.Column="1" Content="■" ToolTip="{l:Tr 'Остановить перемещение кнопками сразу, не дожидаясь конца шага.', En='Stop jogging immediately without waiting for the end of the step.'}" Command="{Binding JogCancelCommand}" />
-                                <Button Grid.Row="1" Grid.Column="2" Content="X+" ToolTip="{l:Tr 'Переместить фрезу вправо (X+) на выбранный шаг.', En='Move the tool right (X+) by the selected step.'}" Command="{Binding JogCommand}" CommandParameter="X+" />
-                                <Button Grid.Row="2" Grid.Column="1" Content="Y−" ToolTip="{l:Tr 'Переместить фрезу вперёд (Y−) на выбранный шаг: на 3018 стол едет от вас.', En='Move the tool forward (Y−) by the selected step: on a 3018 the table moves away from you.'}" Command="{Binding JogCommand}" CommandParameter="Y-" />
+                                <Button Grid.Row="1" Grid.Column="2" Content="X+" ToolTip="{l:Tr 'Переместить фрезу вправо (X+) на выбранный шаг.', En='Move the tool right (X+) by the selected step.'}" IsEnabled="{Binding CanMove}" Command="{Binding JogCommand}" CommandParameter="X+" />
+                                <Button Grid.Row="2" Grid.Column="1" Content="Y−" ToolTip="{l:Tr 'Переместить фрезу вперёд (Y−) на выбранный шаг: на 3018 стол едет от вас.', En='Move the tool forward (Y−) by the selected step: on a 3018 the table moves away from you.'}" IsEnabled="{Binding CanMove}" Command="{Binding JogCommand}" CommandParameter="Y-" />
                                 <Button Grid.Row="0" Grid.Column="4" Content="Z+" ToolTip="{l:Tr 'Поднять фрезу (Z+) на выбранный шаг.', En='Raise the tool (Z+) by the selected step.'}" Command="{Binding JogCommand}" CommandParameter="Z+" />
                                 <Button Grid.Row="2" Grid.Column="4" Content="Z−" ToolTip="{l:Tr 'Опустить фрезу (Z−) на выбранный шаг. Возле заготовки берите шаг 0,1 или 0,01 мм.', En='Lower the tool (Z−) by the selected step. Near the stock use a 0.1 or 0.01 mm step.'}" Command="{Binding JogCommand}" CommandParameter="Z-" />
                             </Grid>
@@ -1665,7 +1665,7 @@
                                 <Button Content="Z0" ToolTip="{l:Tr 'Принять текущую высоту фрезы за Z0. Обычно фреза касается верха заготовки (проверка бумажкой).', En='Set the current tool height as Z0. Usually the tool just touches the stock top (paper test).'}" Command="{Binding ZeroCommand}" CommandParameter="Z" />
                                 <Button Content="X0 Y0" ToolTip="{l:Tr 'Принять текущее положение фрезы за X0 Y0 — угол или центр заготовки, выбранный на вкладке «Станок».', En='Set the current tool position as X0 Y0 — the stock corner or centre chosen on the “Machine” tab.'}" Command="{Binding ZeroCommand}" CommandParameter="XY" />
                                 <Button Content="{l:Tr 'Все', En='All'}" ToolTip="{l:Tr 'Принять текущее положение фрезы за ноль по всем осям: X0 Y0 Z0.', En='Set the current tool position as zero on all axes: X0 Y0 Z0.'}" Command="{Binding ZeroCommand}" CommandParameter="XYZ" />
-                                <Button Content="{l:Tr 'К нулю X Y', En='Go to X0 Y0'}" ToolTip="{l:Tr 'Поднять фрезу на безопасную высоту и переехать в X0 Y0 — проверить, где у заготовки ноль.', En='Raise the tool to the safe height and move to X0 Y0 — to check where the work zero is.'}" Command="{Binding GoToZeroCommand}" />
+                                <Button Content="{l:Tr 'К нулю X Y', En='Go to X0 Y0'}" ToolTip="{l:Tr 'Поднять фрезу на безопасную высоту и переехать в X0 Y0 — проверить, где у заготовки ноль.', En='Raise the tool to the safe height and move to X0 Y0 — to check where the work zero is.'}" IsEnabled="{Binding CanMove}" Command="{Binding GoToZeroCommand}" />
                             </WrapPanel>
                             <Grid Margin="0,4,0,0" IsEnabled="{Binding CanControl}">
                                 <Grid.ColumnDefinitions>
@@ -1684,7 +1684,7 @@
                                     <TextBox Width="40" Text="{Binding ProbeTravel}" ToolTip="{l:Tr 'На сколько фреза может опуститься в поисках касания', En='How far the tool may go down while searching for contact'}" />
                                     <TextBox Width="40" Margin="2,0,0,0" Text="{Binding ProbeFeed}" ToolTip="{l:Tr 'Скорость опускания при поиске касания, мм/мин', En='Feed while probing down, mm/min'}" />
                                 </StackPanel>
-                                <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="{l:Tr 'Найти Z щупом', En='Probe Z'}" ToolTip="{l:Tr 'G38.2: фреза опускается до касания пластины щупа, затем Z0 ставится на поверхность заготовки с учётом толщины пластины. Зажим щупа — на фрезе.', En='G38.2: the tool goes down until it touches the probe plate, then Z0 is set on the stock surface, taking the plate thickness into account. Probe clip on the tool.'}" Command="{Binding ProbeZCommand}" />
+                                <Button Grid.Row="2" Grid.ColumnSpan="2" HorizontalAlignment="Left" Content="{l:Tr 'Найти Z щупом', En='Probe Z'}" ToolTip="{l:Tr 'G38.2: фреза опускается до касания пластины щупа, затем Z0 ставится на поверхность заготовки с учётом толщины пластины. Зажим щупа — на фрезе.', En='G38.2: the tool goes down until it touches the probe plate, then Z0 is set on the stock surface, taking the plate thickness into account. Probe clip on the tool.'}" IsEnabled="{Binding CanMove}" Command="{Binding ProbeZCommand}" />
                             </Grid>
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Карта высот (платы)', En='Height map (PCB)'}" />
@@ -1716,7 +1716,7 @@
                                 <TextBox Grid.Row="3" Grid.Column="2" Margin="2,0,0,0" Text="{Binding LevelDepth}" ToolTip="{l:Tr 'Насколько ниже Z0 искать поверхность, мм', En='How far below Z0 to search for the surface, mm'}" />
                             </Grid>
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="{l:Tr 'Снять карту', En='Probe map'}" ToolTip="{l:Tr 'Снять карту высот: щуп обходит сетку точек змейкой и измеряет неровность платы. В первой точке ставится Z0.', En='Probe the height map: the probe visits a grid of points and measures how uneven the board is. Z0 is set at the first point.'}" Command="{Binding ProbeMapCommand}" IsEnabled="{Binding CanControl}" />
+                                <Button Content="{l:Tr 'Снять карту', En='Probe map'}" ToolTip="{l:Tr 'Снять карту высот: щуп обходит сетку точек змейкой и измеряет неровность платы. В первой точке ставится Z0.', En='Probe the height map: the probe visits a grid of points and measures how uneven the board is. Z0 is set at the first point.'}" Command="{Binding ProbeMapCommand}" IsEnabled="{Binding CanMove}" />
                                 <Button Content="{l:Tr 'Удалить карту', En='Delete map'}" ToolTip="{l:Tr 'Удалить снятую карту высот из проекта.', En='Delete the measured height map from the project.'}" Command="{Binding ClearMapCommand}" IsEnabled="{Binding HasLevelingMap}" />
                             </WrapPanel>
                             <TextBlock Text="{Binding LevelingText}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" />
@@ -1777,6 +1777,25 @@
                                 <Button Grid.Row="1" Grid.Column="3" Content="+10 %" ToolTip="{l:Tr 'Увеличить обороты шпинделя (или мощность лазера) на 10 %.', En='Increase the spindle speed (or laser power) by 10 %.'}" Command="{Binding SpindleOverrideCommand}" CommandParameter="+" />
                             </Grid>
                             <TextBlock Text="{Binding OverridesText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" />
+                            <WrapPanel Margin="0,4,0,0">
+                                <Button FontWeight="SemiBold" Content="{Binding ManualOutputText}" Command="{Binding ToggleManualOutputCommand}" IsEnabled="{Binding CanToggleManualOutput}"
+                                        ToolTip="{l:Tr 'Включить или выключить шпиндель вручную, вне программы (M3 / M5). Для лазера — луч горит на месте с заданной мощностью, нужны защитные очки (G1 F100 M3 / G0 M5). Пока лазер горит, перемещения по X/Y заблокированы; по Z (фокус) двигать можно. Выключите перед запуском программы или отключением станка.', En='Switch the spindle on or off by hand, outside a program (M3 / M5). For a laser: the beam burns in place at the set power, wear safety goggles (G1 F100 M3 / G0 M5). While the beam is on, X/Y moves are blocked; Z (focus) can still be moved. Switch it off before a program run or a disconnect.'}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsManualOutputOn}" Value="True">
+                                                    <Setter Property="Background" Value="#C62828" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <TextBlock VerticalAlignment="Center" Margin="8,0,4,0" Text="{l:Tr 'мощность, %', En='power, %'}" Visibility="{Binding IsLaserMachine, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBox Width="45" Text="{Binding ManualPowerPercent}" Visibility="{Binding IsLaserMachine, Converter={StaticResource BoolToVisibility}}" ToolTip="{l:Tr 'Мощность лазера вручную, % от максимума (1–100)', En='Manual laser power, % of the maximum (1–100)'}" />
+                                <TextBlock VerticalAlignment="Center" Margin="8,0,4,0" Text="{l:Tr 'обороты, об/мин', En='speed, rpm'}" Visibility="{Binding IsSpindleMachine, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBox Width="60" Text="{Binding ManualRpm}" Visibility="{Binding IsSpindleMachine, Converter={StaticResource BoolToVisibility}}" ToolTip="{l:Tr 'Обороты шпинделя вручную, об/мин', En='Manual spindle speed, rpm'}" />
+                            </WrapPanel>
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Консоль', En='Console'}" />
                             <DockPanel IsEnabled="{Binding IsConnected}">

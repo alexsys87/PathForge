@@ -1674,6 +1674,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (SelectedProfile is not null)
         {
             Machine.ApplyProfile(SelectedProfile);
+            Control.RefreshMachineMode();
             Messages.Add(Loc.T($"Применён профиль станка «{SelectedProfile.Name}».", $"Machine profile applied: “{SelectedProfile.Name}”."));
         }
     }
@@ -1828,6 +1829,7 @@ public sealed partial class MainViewModel : ObservableObject
             Machine = new MachineSettingsViewModel(project.Machine, OnProjectChanged);
             Stock = new StockSettingsViewModel(project.Stock, OnProjectChanged);
             SelectedProfile = MachineProfiles.Find(project.Machine.ProfileName) ?? MachineProfiles.All[0];
+            Control.RefreshMachineMode();
             SelectedTool = Tools.FirstOrDefault();
             SelectedOperation = null;
             LoadTexts();
@@ -1977,6 +1979,7 @@ public sealed partial class MainViewModel : ObservableObject
         Simulation.MarkStale();
         UpdateGcodeView();
         Control.RefreshLeveling();
+        Control.RefreshMachineMode();
         CommitHistory();
     }
 

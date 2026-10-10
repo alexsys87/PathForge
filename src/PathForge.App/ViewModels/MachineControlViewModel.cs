@@ -53,6 +53,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private LevelingProbe? _probe;
     private readonly Func<MachineSettings> _machine;
 
+    /// <summary>The output was on at the last status report: a lost connection then needs a warning.</summary>
+    private bool _manualOutputSeenOn;
+
+    /// <summary>
+    /// GRBL reports the output only every few seconds: this shows the state that was just commanded until GRBL confirms it.
+    /// </summary>
+    private readonly ManualOutputTracker _outputTracker = new();
+
     /// <summary>The running "job" only traces the frame: no resume line, no program line highlighting.</summary>
     private bool _framing;
 
@@ -199,6 +207,42 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     private bool canResume;
 
+    /// <summary>The spindle or the laser output is on (GRBL status A:S or A:C), whoever switched it on.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsBeamOn))]
+    private bool isManualOutputOn;
+
+    /// <summary>The machine profile has a laser: the output is a beam, not a spindle.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsBeamOn), nameof(IsSpindleMachine))]
+    private bool isLaserMachine;
+
+    /// <summary>The on/off switch can be used now: connected and GRBL idle, or jogging when it switches the output off.</summary>
+    [ObservableProperty]
+    private bool canToggleManualOutput;
+
+    /// <summary>X/Y motion, homing, zeroing moves and probing are allowed (a beam that is on must not move in X/Y).</summary>
+    [ObservableProperty]
+    private bool canMove;
+
+    /// <summary>Caption of the switch, e.g. «Включить лазер» or «Выключить шпиндель».</summary>
+    [ObservableProperty]
+    private string manualOutputText = "";
+
+    /// <summary>Laser power of the switch, percent of the maximum (laser profiles).</summary>
+    [ObservableProperty]
+    private double manualPowerPercent = 5;
+
+    /// <summary>Spindle speed of the switch, rpm (spindle profiles).</summary>
+    [ObservableProperty]
+    private double manualRpm = 10000;
+
+    /// <summary>A laser beam is on: it must not move in X/Y.</summary>
+    public bool IsBeamOn => IsLaserMachine && IsManualOutputOn;
+
+    /// <summary>The profile has no laser: the switch controls the spindle.</summary>
+    public bool IsSpindleMachine => !IsLaserMachine;
+
     [ObservableProperty]
     private double progress;
 
@@ -301,6 +345,21 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         Refresh();
     }
 
+    /// <summary>Called when the machine profile changes: the switch shows the laser or the spindle controls.</summary>
+    public void RefreshMachineMode()
+    {
+        IsLaserMachine = _machine().LaserMode;
+        Refresh();
+    }
+
+    private string ManualOutputCaption() => (IsLaserMachine, IsManualOutputOn) switch
+    {
+        (true, false) => Loc.T("Включить лазер", "Laser on"),
+        (true, true) => Loc.T("Выключить лазер", "Laser off"),
+        (false, false) => Loc.T("Включить шпиндель", "Spindle on"),
+        _ => Loc.T("Выключить шпиндель", "Spindle off"),
+    };
+
     /// <summary>Shows the map stored in the project (after loading, undo or measuring).</summary>
     public void RefreshLeveling()
     {
@@ -354,6 +413,11 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void ProbeMap()
     {
+        if (BlockedByBeam())
+        {
+            return;
+        }
+
         if (_controller is null)
         {
             _dialogs.ShowError(Loc.T("Сначала подключитесь к станку.", "Connect to the machine first."));
@@ -534,6 +598,15 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void Disconnect()
     {
+        // Outside a program a switch left on by hand would keep the machine running without control.
+        if (IsManualOutputOn && !IsJobActive)
+        {
+            _dialogs.ShowError(Loc.T(
+                "Сначала выключите лазер/шпиндель (кнопка или «Сброс»): после отключения станок останется включённым без управления.",
+                "Switch off the laser/spindle first (the button or Reset): after a disconnect the machine stays on without control."));
+            return;
+        }
+
         if (IsJobActive && !_dialogs.Confirm(Loc.T("Программа ещё выполняется. Отключиться? Станок остановится только после конца буфера команд.", "The program is still running. Disconnect? The machine stops only after its command buffer is empty.")))
         {
             return;
@@ -720,16 +793,33 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     private void Unlock() => Run(c => c.Unlock());
 
     [RelayCommand]
-    private void Home() => Run(c => c.Home());
+    private void Home()
+    {
+        if (BlockedByBeam())
+        {
+            return;
+        }
+
+        Run(c => c.Home());
+    }
 
     [RelayCommand]
-    private void SoftReset() => Run(c => c.SoftReset());
+    private void SoftReset()
+    {
+        _outputTracker.Reset();
+        Run(c => c.SoftReset());
+    }
 
     /// <summary>Parameter: axis and direction, e.g. "X+" or "Z-".</summary>
     [RelayCommand]
     private void Jog(string? direction)
     {
         if (direction is not { Length: 2 })
+        {
+            return;
+        }
+
+        if (direction[0] != 'Z' && BlockedByBeam())
         {
             return;
         }
@@ -754,11 +844,24 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     }
 
     [RelayCommand]
-    private void GoToZero() => Run(c => c.GoToWorkZero(_safeZ()));
+    private void GoToZero()
+    {
+        if (BlockedByBeam())
+        {
+            return;
+        }
+
+        Run(c => c.GoToWorkZero(_safeZ()));
+    }
 
     [RelayCommand]
     private void ProbeZ()
     {
+        if (BlockedByBeam())
+        {
+            return;
+        }
+
         if (!_dialogs.Confirm(Loc.T(
                 "Пластина щупа лежит на заготовке под фрезой, зажим щупа на фрезе?\n" +
                 $"Фреза опустится максимум на {ProbeTravel:0.#} мм со скоростью {ProbeFeed:0} мм/мин, " +
@@ -780,7 +883,44 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void SpindleOverride(string? step) => _controller?.SpindleOverride(Direction(step));
 
+    /// <summary>
+    /// Switches the spindle or the laser beam on or off by hand outside any program: the laser at the chosen power
+    /// (<c>G1 F100 M3 S…</c> / <c>G0 M5</c>, see <see cref="ManualOutput"/>), the spindle at the chosen speed
+    /// (<c>M3 S…</c> / <c>M5</c>).
+    /// </summary>
+    [RelayCommand]
+    private void ToggleManualOutput()
+    {
+        var on = !IsManualOutputOn;
+        var machine = _machine();
+        var laser = machine.LaserMode;
+        if (Run(c => c.SendCommand(on ? ManualOutput.On(laser, laser ? ManualPowerPercent : ManualRpm, machine) : ManualOutput.Off(laser)))
+            && _controller is { } controller)
+        {
+            // GRBL reports the output only every few seconds: show the new state now, GRBL confirms it later.
+            _outputTracker.Commanded(on, controller.Status, controller.FailedCommands);
+            Refresh();
+        }
+    }
+
     private static int Direction(string? step) => step switch { "+" => 1, "-" => -1, _ => 0 };
+
+    /// <summary>
+    /// A laser beam that is on must not move in X/Y: a constant beam would burn a line. Shows the reason and returns
+    /// true when the move is refused. Z moves stay allowed, so that the focus can be set.
+    /// </summary>
+    private bool BlockedByBeam()
+    {
+        if (!IsBeamOn)
+        {
+            return false;
+        }
+
+        _dialogs.ShowError(Loc.T(
+            "Лазер включён: перемещения по X/Y, «Домой», «К нулю», щуп и карта высот заблокированы. Выключите лазер; по Z (фокус) двигать можно.",
+            "The laser is on: X/Y moves, Home, Go to zero, probing and the height map are blocked. Switch the laser off; Z (focus) can still be moved."));
+        return true;
+    }
 
     [RelayCommand]
     private void SendConsole()
@@ -873,7 +1013,16 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         }
         else if (isDown && !isRepeat && CanControl && _controller is not null)
         {
-            Run(c => c.Jog(direction.X * JogStep, direction.Y * JogStep, direction.Z * JogStep, direction.Z != 0 ? JogFeedZ : JogFeed));
+            if (IsBeamOn && (direction.X != 0 || direction.Y != 0))
+            {
+                AddLog(new GrblLogEntry(GrblLogKind.Error, Loc.T(
+                    "Лазер включён: перемещение по X/Y заблокировано. Выключите лазер; по Z можно.",
+                    "The laser is on: X/Y moves are blocked. Switch the laser off; Z is allowed.")));
+            }
+            else
+            {
+                Run(c => c.Jog(direction.X * JogStep, direction.Y * JogStep, direction.Z * JogStep, direction.Z != 0 ? JogFeedZ : JogFeed));
+            }
         }
 
         return true;
@@ -987,6 +1136,12 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         {
             // Alarm, hold, homing: jogs would only be rejected.
             input = default;
+        }
+
+        if (IsBeamOn)
+        {
+            // A beam left on must not move in X/Y (Z stays for focusing): held keys and the joystick stop here.
+            input = new JogVector(0, 0, input.Z);
         }
 
         if (controller.FailedCommands != _failedCommandsSeen)
@@ -1289,6 +1444,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// <summary>Asks before closing the window while the machine is working. Returns false to keep the window open.</summary>
     public bool ConfirmClose()
     {
+        if (IsManualOutputOn && !IsJobActive)
+        {
+            _dialogs.ShowError(Loc.T(
+                "Лазер или шпиндель включён. Выключите его (кнопка или «Сброс») перед закрытием PathForge.",
+                "The laser or the spindle is on. Switch it off (the button or Reset) before closing PathForge."));
+            return false;
+        }
+
         if (IsJobActive && !_dialogs.Confirm(Loc.T("На станке выполняется программа. Остановить её и закрыть PathForge?", "A program is running on the machine. Stop it and close PathForge?")))
         {
             return false;
@@ -1384,6 +1547,16 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             WorkX = WorkY = WorkZ = "—";
             MachineText = FeedText = OverridesText = "";
             IsAlarm = CanControl = IsJobActive = CanStartJob = CanPause = CanResume = false;
+            if (_manualOutputSeenOn)
+            {
+                AddLog(new GrblLogEntry(GrblLogKind.Error, Loc.T(
+                    "Связь со станком потеряна, пока лазер/шпиндель был включён. Станок мог остаться включённым: проверьте его и выключите вручную.",
+                    "The connection was lost while the laser/spindle was on. The machine may still be on: check it and switch it off by hand.")));
+                _manualOutputSeenOn = false;
+            }
+            _outputTracker.Reset();
+            IsManualOutputOn = CanToggleManualOutput = CanMove = false;
+            ManualOutputText = ManualOutputCaption();
             ExecutingLine = 0;
             _probe = null;
             IsProbing = false;
@@ -1424,9 +1597,21 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             $"Feed {status.FeedOverride} % · spindle {status.SpindleOverride} %");
         IsAlarm = status.State == GrblState.Alarm;
         CanControl = controller.CanSendCommands && status.State is GrblState.Idle or GrblState.Jog or GrblState.Alarm;
+        if (job != GrblJobState.None)
+        {
+            // A program is running: it decides the output, not the last switch.
+            _outputTracker.Reset();
+        }
+
+        IsManualOutputOn = _outputTracker.Resolve(status, controller.FailedCommands);
+        _manualOutputSeenOn = IsManualOutputOn;
+        CanToggleManualOutput = controller.CanSendCommands
+            && (status.State == GrblState.Idle || (IsManualOutputOn && status.State == GrblState.Jog));
+        CanMove = CanControl && !IsBeamOn;
+        ManualOutputText = ManualOutputCaption();
         IsJobActive = job != GrblJobState.None;
         ExecutingLine = IsJobActive && !_framing ? controller.ExecutingLine : 0;
-        CanStartJob = job == GrblJobState.None && status.State == GrblState.Idle;
+        CanStartJob = job == GrblJobState.None && status.State == GrblState.Idle && !IsManualOutputOn;
         CanPause = job == GrblJobState.Running;
         CanResume = job is GrblJobState.Paused or GrblJobState.Error or GrblJobState.ProgramStop;
         JobMessage = job is GrblJobState.ProgramStop
