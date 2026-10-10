@@ -5,3 +5,6 @@ obj/
 # IDE state
 .vs/
 *.user
+
+# Published application, MSI packages and installer diagnostics
+artifacts/
