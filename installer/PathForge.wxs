@@ -10,8 +10,10 @@
     <MediaTemplate EmbedCab="yes" />
     <Launch Condition="VersionNT64" Message="PathForge requires 64-bit Windows." />
 
-    <Icon Id="PathForgeIcon" SourceFile="$(var.AppIcon)" />
-    <Property Id="ARPPRODUCTICON" Value="PathForgeIcon" />
+    <!-- Advertised EXE shortcuts require a PE icon resource with an .exe name.
+         The published apphost contains the project's Assets/PathForge.ico. -->
+    <Icon Id="PathForge.exe" SourceFile="$(var.PublishDir)\PathForge.exe" />
+    <Property Id="ARPPRODUCTICON" Value="PathForge.exe" />
     <Property Id="ARPHELPLINK" Value="https://github.com/alexsys87/PathForge" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="PathForge is available in the Start menu." />
     <!-- Preserve a custom installation directory during a major upgrade. -->
@@ -27,7 +29,7 @@
           <File Id="PathForgeExe" Source="$(var.PublishDir)\PathForge.exe" KeyPath="yes">
             <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder"
                       Name="PathForge" WorkingDirectory="INSTALLFOLDER"
-                      Advertise="yes" Icon="PathForgeIcon" />
+                      Advertise="yes" Icon="PathForge.exe" IconIndex="0" />
           </File>
         </Component>
         <Component Id="InstallLocation" Guid="AC190C0B-850E-4562-87DF-8D8D6629213A" Bitness="always64">

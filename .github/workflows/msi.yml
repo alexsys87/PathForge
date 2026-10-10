@@ -54,7 +54,21 @@ jobs:
         run: ./installer/build-msi.ps1 -Version $env:PRODUCT_VERSION
       - name: Build older package for upgrade verification
         shell: pwsh
-        run: ./installer/build-msi.ps1 -Version 0.0.0 -SkipPublish -OutputDirectory artifacts/upgrade-baseline
+        run: |
+          # Reproduce the original broken icon authoring in the old package;
+          # the upgrade must recreate a shortcut with a valid EXE icon.
+          $source = Join-Path $PWD 'installer/PathForge.wxs'
+          $original = [IO.File]::ReadAllText($source)
+          $legacy = $original.Replace('Id="PathForge.exe" SourceFile="$(var.PublishDir)\PathForge.exe"', 'Id="PathForgeIcon" SourceFile="$(var.AppIcon)"')
+          $legacy = $legacy.Replace('Value="PathForge.exe"', 'Value="PathForgeIcon"')
+          $legacy = $legacy.Replace('Icon="PathForge.exe" IconIndex="0"', 'Icon="PathForgeIcon"')
+          if ($legacy -eq $original) { throw 'Legacy icon fixture was not generated.' }
+          try {
+            [IO.File]::WriteAllText($source, $legacy)
+            ./installer/build-msi.ps1 -Version 0.0.0 -SkipPublish -OutputDirectory artifacts/upgrade-baseline
+          } finally {
+            [IO.File]::WriteAllText($source, $original)
+          }
       - name: Verify install, repair, upgrade, downgrade protection and uninstall
         shell: pwsh
         env:

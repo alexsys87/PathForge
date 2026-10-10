@@ -27,6 +27,20 @@ New-Item -ItemType Directory -Force $userDataDir | Out-Null
 $sentinel = Join-Path $userDataDir ("msi-test-" + [guid]::NewGuid().ToString('N') + '.txt')
 Set-Content $sentinel 'User data must survive MSI removal.'
 
+# Verify the actual installed shortcut, not just the existence of a .lnk file.
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class PathForgeShortcutIcons
+{
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "ExtractIconExW")]
+    public static extern uint ExtractIconEx(string file, int index,
+        [Out] IntPtr[] large, [Out] IntPtr[] small, uint count);
+    [DllImport("user32.dll")]
+    public static extern bool DestroyIcon(IntPtr icon);
+}
+'@
+
 function Invoke-Msi {
     param([string] $Arguments, [string] $LogName, [int[]] $AllowedCodes = @(0, 3010))
     $log = Join-Path $logs "$LogName.log"
@@ -37,10 +51,41 @@ function Invoke-Msi {
     return $process.ExitCode
 }
 function Assert-Installed {
+    param([bool] $CheckIcon = $true)
     if (-not (Test-Path $registryPath)) { throw 'Install-location registry value is missing.' }
     $actual = (Get-ItemProperty $registryPath).InstallDir.TrimEnd('\')
     if ($actual -ine $installDir.TrimEnd('\')) { throw "Installation path changed: $actual" }
     if (-not (Test-Path $shortcut -PathType Leaf)) { throw 'Start menu shortcut is missing.' }
+    if ($CheckIcon) {
+        $shell = New-Object -ComObject WScript.Shell
+        $link = $shell.CreateShortcut($shortcut)
+        $location = $link.IconLocation
+        if ($location -notmatch '^(.*),\s*(-?\d+)$') { throw "Invalid shortcut icon location: $location" }
+        $iconPath = [Environment]::ExpandEnvironmentVariables($Matches[1].Trim('"'))
+        $iconIndex = [int] $Matches[2]
+        if ([IO.Path]::GetExtension($iconPath) -ine '.exe' -or $iconIndex -ne 0) {
+            throw "Shortcut must use the EXE icon resource at index 0: $location"
+        }
+        if (-not (Test-Path $iconPath -PathType Leaf)) { throw "Missing cached shortcut icon: $iconPath" }
+        $expectedExe = Join-Path $repoRoot 'artifacts/publish/win-x64/PathForge.exe'
+        if ((Get-FileHash $iconPath).Hash -ne (Get-FileHash $expectedExe).Hash) {
+            throw 'Cached shortcut icon is not the published PathForge EXE resource.'
+        }
+        $large = [IntPtr[]]::new(1)
+        $small = [IntPtr[]]::new(1)
+        try {
+            $count = [PathForgeShortcutIcons]::ExtractIconEx($iconPath, $iconIndex, $large, $small, 1)
+            if ($count -eq 0 -or $large[0] -eq [IntPtr]::Zero -or $small[0] -eq [IntPtr]::Zero) {
+                throw "Windows cannot extract the shortcut icon: $location"
+            }
+        } finally {
+            foreach ($handle in @($large[0], $small[0])) {
+                if ($handle -ne [IntPtr]::Zero) { [void] [PathForgeShortcutIcons]::DestroyIcon($handle) }
+            }
+            [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($link)
+            [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell)
+        }
+    }
     $publishDir = Join-Path $repoRoot 'artifacts/publish/win-x64'
     foreach ($source in (Get-ChildItem $publishDir -Recurse -File)) {
         $relative = [IO.Path]::GetRelativePath($publishDir, $source.FullName)
@@ -54,7 +99,7 @@ function Assert-Installed {
 }
 try {
     [void] (Invoke-Msi "/i `"$BaselineMsi`" INSTALLFOLDER=`"$installDir`"" 'install-baseline')
-    Assert-Installed
+    Assert-Installed -CheckIcon $false
     # Deliberately omit INSTALLFOLDER: the upgrade must retain the custom path.
     [void] (Invoke-Msi "/i `"$Msi`"" 'upgrade')
     Assert-Installed
