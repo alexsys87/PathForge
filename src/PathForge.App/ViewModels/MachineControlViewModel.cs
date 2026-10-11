@@ -139,9 +139,17 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
     /// <summary>USB (COM port), telnet or WebSocket (e.g. MKS DLC32 over WiFi).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSerial), nameof(IsNetwork))]
+    [NotifyPropertyChangedFor(nameof(IsSerial), nameof(IsNetwork), nameof(IsSerialEsp32))]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     private MachineConnectionKind connectionKind;
+
+    /// <summary>
+    /// Firmware mode of the MKS DLC32 (USB): the next connection puts the board into the ESP32 ROM bootloader instead of
+    /// talking GRBL, so that its flash can be dumped or its firmware updated with esptool or the Flash Download Tool.
+    /// Chosen before connecting and not remembered between runs: a board must not land in the bootloader by surprise.
+    /// </summary>
+    [ObservableProperty]
+    private bool firmwareMode;
 
     /// <summary>Connection kinds for the list, named in the interface language.</summary>
     [ObservableProperty]
@@ -287,6 +295,9 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     public bool IsSerial => ConnectionKind is MachineConnectionKind.Serial or MachineConnectionKind.SerialEsp32;
 
     public bool IsNetwork => !IsSerial;
+
+    /// <summary>The MKS DLC32 over USB: the connection whose board has the ROM bootloader that the firmware mode enters.</summary>
+    public bool IsSerialEsp32 => ConnectionKind == MachineConnectionKind.SerialEsp32;
 
     // ---- Height map (auto-levelling) ---------------------------------------------------------
 
@@ -516,6 +527,12 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// <summary>The port field follows the connection kind unless the user typed a port of their own.</summary>
     partial void OnConnectionKindChanged(MachineConnectionKind oldValue, MachineConnectionKind newValue)
     {
+        if (newValue != MachineConnectionKind.SerialEsp32)
+        {
+            // The firmware mode belongs to the MKS DLC32 over USB only.
+            FirmwareMode = false;
+        }
+
         if (NetworkPort == DefaultNetworkPort(oldValue) || NetworkPort == 0)
         {
             NetworkPort = DefaultNetworkPort(newValue);
@@ -546,7 +563,17 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
         var target = IsNetwork
             ? new ConnectionTarget(ConnectionKind, Host.Trim(), NetworkPort)
-            : new ConnectionTarget(ConnectionKind, SelectedPort!, BaudRate);
+            : new ConnectionTarget(ConnectionKind, SelectedPort!, BaudRate, FirmwareMode && IsSerialEsp32);
+
+        // The board is restarted into the bootloader: a machine that is moving (a program started from the board itself,
+        // from the SD card or by another client) would be stopped in the middle of it.
+        if (target.FirmwareMode && !_dialogs.Confirm(Loc.T(
+                "Режим прошивки: плата будет перезапущена в загрузчик ESP32. Станок остановится, а GRBL не будет отвечать, пока плату не перезапустят (кнопка Reset на плате или подключение без режима прошивки). Продолжить?",
+                "Firmware mode: the board will be restarted into the ESP32 bootloader. The machine will stop, and GRBL will not answer until the board is restarted (the Reset button on the board, or a connection without the firmware mode). Continue?")))
+        {
+            return;
+        }
+
         var generation = _connectionGeneration;
         IsConnecting = true;
         StateText = Loc.T($"Подключение к {target.Describe()}…", $"Connecting to {target.Describe()}…");
@@ -587,9 +614,11 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         _target = target;
         _controller = CreateController(transport);
         IsConnected = true;
-        AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
-            $"Подключено: {target.Describe()}. Ожидание ответа GRBL…",
-            $"Connected: {target.Describe()}. Waiting for GRBL…")));
+        AddLog(new GrblLogEntry(GrblLogKind.Info, target.FirmwareMode
+            ? Loc.T($"Подключено: {target.Describe()}.", $"Connected: {target.Describe()}.")
+            : Loc.T(
+                $"Подключено: {target.Describe()}. Ожидание ответа GRBL…",
+                $"Connected: {target.Describe()}. Waiting for GRBL…")));
         _pollTimer.Start();
         SaveConnectionPreferences();
         Refresh();
@@ -612,8 +641,13 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             return;
         }
 
+        var wasFirmwareMode = _target is { FirmwareMode: true };
         CloseConnection();
-        AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T("Отключено.", "Disconnected.")));
+        AddLog(new GrblLogEntry(GrblLogKind.Info, wasFirmwareMode
+            ? Loc.T(
+                "Отключено. Порт свободен: можно запускать esptool или Flash Download Tool.",
+                "Disconnected. The port is free: esptool or the Flash Download Tool can use it now.")
+            : Loc.T("Отключено.", "Disconnected.")));
     }
 
     private static bool IsConnectionError(Exception ex) =>
@@ -766,7 +800,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     }
 
     /// <summary>What the panel connects to: a COM port with its baud rate, or a network address with its port.</summary>
-    private sealed record ConnectionTarget(MachineConnectionKind Kind, string Address, int Number)
+    private sealed record ConnectionTarget(MachineConnectionKind Kind, string Address, int Number, bool FirmwareMode = false)
     {
         public bool IsNetwork => Kind is not (MachineConnectionKind.Serial or MachineConnectionKind.SerialEsp32);
 
@@ -775,7 +809,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             MachineConnectionKind.Telnet => new TelnetTransport(Address, Number),
             MachineConnectionKind.WebSocket => new WebSocketTransport(Address, Number, WebSocketCommandRoute.Http),
             MachineConnectionKind.WebSocketBridge => new WebSocketTransport(Address, Number, WebSocketCommandRoute.WebSocket),
-            MachineConnectionKind.SerialEsp32 => new SerialPortTransport(Address, Number, esp32Board: true),
+            MachineConnectionKind.SerialEsp32 => new SerialPortTransport(Address, Number, esp32Board: true, firmwareMode: FirmwareMode),
             _ => new SerialPortTransport(Address, Number),
         };
 
@@ -783,7 +817,8 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         {
             MachineConnectionKind.Telnet => $"{Address}:{Number} (telnet)",
             MachineConnectionKind.WebSocket or MachineConnectionKind.WebSocketBridge => $"ws://{Address}:{Number}",
-            _ => Loc.T($"{Address}, {Number} бод", $"{Address}, {Number} baud"),
+            _ => Loc.T($"{Address}, {Number} бод", $"{Address}, {Number} baud")
+                + (FirmwareMode ? Loc.T(", режим прошивки", ", firmware mode") : ""),
         };
     }
 
@@ -1481,6 +1516,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             return false;
         }
 
+        if (_target is { FirmwareMode: true })
+        {
+            _dialogs.ShowError(Loc.T(
+                "Режим прошивки: плата в загрузчике ESP32 и не понимает GRBL. Чтобы управлять станком, нажмите «Отключить», снимите флажок «Режим прошивки» и подключитесь снова.",
+                "Firmware mode: the board is in the ESP32 bootloader and does not understand GRBL. To control the machine, press Disconnect, clear the Firmware mode box and connect again."));
+            return false;
+        }
+
         try
         {
             action(_controller);
@@ -1510,6 +1553,27 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         }
     }
 
+    /// <summary>
+    /// The panel in the firmware mode: the board is in (or on its way to) the ESP32 bootloader, which does not speak GRBL,
+    /// so there is no state to show and nothing to control. What the board says is in the console.
+    /// </summary>
+    private void ShowFirmwareMode()
+    {
+        IsJogInputEnabled = false;
+        StateText = Loc.T("Режим прошивки (загрузчик ESP32)", "Firmware mode (ESP32 bootloader)");
+        VersionText = Loc.T(
+            "GRBL не работает. Для дампа или прошивки нажмите «Отключить» и запустите esptool или Flash Download Tool.",
+            "GRBL is not running. To dump or flash the board, press Disconnect and run esptool or the Flash Download Tool.");
+        WorkX = WorkY = WorkZ = "—";
+        MachineText = FeedText = OverridesText = "";
+        IsAlarm = CanControl = IsJobActive = CanStartJob = CanPause = CanResume = false;
+        IsManualOutputOn = CanToggleManualOutput = CanMove = false;
+        ManualOutputText = ManualOutputCaption();
+        ExecutingLine = 0;
+        JobMessage = "";
+        ToolPosition = null;
+    }
+
     private void Refresh()
     {
         var controller = _controller;
@@ -1520,7 +1584,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             controller = null;
         }
 
-        if (controller is not null && _reconnecting && controller.HasAnswered && _target is { } restored)
+        if (controller is not null && _reconnecting && (controller.HasAnswered || _target is { FirmwareMode: true }) && _target is { } restored)
         {
             _reconnecting = false;
             AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
@@ -1532,6 +1596,12 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         {
             // Disconnected or a program started: the keys must not move the machine any more.
             IsJogInputEnabled = false;
+        }
+
+        if (controller is not null && _target is { FirmwareMode: true })
+        {
+            ShowFirmwareMode();
+            return;
         }
 
         if (controller is null)

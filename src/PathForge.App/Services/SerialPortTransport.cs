@@ -10,7 +10,9 @@ namespace PathForge.App.Services;
 /// GRBL connection over a (USB) serial port. Opening the port raises DTR, which resets most Arduino-based boards (the
 /// usual way GRBL starts). For an ESP32 board such as the MKS DLC32 the constructor keeps DTR and RTS low instead, because
 /// they are wired to the boot pins of the ESP32, and a board that waits in the ESP32 ROM bootloader (the driver held DTR
-/// when it was powered on) is recognised and restarted (<see cref="Esp32BootloaderRecovery"/>).
+/// when it was powered on) is recognised and restarted (<see cref="Esp32BootloaderRecovery"/>). The firmware mode of an ESP32
+/// board is the opposite: the board is put into the bootloader on purpose and left there, to dump its flash or to update
+/// its firmware with an external tool.
 /// </summary>
 public sealed class SerialPortTransport : IGrblTransport, ISerialLink
 {
@@ -19,6 +21,7 @@ public sealed class SerialPortTransport : IGrblTransport, ISerialLink
     private readonly StringBuilder _incoming = new();
     private readonly CancellationTokenSource _stop = new();
     private readonly Esp32BootloaderRecovery? _recovery;
+    private readonly bool _firmwareMode;
     private bool _failed;
 
     /// <param name="portName">COM port of the board.</param>
@@ -28,8 +31,15 @@ public sealed class SerialPortTransport : IGrblTransport, ISerialLink
     /// and a board found waiting in the bootloader is restarted. False (the default) is the plain GRBL behaviour:
     /// DTR is raised, which resets Arduino-based boards, and nothing else is done.
     /// </param>
-    public SerialPortTransport(string portName, int baudRate, bool esp32Board = false)
+    /// <param name="firmwareMode">
+    /// Only for an ESP32 board: the firmware mode. The board is restarted into its ROM bootloader (so that its flash can be
+    /// dumped or its firmware updated with esptool or the Flash Download Tool) and is not restarted out of it. The bootloader
+    /// does not speak GRBL, so nothing of GRBL is sent. DTR stays asserted (GPIO0 low): a reset by the Reset button of the board
+    /// enters the bootloader too. The port must be closed before another program can use it; the board stays in the bootloader.
+    /// </param>
+    public SerialPortTransport(string portName, int baudRate, bool esp32Board = false, bool firmwareMode = false)
     {
+        _firmwareMode = esp32Board && firmwareMode;
         _port = new SerialPort(portName, baudRate)
         {
             Encoding = Encoding.ASCII,
@@ -62,8 +72,9 @@ public sealed class SerialPortTransport : IGrblTransport, ISerialLink
     public static string[] PortNames() => SerialPort.GetPortNames().Distinct().Order(StringComparer.OrdinalIgnoreCase).ToArray();
 
     /// <summary>
-    /// For an ESP32 board: starts watching for a board in the bootloader. Runs off the calling (UI) thread, because the
-    /// recovery blocks on port writes. Does nothing for other boards.
+    /// For an ESP32 board: starts watching for a board in the bootloader and restarting it out of it, or, in the firmware
+    /// mode, puts the board into the bootloader. Runs off the calling (UI) thread, because both block on port writes.
+    /// Does nothing for other boards.
     /// </summary>
     public void Start()
     {
@@ -75,6 +86,12 @@ public sealed class SerialPortTransport : IGrblTransport, ISerialLink
 
     public void Write(string text)
     {
+        if (_firmwareMode)
+        {
+            // The bootloader does not speak GRBL: a line sent to it would be noise that is never answered.
+            return;
+        }
+
         lock (_writeLock)
         {
             EnsureOpen();
@@ -84,6 +101,12 @@ public sealed class SerialPortTransport : IGrblTransport, ISerialLink
 
     public void WriteRealtime(byte command)
     {
+        if (_firmwareMode)
+        {
+            // The status polls and the other real-time characters are meant for GRBL.
+            return;
+        }
+
         lock (_writeLock)
         {
             EnsureOpen();
@@ -144,7 +167,9 @@ public sealed class SerialPortTransport : IGrblTransport, ISerialLink
     {
         try
         {
-            await recovery.RunAsync(_stop.Token);
+            // The firmware mode puts the board into the bootloader and keeps it there; otherwise a board that is found in
+            // the bootloader is restarted out of it.
+            await (_firmwareMode ? recovery.RunFirmwareModeAsync(_stop.Token) : recovery.RunAsync(_stop.Token));
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or TimeoutException)
         {

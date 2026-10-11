@@ -20,6 +20,9 @@ internal sealed class FakeEsp32 : ISerialLink
     private static readonly byte[] SyncAnswer = { 0xC0, 0x01, 0x08, 0x04, 0x00, 0x07, 0x07, 0x12, 0x20, 0x00, 0x00, 0x00, 0x00, 0xC0 };
 
     private bool _enLow;
+    private int? _grblStartsAt;
+    private string? _bannerTail;
+    private int _bannerTailAt;
 
     public enum State
     {
@@ -36,6 +39,21 @@ internal sealed class FakeEsp32 : ISerialLink
     /// <summary>The chip starts the bootloader after a reset whatever the lines say.</summary>
     public bool BootsIntoBootloader { get; set; }
 
+    /// <summary>DTR is not wired to GPIO0 (RTS still resets the chip): a reset never starts the bootloader.</summary>
+    public bool Gpio0NotWired { get; set; }
+
+    /// <summary>The program talks at a speed other than the 115200 of the ROM: the banner arrives garbled, only SYNC tells the bootloader.</summary>
+    public bool GarbledBanner { get; set; }
+
+    /// <summary>The ROM prints the banner in two pieces, the second one this long (ms of the virtual clock) after the first; 0 is in one piece.</summary>
+    public int BannerTailDelayMs { get; set; }
+
+    /// <summary>A firmware that starts after a reset prints its first line only this long (ms of the virtual clock) after the ROM log; 0 is at once.</summary>
+    public int SlowStartMs { get; set; }
+
+    /// <summary>The virtual clock, ms (set by <see cref="Advance"/>).</summary>
+    public int Now { get; private set; }
+
     public Esp32BootloaderRecovery? Recovery { get; set; }
 
     public List<byte[]> Written { get; } = new();
@@ -48,7 +66,7 @@ internal sealed class FakeEsp32 : ISerialLink
     public void EnterBootloader()
     {
         Mode = State.Bootloader;
-        Say(BootloaderText);
+        SayBanner();
     }
 
     /// <summary>A board that was still starting says its first words.</summary>
@@ -60,6 +78,44 @@ internal sealed class FakeEsp32 : ISerialLink
 
     public void Say(string text) => Recovery!.OnReceived(Encoding.ASCII.GetBytes(text));
 
+    /// <summary>The virtual time passes: a firmware that starts slowly prints its first line, the second piece of a banner arrives.</summary>
+    public void Advance(int nowMs)
+    {
+        Now = nowMs;
+        if (_grblStartsAt is { } start && nowMs >= start)
+        {
+            _grblStartsAt = null;
+            Say("Grbl 1.3a ['$' for help]\r\n");
+        }
+
+        if (_bannerTail is { } tail && nowMs >= _bannerTailAt)
+        {
+            _bannerTail = null;
+            Say(tail);
+        }
+    }
+
+    /// <summary>What the ROM prints when it starts the bootloader (noise, when the speed of the port is not the one of the ROM).</summary>
+    private void SayBanner()
+    {
+        if (GarbledBanner)
+        {
+            Recovery!.OnReceived(new byte[] { 0xFC, 0xE0, 0x80, 0xFE, 0x00, 0xF8, 0xE0 });
+        }
+        else if (BannerTailDelayMs > 0)
+        {
+            // The first piece is enough to announce the bootloader (it has DOWNLOAD_BOOT in it).
+            var cut = BootloaderText.IndexOf("waiting", StringComparison.Ordinal);
+            Say(BootloaderText[..cut]);
+            _bannerTail = BootloaderText[cut..];
+            _bannerTailAt = Now + BannerTailDelayMs;
+        }
+        else
+        {
+            Say(BootloaderText);
+        }
+    }
+
     public void WriteRaw(byte[] data)
     {
         Written.Add(data);
@@ -69,6 +125,12 @@ internal sealed class FakeEsp32 : ISerialLink
         {
             Recovery!.OnReceived(SyncAnswer);
             Recovery.OnReceived(SyncAnswer);
+        }
+
+        // A running GRBL answers a status query (the real-time character ?) at once, the bootloader takes no notice of it.
+        if (Mode == State.Firmware && data.Length == 1 && data[0] == (byte)'?')
+        {
+            Say(StatusReport);
         }
     }
 
@@ -82,7 +144,7 @@ internal sealed class FakeEsp32 : ISerialLink
 
         // RTS alone pulls EN low (the chip is reset), DTR alone pulls GPIO0 low (the bootloader), both together do nothing.
         var enLow = rts && !dtr;
-        var gpio0Low = dtr && !rts;
+        var gpio0Low = dtr && !rts && !Gpio0NotWired;
         var released = _enLow && !enLow;
         _enLow = enLow;
         if (!released)
@@ -93,12 +155,21 @@ internal sealed class FakeEsp32 : ISerialLink
         if (gpio0Low || BootsIntoBootloader)
         {
             Mode = State.Bootloader;
-            Say(BootloaderText);
+            SayBanner();
         }
         else
         {
             Mode = State.Firmware;
-            Say(FirmwareText);
+            if (SlowStartMs > 0)
+            {
+                // The ROM log comes at once, the firmware says its first line later.
+                Say(RomLog);
+                _grblStartsAt = Now + SlowStartMs;
+            }
+            else
+            {
+                Say(FirmwareText);
+            }
         }
     }
 
@@ -110,12 +181,17 @@ internal sealed class BootBench : IDisposable
 {
     private readonly CancellationTokenSource _cts = new();
     private readonly int _limit;
+    private readonly bool _polled;
     private int _clock;
 
-    public BootBench(FakeEsp32.State state, int seconds = 12)
+    /// <param name="state">What the board does at the start.</param>
+    /// <param name="seconds">Length of the run on the virtual clock.</param>
+    /// <param name="polled">The program polls the status all the time (a connection that talks GRBL); false in the firmware mode, where nothing is sent to the board.</param>
+    public BootBench(FakeEsp32.State state, int seconds = 12, bool polled = true)
     {
         Board = new FakeEsp32 { Mode = state };
         _limit = seconds * 1000;
+        _polled = polled;
         Recovery = new Esp32BootloaderRecovery(Board, Notices.Add, Wait);
         Board.Recovery = Recovery;
     }
@@ -133,14 +209,18 @@ internal sealed class BootBench : IDisposable
     /// <summary>Runs until the virtual clock reaches the limit.</summary>
     public Task RunAsync() => Recovery.RunAsync(_cts.Token);
 
+    /// <summary>The firmware mode instead of the recovery, until the virtual clock reaches the limit.</summary>
+    public Task RunFirmwareModeAsync() => Recovery.RunFirmwareModeAsync(_cts.Token);
+
     public void Dispose() => _cts.Dispose();
 
     private Task Wait(TimeSpan time, CancellationToken token)
     {
         _clock += (int)time.TotalMilliseconds;
+        Board.Advance(_clock);
 
         // A board that runs GRBL answers the status polls that the program sends all the time.
-        if (Board.Mode == FakeEsp32.State.Firmware)
+        if (_polled && Board.Mode == FakeEsp32.State.Firmware)
         {
             Board.Say(FakeEsp32.StatusReport);
         }
@@ -356,5 +436,205 @@ public class Esp32BootloaderTests
 
         Assert.Equal(Esp32BootloaderRecovery.MaxRestarts * 2, bench.Board.Lines.Count);
         Assert.Equal(Esp32BootloaderRecovery.MaxRestarts * 2, bench.Notices.Count);
+    }
+
+    // ---- The firmware mode: the board is put into the bootloader on purpose -----------------------
+
+    [Fact]
+    public async Task Firmware_mode_resets_the_board_into_the_bootloader_and_keeps_DTR_asserted()
+    {
+        // A board that runs GRBL, and one that already waits in the bootloader, end up the same way.
+        foreach (var state in new[] { FakeEsp32.State.Firmware, FakeEsp32.State.Bootloader })
+        {
+            using var bench = new BootBench(state, polled: false);
+
+            await bench.RunFirmwareModeAsync();
+
+            Assert.Equal(FakeEsp32.State.Bootloader, bench.Board.Mode);
+
+            // The reset of esptool: RTS pulls EN low, then DTR (GPIO0 low) is asserted as RTS lets go, and stays asserted.
+            Assert.Equal(new[] { (false, true), (true, false) }, bench.Board.Lines.ToArray());
+
+            // The banner of the bootloader told it: the board was not asked anything.
+            Assert.Empty(bench.Board.Written);
+
+            // The operator is told what happens, and that it worked.
+            Assert.Equal(2, bench.Notices.Count);
+            Assert.Contains("esptool", bench.Notices[1]);
+            Assert.DoesNotContain("Reset", bench.Notices[1]);
+        }
+    }
+
+    [Fact]
+    public async Task Firmware_mode_is_not_left_by_the_recovery()
+    {
+        // The recovery restarts a board out of the bootloader; in the firmware mode that must never happen.
+        using var bench = new BootBench(FakeEsp32.State.Bootloader, seconds: 30, polled: false);
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(FakeEsp32.State.Bootloader, bench.Board.Mode);
+
+        // One reset at the start, no restart afterwards, and nothing to report but the entry.
+        Assert.Equal(2, bench.Board.Lines.Count);
+        Assert.Equal(2, bench.Notices.Count);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_tells_a_bootloader_at_another_speed_by_its_answer()
+    {
+        // At a speed other than the 115200 of the ROM the banner is garbled: only the answer to SYNC tells.
+        using var bench = new BootBench(FakeEsp32.State.Firmware, polled: false) { Board = { GarbledBanner = true } };
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(FakeEsp32.State.Bootloader, bench.Board.Mode);
+
+        // GRBL was asked first (a status query, which the bootloader ignores); then the bootloader, which answered at once.
+        Assert.Equal(2, bench.Board.Written.Count);
+        Assert.Equal(new[] { (byte)'?' }, bench.Board.Written[0]);
+        Assert.Equal(Esp32Bootloader.SyncFrame(), bench.Board.Written[1]);
+        Assert.Equal(2, bench.Notices.Count);
+        Assert.DoesNotContain("Reset", bench.Notices[1]);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_reports_a_board_that_keeps_running_GRBL_and_does_not_send_it_SYNC()
+    {
+        // DTR/RTS are not wired to GPIO0/EN: the reset does nothing and GRBL goes on.
+        using var bench = new BootBench(FakeEsp32.State.Firmware, polled: false) { Board = { ResetWorks = false } };
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(FakeEsp32.State.Firmware, bench.Board.Mode);
+
+        // GRBL answered the status query at once. The SYNC frame, which would stay in its line buffer, was never sent.
+        Assert.Single(bench.Board.Written);
+        Assert.Equal(new[] { (byte)'?' }, bench.Board.Written[0]);
+
+        Assert.Equal(2, bench.Notices.Count);
+        Assert.Contains("Reset", bench.Notices[1]);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_does_not_ask_a_board_that_starts_GRBL_after_the_reset()
+    {
+        // The reset works, but GPIO0 is not held low (DTR not wired): the firmware starts and says so.
+        using var bench = new BootBench(FakeEsp32.State.Firmware, polled: false) { Board = { Gpio0NotWired = true } };
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(FakeEsp32.State.Firmware, bench.Board.Mode);
+        Assert.Empty(bench.Board.Written);
+        Assert.Equal(2, bench.Notices.Count);
+        Assert.Contains("Reset", bench.Notices[1]);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_sends_nothing_to_a_GRBL_that_is_still_starting()
+    {
+        // The firmware needs two seconds to print its first line. A SYNC frame sent meanwhile would stay in the UART
+        // buffer and end up in the first command line of GRBL: the board is given time to start before it is asked.
+        using var bench = new BootBench(FakeEsp32.State.Firmware, polled: false)
+        {
+            Board = { Gpio0NotWired = true, SlowStartMs = 2000 },
+        };
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(FakeEsp32.State.Firmware, bench.Board.Mode);
+        Assert.Empty(bench.Board.Written);
+        Assert.Equal(2, bench.Notices.Count);
+        Assert.Contains("Reset", bench.Notices[1]);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_does_not_take_the_tail_of_a_banner_for_a_second_one()
+    {
+        // The ROM prints its banner in pieces, and the first one is enough to announce it. The tail comes after the
+        // poll that saw the first piece, in the entry (250 ms: the poll is at 200) as well as after a reset by hand.
+        using var bench = new BootBench(FakeEsp32.State.Firmware, polled: false) { Board = { BannerTailDelayMs = 250 } };
+        bench.Tick += time =>
+        {
+            if (time == 6000)
+            {
+                // The operator presses Reset (DTR still holds GPIO0 low); the poll sees the first piece at once.
+                bench.Board.BannerTailDelayMs = 150;
+                bench.Board.EnterBootloader();
+            }
+        };
+
+        await bench.RunFirmwareModeAsync();
+
+        // The start, the entry and the reset by hand: one notice each, none for the tail of a banner.
+        Assert.Equal(3, bench.Notices.Count);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_reports_a_silent_board_after_asking_both_GRBL_and_the_bootloader()
+    {
+        // Wrong port, or a board without power.
+        using var bench = new BootBench(FakeEsp32.State.Off, polled: false) { Board = { ResetWorks = false } };
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(1 + Esp32BootloaderRecovery.SyncAttempts, bench.Board.Written.Count);
+        Assert.Equal(new[] { (byte)'?' }, bench.Board.Written[0]);
+        Assert.Equal(Esp32Bootloader.SyncFrame(), bench.Board.Written[1]);
+        Assert.Equal(FakeEsp32.State.Off, bench.Board.Mode);
+        Assert.Equal(2, bench.Notices.Count);
+        Assert.Contains("Reset", bench.Notices[1]);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_notices_a_board_that_the_operator_resets_by_hand()
+    {
+        // The automatic reset does nothing, but DTR holds GPIO0 low: the Reset button of the board does the job.
+        using var bench = new BootBench(FakeEsp32.State.Firmware, polled: false) { Board = { ResetWorks = false } };
+        bench.Tick += time =>
+        {
+            if (time == 8000)
+            {
+                bench.Board.EnterBootloader();
+            }
+        };
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(FakeEsp32.State.Bootloader, bench.Board.Mode);
+        Assert.Equal(3, bench.Notices.Count);
+        Assert.Contains("Reset", bench.Notices[1]);
+        Assert.Contains("esptool", bench.Notices[2]);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_reports_every_reset_by_hand_once()
+    {
+        using var bench = new BootBench(FakeEsp32.State.Firmware, polled: false);
+        bench.Tick += time =>
+        {
+            if (time is 6000 or 9000)
+            {
+                bench.Board.EnterBootloader();
+            }
+        };
+
+        await bench.RunFirmwareModeAsync();
+
+        // The start, the entry, and one short notice for each reset by hand: the banner is not announced again and again.
+        Assert.Equal(4, bench.Notices.Count);
+        Assert.NotEqual(bench.Notices[1], bench.Notices[2]);
+        Assert.Equal(bench.Notices[2], bench.Notices[3]);
+    }
+
+    [Fact]
+    public async Task Firmware_mode_does_not_leave_the_chip_in_reset_when_the_connection_closes()
+    {
+        // The connection is closed while RTS holds the chip in reset: both lines are let go.
+        using var bench = new BootBench(FakeEsp32.State.Firmware, seconds: 0, polled: false);
+
+        await bench.RunFirmwareModeAsync();
+
+        Assert.Equal(new[] { (false, true), (false, false) }, bench.Board.Lines.ToArray());
     }
 }
