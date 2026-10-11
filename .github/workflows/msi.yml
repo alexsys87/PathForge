@@ -18,9 +18,13 @@ permissions:
 
 jobs:
   installer:
-    name: Build and verify MSI (Windows x64)
+    name: Build and verify MSI (${{ matrix.framework }}, Windows x64)
     runs-on: windows-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
@@ -28,10 +32,18 @@ jobs:
       MSI_RUN_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install .NET SDK
+      - name: Install .NET SDKs
+        id: dotnet
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Select the installed .NET 10 SDK
+        shell: pwsh
+        run: |
+          dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --roll-forward disable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Choose installer version
         id: version
         shell: pwsh
@@ -45,13 +57,13 @@ jobs:
       - name: Run core tests
         shell: pwsh
         run: |
-          dotnet test tests/PathForge.Core.Tests/PathForge.Core.Tests.csproj -c Release -f net10.0 -p:PathForgeNet10=true --logger "trx;LogFileName=msi.trx" --results-directory artifacts/test-results
+          dotnet test tests/PathForge.Core.Tests/PathForge.Core.Tests.csproj -c Release -f ${{ matrix.framework }} -p:PathForgeNet10=true --logger "trx;LogFileName=msi.trx" --results-directory artifacts/test-results
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish self-contained app and build MSI
         shell: pwsh
         env:
           PRODUCT_VERSION: ${{ steps.version.outputs.value }}
-        run: ./installer/build-msi.ps1 -Version $env:PRODUCT_VERSION
+        run: ./installer/build-msi.ps1 -Version $env:PRODUCT_VERSION -Framework '${{ matrix.framework }}-windows'
       - name: Build older package for upgrade verification
         shell: pwsh
         run: |
@@ -65,7 +77,7 @@ jobs:
           if ($legacy -eq $original) { throw 'Legacy icon fixture was not generated.' }
           try {
             [IO.File]::WriteAllText($source, $legacy)
-            ./installer/build-msi.ps1 -Version 0.0.0 -SkipPublish -OutputDirectory artifacts/upgrade-baseline
+            ./installer/build-msi.ps1 -Version 0.0.0 -Framework '${{ matrix.framework }}-windows' -SkipPublish -OutputDirectory artifacts/upgrade-baseline
           } finally {
             [IO.File]::WriteAllText($source, $original)
           }
@@ -74,11 +86,11 @@ jobs:
         env:
           PRODUCT_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          ./installer/test-msi.ps1 -Msi "artifacts/msi/PathForge-$env:PRODUCT_VERSION-win-x64.msi" -BaselineMsi artifacts/upgrade-baseline/PathForge-0.0.0-win-x64.msi -AllowMachineChanges
+          ./installer/test-msi.ps1 -Msi "artifacts/msi/PathForge-$env:PRODUCT_VERSION-${{ matrix.framework }}-win-x64.msi" -BaselineMsi 'artifacts/upgrade-baseline/PathForge-0.0.0-${{ matrix.framework }}-win-x64.msi' -Framework '${{ matrix.framework }}-windows' -AllowMachineChanges
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: PathForge-${{ steps.version.outputs.value }}-win-x64-msi
+          name: PathForge-${{ steps.version.outputs.value }}-${{ matrix.framework }}-win-x64-msi
           path: |
             artifacts/msi/*.msi
             artifacts/msi/*.sha256
@@ -87,7 +99,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PathForge-msi-diagnostics
+          name: PathForge-msi-diagnostics-${{ matrix.framework }}
           path: |
             artifacts/test-results/*.trx
             artifacts/msi-logs/*.log
