@@ -4,6 +4,8 @@
 param(
     [Parameter(Mandatory)] [string] $Msi,
     [Parameter(Mandatory)] [string] $BaselineMsi,
+    [ValidateSet('net8.0-windows', 'net10.0-windows')]
+    [string] $Framework = 'net10.0-windows',
     [switch] $AllowMachineChanges
 )
 $ErrorActionPreference = 'Stop'
@@ -14,6 +16,8 @@ if (-not $IsWindows -or -not $AllowMachineChanges) {
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $Msi = [IO.Path]::GetFullPath($Msi, $repoRoot)
 $BaselineMsi = [IO.Path]::GetFullPath($BaselineMsi, $repoRoot)
+$runtimeLabel = $Framework.Replace('-windows', '')
+$publishDir = Join-Path $repoRoot "artifacts/publish/$runtimeLabel/win-x64"
 $registryPath = 'HKLM:\SOFTWARE\alexsys87\PathForge'
 if (Test-Path $registryPath) { throw 'PathForge is already installed; refusing to modify it.' }
 $shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'PathForge.lnk'
@@ -67,7 +71,7 @@ function Assert-Installed {
             throw "Shortcut must use the EXE icon resource at index 0: $location"
         }
         if (-not (Test-Path $iconPath -PathType Leaf)) { throw "Missing cached shortcut icon: $iconPath" }
-        $expectedExe = Join-Path $repoRoot 'artifacts/publish/win-x64/PathForge.exe'
+        $expectedExe = Join-Path $publishDir 'PathForge.exe'
         if ((Get-FileHash $iconPath).Hash -ne (Get-FileHash $expectedExe).Hash) {
             throw 'Cached shortcut icon is not the published PathForge EXE resource.'
         }
@@ -86,7 +90,6 @@ function Assert-Installed {
             [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell)
         }
     }
-    $publishDir = Join-Path $repoRoot 'artifacts/publish/win-x64'
     foreach ($source in (Get-ChildItem $publishDir -Recurse -File)) {
         $relative = [IO.Path]::GetRelativePath($publishDir, $source.FullName)
         $installed = Join-Path $installDir $relative

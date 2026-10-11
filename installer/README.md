@@ -3,7 +3,8 @@
 ## Возможности
 
 - Windows 10/11 **x64**, установка для всех пользователей с правами администратора.
-- В пакет включён .NET 10 / WPF: отдельно устанавливать .NET не требуется.
+- Два варианта пакета: с .NET 8 / WPF и с .NET 10 / WPF. В каждом включена
+  выбранная среда выполнения: отдельно устанавливать .NET не требуется.
 - По умолчанию: `C:\Program Files\PathForge`; в мастере можно выбрать другую папку.
 - Ярлык **PathForge** в меню «Пуск», значок в списке установленных приложений.
 - Восстановление и удаление через настройки Windows.
@@ -19,8 +20,14 @@
 ## Скачать результат GitHub Actions
 
 Откройте **Actions → Windows MSI → успешный запуск → Artifacts** и скачайте
-`PathForge-<версия>-win-x64-msi`. В архиве находятся `.msi` и `.msi.sha256`.
-Отдельный `PathForge-msi-diagnostics` содержит результаты тестов и журналы MSI.
+`PathForge-<версия>-net8.0-win-x64-msi` или
+`PathForge-<версия>-net10.0-win-x64-msi`. В каждом архиве находятся `.msi` и
+`.msi.sha256`. Отдельные `PathForge-msi-diagnostics-net8.0` и
+`PathForge-msi-diagnostics-net10.0` содержат результаты тестов и журналы MSI.
+
+Это альтернативные сборки одного приложения, не пакеты для установки рядом.
+Выберите один вариант. `UpgradeCode`, папка, ярлык и пользовательские настройки
+общие; для перехода на другой вариант той же версии сначала удалите старый MSI.
 
 Сборка выполняется для pull request в `main`, при push в `main` и вручную через
 **Run workflow**. Автоматическая версия — `0.1.<номер запуска>`. При ручном
@@ -29,17 +36,23 @@
 
 ## Собрать локально
 
-Нужны Windows x64, PowerShell 7 и .NET 10 SDK. WiX 5.0.2 закреплён в
+Нужны Windows x64, PowerShell 7 и .NET 8 SDK для варианта .NET 8 либо .NET 10 SDK
+для варианта .NET 10 (он также может собрать вариант .NET 8). WiX 5.0.2 закреплён в
 `.config/dotnet-tools.json`; инструмент и расширение UI загружаются скриптом.
 Для первой сборки нужен доступ к NuGet.
 
 Из корня репозитория:
 
 ```powershell
-pwsh -File installer/build-msi.ps1 -Version 1.0.0
+pwsh -File installer/build-msi.ps1 -Version 1.0.0 -Framework net8.0-windows
+pwsh -File installer/build-msi.ps1 -Version 1.0.0 -Framework net10.0-windows
 ```
 
-Результат: `artifacts/msi/PathForge-1.0.0-win-x64.msi` и контрольная сумма.
+Результаты: `artifacts/msi/PathForge-1.0.0-net8.0-win-x64.msi` и
+`artifacts/msi/PathForge-1.0.0-net10.0-win-x64.msi`, каждый со своей контрольной
+суммой. Без `-Framework` используется `net10.0-windows`.
+Каталоги публикации и генерируемые WiX-файлы разделены по средам выполнения;
+`-SkipPublish` использует ранее опубликованные файлы только выбранного варианта.
 Скрипт очищает каталог публикации, собирает self-contained приложение без
 обрезки WPF и включает все файлы среды выполнения, включая нативные библиотеки
 и подпапки локализации. `THIRD-PARTY-NOTICES.md` также включён в пакет.
@@ -56,10 +69,10 @@ pwsh -File installer/build-msi.ps1 -Version 1.0.0
 В командной строке администратора:
 
 ```powershell
-msiexec /i PathForge-1.0.0-win-x64.msi /qn /norestart /L*v install.log
-msiexec /i PathForge-1.0.0-win-x64.msi INSTALLFOLDER="D:\Apps\PathForge" /qn
-msiexec /fa PathForge-1.0.0-win-x64.msi /qn /norestart
-msiexec /x PathForge-1.0.0-win-x64.msi /qn /norestart
+msiexec /i PathForge-1.0.0-net8.0-win-x64.msi /qn /norestart /L*v install.log
+msiexec /i PathForge-1.0.0-net8.0-win-x64.msi INSTALLFOLDER="D:\Apps\PathForge" /qn
+msiexec /fa PathForge-1.0.0-net8.0-win-x64.msi /qn /norestart
+msiexec /x PathForge-1.0.0-net8.0-win-x64.msi /qn /norestart
 ```
 
 Перед обновлением или удалением закройте PathForge. Код `0` означает успех,
@@ -68,8 +81,8 @@ msiexec /x PathForge-1.0.0-win-x64.msi /qn /norestart
 
 ## Проверки в CI
 
-Workflow запускает тесты ядра на .NET 10, собирает MSI и на отдельном Windows
-runner проверяет:
+Workflow независимо запускает тесты ядра и собирает MSI для .NET 8 и .NET 10.
+Каждый вариант на своём Windows runner проверяет:
 
 1. Установку тестовой старой версии в нестандартную папку с пробелами.
 2. Наличие и SHA-256 всех опубликованных файлов; у ярлыка проверяется путь к
@@ -89,6 +102,7 @@ runner проверяет:
 не автоматизированы; их нужно проверить отдельно перед публичным выпуском.
 
 Скрипт `test-msi.ps1` требует администратора и явного `-AllowMachineChanges`.
+Передавайте тот же `-Framework`, который использован при сборке обоих MSI.
 Используйте его только на одноразовой тестовой машине: он действительно
 устанавливает, восстанавливает и удаляет пакеты. При обнаружении существующей
 установки PathForge проверка останавливается.

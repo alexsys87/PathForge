@@ -2,6 +2,8 @@
 [CmdletBinding()]
 param(
     [string] $Version = '0.1.0',
+    [ValidateSet('net8.0-windows', 'net10.0-windows')]
+    [string] $Framework = 'net10.0-windows',
     [string] $OutputDirectory = 'artifacts/msi',
     [switch] $SkipPublish
 )
@@ -23,8 +25,10 @@ try {
         & dotnet @Arguments
         if ($LASTEXITCODE -ne 0) { throw "dotnet failed with exit code $LASTEXITCODE" }
     }
-    $publishDir = Join-Path $repoRoot 'artifacts/publish/win-x64'
-    $generatedDir = Join-Path $repoRoot 'artifacts/installer-source'
+    $runtimeLabel = $Framework.Replace('-windows', '')
+    $net10 = ($Framework -eq 'net10.0-windows').ToString().ToLowerInvariant()
+    $publishDir = Join-Path $repoRoot "artifacts/publish/$runtimeLabel/win-x64"
+    $generatedDir = Join-Path $repoRoot "artifacts/installer-source/$runtimeLabel"
     $outputDir = [IO.Path]::GetFullPath($OutputDirectory, $repoRoot)
     New-Item -ItemType Directory -Force $generatedDir, $outputDir | Out-Null
     if (-not $SkipPublish) {
@@ -32,18 +36,22 @@ try {
         if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
         Invoke-DotNet -Arguments @(
             'publish', 'src/PathForge.App/PathForge.App.csproj',
-            '-c', 'Release', '-f', 'net10.0-windows', '-r', 'win-x64',
-            '--self-contained', 'true', '-p:PathForgeNet10=true',
+            '-c', 'Release', '-f', $Framework, '-r', 'win-x64',
+            '--self-contained', 'true', "-p:PathForgeNet10=$net10",
             '-p:PublishSingleFile=false', '-p:PublishTrimmed=false',
             '-p:DebugType=none', '-p:DebugSymbols=false', "-p:Version=$Version",
             '-o', $publishDir
         )
         Copy-Item 'THIRD-PARTY-NOTICES.md' $publishDir
     }
-    foreach ($required in @('PathForge.exe', 'PathForge.dll', 'coreclr.dll', 'PresentationFramework.dll', 'THIRD-PARTY-NOTICES.md')) {
+    foreach ($required in @('PathForge.exe', 'PathForge.dll', 'PathForge.runtimeconfig.json', 'coreclr.dll', 'PresentationFramework.dll', 'THIRD-PARTY-NOTICES.md')) {
         if (-not (Test-Path (Join-Path $publishDir $required) -PathType Leaf)) {
             throw "Self-contained publish is missing $required. Run without -SkipPublish."
         }
+    }
+    $runtimeConfig = Get-Content (Join-Path $publishDir 'PathForge.runtimeconfig.json') -Raw | ConvertFrom-Json
+    if ($runtimeConfig.runtimeOptions.tfm -ne $runtimeLabel) {
+        throw "Published runtime does not match $Framework. Run without -SkipPublish."
     }
 
     # One file per component, stable IDs based on relative paths. This also
@@ -74,7 +82,7 @@ try {
     $doc.Save($fragment)
     Invoke-DotNet -Arguments @('tool', 'restore')
     Invoke-DotNet -Arguments @('tool', 'run', 'wix', 'extension', 'add', '-g', 'WixToolset.UI.wixext/5.0.2')
-    $msi = Join-Path $outputDir "PathForge-$Version-win-x64.msi"
+    $msi = Join-Path $outputDir "PathForge-$Version-$runtimeLabel-win-x64.msi"
     Invoke-DotNet -Arguments @(
         'tool', 'run', 'wix', 'build', 'installer/PathForge.wxs', $fragment,
         '-arch', 'x64', '-ext', 'WixToolset.UI.wixext',
