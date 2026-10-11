@@ -369,12 +369,33 @@ PathForge читает те же файлы, что и завод: **Gerber** и
 
 ### MSI-установщик для Windows x64
 
-Workflow **Windows MSI** собирает установщик со встроенным .NET 10: выбор папки,
-ярлык в меню «Пуск», обновление и удаление через Windows. После успешной сборки
-скачайте `.msi` из **Actions → Windows MSI → Artifacts**.
+Workflow **Windows MSI** собирает два варианта установщика: со встроенным **.NET 8 / WPF**
+и со встроенным **.NET 10 / WPF**. Отдельно устанавливать .NET не требуется.
+Оба варианта поддерживают выбор папки, ярлык в меню «Пуск», обновление,
+восстановление и удаление через Windows; каждый проходит проверки в CI.
 
-Локальная сборка: `pwsh -File installer/build-msi.ps1 -Version 1.0.0`
-(Windows, PowerShell 7 и .NET 10 SDK).
+После успешной сборки откройте **Actions → Windows MSI → успешный запуск → Artifacts**
+и скачайте один из архивов:
+
+- `PathForge-<версия>-net8.0-win-x64-msi` — вариант на .NET 8;
+- `PathForge-<версия>-net10.0-win-x64-msi` — вариант на .NET 10.
+
+В каждом архиве находятся `.msi` и контрольная сумма `.msi.sha256`.
+Это альтернативные сборки одного приложения, а не пакеты для установки рядом.
+Для перехода между вариантами той же версии сначала удалите старый MSI;
+пользовательские настройки сохраняются.
+
+Локальная сборка (Windows x64 и PowerShell 7):
+
+```powershell
+pwsh -File installer/build-msi.ps1 -Version 1.0.0 -Framework net8.0-windows
+pwsh -File installer/build-msi.ps1 -Version 1.0.0 -Framework net10.0-windows
+```
+
+Для варианта .NET 8 нужен .NET 8 SDK или новее; для .NET 10 — .NET 10 SDK.
+Результаты: `artifacts/msi/PathForge-1.0.0-net8.0-win-x64.msi` и
+`artifacts/msi/PathForge-1.0.0-net10.0-win-x64.msi`, каждый со своей SHA-256.
+Без `-Framework` скрипт по умолчанию собирает вариант .NET 10.
 Подробности, тихая установка и ограничения: [installer/README.md](installer/README.md).
 
 ### Один exe-файл без установки .NET
