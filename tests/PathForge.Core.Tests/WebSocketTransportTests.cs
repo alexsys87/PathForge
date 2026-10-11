@@ -11,11 +11,12 @@ namespace PathForge.Core.Tests;
 public sealed class WebSocketTransportTests : IDisposable
 {
     private static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan FailureWait = TimeSpan.FromSeconds(15);
 
     private readonly HttpListener _listener = new();
     private readonly int _wsPort = FreePort();
     private readonly int _httpPort = FreePort();
-    private readonly TaskCompletionSource<WebSocket> _board = new();
+    private readonly TaskCompletionSource<WebSocket> _board = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly BlockingCollection<string> _commands = new();
     private readonly BlockingCollection<string> _rawQueries = new();
 
@@ -32,7 +33,15 @@ public sealed class WebSocketTransportTests : IDisposable
 
     private HttpStatusCode HttpStatus { get; set; } = HttpStatusCode.OK;
 
-    public void Dispose() => _listener.Close();
+    public void Dispose()
+    {
+        if (_board.Task.IsCompletedSuccessfully)
+        {
+            _board.Task.Result.Dispose();
+        }
+
+        _listener.Close();
+    }
 
     [Fact]
     public void Output_comes_from_the_socket_and_commands_go_over_http()
@@ -116,32 +125,38 @@ public sealed class WebSocketTransportTests : IDisposable
         Assert.Empty(_commands);
     }
 
-    [Fact]
-    public async Task Board_closing_the_socket_is_reported()
+    [Theory]
+    [InlineData(WebSocketCommandRoute.Http)]
+    [InlineData(WebSocketCommandRoute.WebSocket)]
+    public async Task Board_closing_the_socket_is_reported(WebSocketCommandRoute route)
     {
-        using var transport = Connect(WebSocketCommandRoute.Http);
-        var failures = new BlockingCollection<Exception>();
-        transport.Failed += failures.Add;
+        using var transport = Connect(route);
+        var failure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        transport.Failed += error => failure.TrySetResult(error);
         transport.Start();
 
-        await Board().CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+        using var timeout = new CancellationTokenSource(FailureWait);
+        await Board().CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", timeout.Token);
 
-        Assert.True(failures.TryTake(out _, Wait));
+        // Do not block a test-host worker while waiting for network I/O completions. In Debug on
+        // .NET 8 the busy Windows runner can otherwise time out before the close is dispatched.
+        var error = await failure.Task.WaitAsync(timeout.Token);
+        Assert.IsType<IOException>(error);
         Assert.Throws<IOException>(() => transport.Write("G0X1\n"));
     }
 
     [Fact]
-    public void Login_required_by_the_board_is_reported()
+    public async Task Login_required_by_the_board_is_reported()
     {
         HttpStatus = HttpStatusCode.Unauthorized;
         using var transport = Connect(WebSocketCommandRoute.Http);
-        var failures = new BlockingCollection<Exception>();
-        transport.Failed += failures.Add;
+        var failure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        transport.Failed += error => failure.TrySetResult(error);
         transport.Start();
 
         transport.Write("$X\n");
 
-        Assert.True(failures.TryTake(out var error, Wait));
+        var error = await failure.Task.WaitAsync(FailureWait);
         Assert.IsType<IOException>(error);
     }
 
