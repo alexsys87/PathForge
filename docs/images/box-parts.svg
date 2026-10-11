@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="580" viewBox="0 0 880 580" font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Коробка 100 × 60 × 40 мм (внутри), фанера 3 мм, шип 10 мм</title>
+<desc id="d">Так детали ложатся на лист после «+ Коробка»: вид изнутри, перед и правая стенка зеркальны. Размеры — наружные, мм.</desc>
+<defs>
+<pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#6e5226" stroke-width="1.6" opacity="0.65"/></pattern>
+<marker id="arr" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 z" fill="#1f5fa5"/></marker>
+</defs>
+<rect x="0.5" y="0.5" width="879" height="579" rx="10" fill="#ffffff" stroke="#d5d0c6"/>
+<text x="40.0" y="34.0" font-size="17" text-anchor="start" fill="#2e2a24" font-weight="bold">Коробка 100 × 60 × 40 мм (внутри), фанера 3 мм, шип 10 мм</text>
+<text x="40.0" y="56.0" font-size="12.5" text-anchor="start" fill="#6b6358" font-weight="normal">Так детали ложатся на лист после «+ Коробка»: вид изнутри, перед и правая стенка зеркальны. Размеры — наружные, мм.</text>
+<path d="M379.20 442.80 L369.60 442.80 L369.60 433.20 L379.20 433.20 Z M379.20 394.80 L369.60 394.80 L369.60 433.20 L334.04 433.20 L334.04 442.80 L298.49 442.80 L298.49 433.20 L262.93 433.20 L262.93 442.80 L227.38 442.80 L227.38 433.20 L191.82 433.20 L191.82 442.80 L156.27 442.80 L156.27 433.20 L120.71 433.20 L120.71 442.80 L85.16 442.80 L85.16 433.20 L49.60 433.20 L49.60 394.80 L40.00 394.80 L40.00 356.40 L49.60 356.40 L49.60 318.00 L40.00 318.00 L40.00 279.60 L49.60 279.60 L49.60 241.20 L85.16 241.20 L85.16 231.60 L120.71 231.60 L120.71 241.20 L156.27 241.20 L156.27 231.60 L191.82 231.60 L191.82 241.20 L227.38 241.20 L227.38 231.60 L262.93 231.60 L262.93 241.20 L298.49 241.20 L298.49 231.60 L334.04 231.60 L334.04 241.20 L369.60 241.20 L369.60 279.60 L379.20 279.60 L379.20 318.00 L369.60 318.00 L369.60 356.40 L379.20 356.40 Z M379.20 231.60 L379.20 241.20 L369.60 241.20 L369.60 231.60 Z M40.00 231.60 L49.60 231.60 L49.60 241.20 L40.00 241.20 Z M40.00 442.80 L40.00 433.20 L49.60 433.20 L49.60 442.80 Z" fill="#ecdcb8" stroke="#6e5226" stroke-width="1.3" fill-rule="evenodd" stroke-linejoin="round"/>
+<text x="209.6" y="335.2" font-size="14" text-anchor="middle" fill="#2e2a24" font-weight="bold">Дно</text>
+<text x="209.6" y="352.2" font-size="12.5" text-anchor="middle" fill="#6b6358" font-weight="normal">106 × 66</text>
+<path d="M395.20 433.20 L404.80 433.20 L404.80 442.80 L440.36 442.80 L440.36 433.20 L475.91 433.20 L475.91 442.80 L511.47 442.80 L511.47 433.20 L547.02 433.20 L547.02 442.80 L582.58 442.80 L582.58 433.20 L618.13 433.20 L618.13 442.80 L653.69 442.80 L653.69 433.20 L689.24 433.20 L689.24 442.80 L724.80 442.80 L724.80 433.20 L734.40 433.20 L734.40 390.53 L724.80 390.53 L724.80 347.87 L734.40 347.87 L734.40 305.20 L395.20 305.20 L395.20 347.87 L404.80 347.87 L404.80 390.53 L395.20 390.53 Z" fill="#ecdcb8" stroke="#6e5226" stroke-width="1.3" fill-rule="evenodd" stroke-linejoin="round"/>
+<text x="564.8" y="372.0" font-size="14" text-anchor="middle" fill="#2e2a24" font-weight="bold">Перед</text>
+<text x="564.8" y="389.0" font-size="12.5" text-anchor="middle" fill="#6b6358" font-weight="normal">106 × 43</text>
+<path d="M379.20 206.00 L369.60 206.00 L369.60 215.60 L334.04 215.60 L334.04 206.00 L298.49 206.00 L298.49 215.60 L262.93 215.60 L262.93 206.00 L227.38 206.00 L227.38 215.60 L191.82 215.60 L191.82 206.00 L156.27 206.00 L156.27 215.60 L120.71 215.60 L120.71 206.00 L85.16 206.00 L85.16 215.60 L49.60 215.60 L49.60 206.00 L40.00 206.00 L40.00 163.33 L49.60 163.33 L49.60 120.67 L40.00 120.67 L40.00 78.00 L379.20 78.00 L379.20 120.67 L369.60 120.67 L369.60 163.33 L379.20 163.33 Z" fill="#ecdcb8" stroke="#6e5226" stroke-width="1.3" fill-rule="evenodd" stroke-linejoin="round"/>
+<text x="209.6" y="144.8" font-size="14" text-anchor="middle" fill="#2e2a24" font-weight="bold">Зад</text>
+<text x="209.6" y="161.8" font-size="12.5" text-anchor="middle" fill="#6b6358" font-weight="normal">106 × 43</text>
+<path d="M606.40 163.33 L596.80 163.33 L596.80 206.00 L596.80 215.60 L558.40 215.60 L558.40 206.00 L520.00 206.00 L520.00 215.60 L481.60 215.60 L481.60 206.00 L443.20 206.00 L443.20 215.60 L404.80 215.60 L404.80 206.00 L404.80 163.33 L395.20 163.33 L395.20 120.67 L404.80 120.67 L404.80 78.00 L596.80 78.00 L596.80 120.67 L606.40 120.67 Z" fill="#ecdcb8" stroke="#6e5226" stroke-width="1.3" fill-rule="evenodd" stroke-linejoin="round"/>
+<text x="500.8" y="144.8" font-size="14" text-anchor="middle" fill="#2e2a24" font-weight="bold">Левая стенка</text>
+<text x="500.8" y="161.8" font-size="12.5" text-anchor="middle" fill="#6b6358" font-weight="normal">66 × 43</text>
+<path d="M622.40 163.33 L632.00 163.33 L632.00 206.00 L632.00 215.60 L670.40 215.60 L670.40 206.00 L708.80 206.00 L708.80 215.60 L747.20 215.60 L747.20 206.00 L785.60 206.00 L785.60 215.60 L824.00 215.60 L824.00 206.00 L824.00 163.33 L833.60 163.33 L833.60 120.67 L824.00 120.67 L824.00 78.00 L632.00 78.00 L632.00 120.67 L622.40 120.67 Z" fill="#ecdcb8" stroke="#6e5226" stroke-width="1.3" fill-rule="evenodd" stroke-linejoin="round"/>
+<text x="728.0" y="144.8" font-size="14" text-anchor="middle" fill="#2e2a24" font-weight="bold">Правая стенка</text>
+<text x="728.0" y="161.8" font-size="12.5" text-anchor="middle" fill="#6b6358" font-weight="normal">66 × 43</text>
+<circle cx="20.80" cy="424.00" r="9.00" fill="#1f5fa5" stroke="#1f5fa5" stroke-width="1.2"/>
+<text x="20.8" y="428.2" font-size="11.5" text-anchor="middle" fill="#ffffff" font-weight="bold">1</text>
+<line x1="28.8" y1="428.0" x2="41.8" y2="437.0" stroke="#1f5fa5" stroke-width="1.2"/>
+<line x1="49.6" y1="458.8" x2="369.6" y2="458.8" stroke="#1f5fa5" stroke-width="1.4" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<circle cx="387.60" cy="458.80" r="9.00" fill="#1f5fa5" stroke="#1f5fa5" stroke-width="1.2"/>
+<text x="387.6" y="463.0" font-size="11.5" text-anchor="middle" fill="#ffffff" font-weight="bold">2</text>
+<line x1="847.6" y1="215.6" x2="847.6" y2="78.0" stroke="#1f5fa5" stroke-width="1.4" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<circle cx="862.60" cy="146.80" r="9.00" fill="#1f5fa5" stroke="#1f5fa5" stroke-width="1.2"/>
+<text x="862.6" y="151.0" font-size="11.5" text-anchor="middle" fill="#ffffff" font-weight="bold">3</text>
+<circle cx="48.00" cy="496.80" r="9.00" fill="#1f5fa5" stroke="#1f5fa5" stroke-width="1.2"/>
+<text x="48.0" y="501.0" font-size="11.5" text-anchor="middle" fill="#ffffff" font-weight="bold">1</text>
+<text x="66.0" y="500.8" font-size="12.5" text-anchor="start" fill="#2e2a24" font-weight="normal">Угловой квадрат 3 × 3 мм всегда у дна: в углах стенки на толщину короче дна.</text>
+<circle cx="48.00" cy="520.80" r="9.00" fill="#1f5fa5" stroke="#1f5fa5" stroke-width="1.2"/>
+<text x="48.0" y="525.0" font-size="11.5" text-anchor="middle" fill="#ffffff" font-weight="bold">2</text>
+<text x="66.0" y="524.8" font-size="12.5" text-anchor="start" fill="#2e2a24" font-weight="normal">Шипы чередуются «стенка — дно», на кромке их нечётное число (не меньше 3): длинная кромка 106 мм — 9 шипов по 11,1 мм.</text>
+<circle cx="48.00" cy="544.80" r="9.00" fill="#1f5fa5" stroke="#1f5fa5" stroke-width="1.2"/>
+<text x="48.0" y="549.0" font-size="11.5" text-anchor="middle" fill="#ffffff" font-weight="bold">3</text>
+<text x="66.0" y="548.8" font-size="12.5" text-anchor="start" fill="#2e2a24" font-weight="normal">По высоте стенки 43 мм — 3 шипа по 13,3 мм; короткая кромка дна 66 мм — 5 шипов по 12 мм.</text>
+</svg>
