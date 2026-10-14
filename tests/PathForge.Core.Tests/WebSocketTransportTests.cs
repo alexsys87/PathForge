@@ -44,19 +44,19 @@ public sealed class WebSocketTransportTests : IDisposable
     }
 
     [Fact]
-    public void Output_comes_from_the_socket_and_commands_go_over_http()
+    public async Task Output_comes_from_the_socket_and_commands_go_over_http()
     {
-        using var transport = Connect(WebSocketCommandRoute.Http);
+        using var transport = await ConnectAsync(WebSocketCommandRoute.Http);
         var lines = new BlockingCollection<string>();
         transport.LineReceived += lines.Add;
         transport.Start();
-        var board = Board();
+        var board = await BoardAsync();
 
         // Service messages of the web interface are not GRBL output; a line may be split between frames.
-        SendText(board, "CURRENT_ID:0");
-        SendBinary(board, "<Idle|MPos:0.000,0.000,0.000|FS:0,0>\r\no");
-        SendText(board, "PING:5000:5000");
-        SendBinary(board, "k\r\n");
+        await SendTextAsync(board, "CURRENT_ID:0");
+        await SendBinaryAsync(board, "<Idle|MPos:0.000,0.000,0.000|FS:0,0>\r\no");
+        await SendTextAsync(board, "PING:5000:5000");
+        await SendBinaryAsync(board, "k\r\n");
         Assert.Equal("<Idle|MPos:0.000,0.000,0.000|FS:0,0>", Take(lines));
         Assert.Equal("ok", Take(lines));
 
@@ -77,16 +77,16 @@ public sealed class WebSocketTransportTests : IDisposable
     }
 
     [Fact]
-    public void Status_queries_do_not_pile_up_on_a_slow_link()
+    public async Task Status_queries_do_not_pile_up_on_a_slow_link()
     {
         HttpDelay = TimeSpan.FromMilliseconds(300);
-        using var transport = Connect(WebSocketCommandRoute.Http);
+        using var transport = await ConnectAsync(WebSocketCommandRoute.Http);
         transport.Start();
 
         for (var i = 0; i < 10; i++)
         {
             transport.WriteRealtime((byte)'?');
-            Thread.Sleep(20);
+            await Task.Delay(20);
         }
 
         transport.Write("G0X1\n");
@@ -103,9 +103,9 @@ public sealed class WebSocketTransportTests : IDisposable
     [Fact]
     public async Task Bridge_route_writes_commands_into_the_socket()
     {
-        using var transport = Connect(WebSocketCommandRoute.WebSocket);
+        using var transport = await ConnectAsync(WebSocketCommandRoute.WebSocket);
         transport.Start();
-        var board = Board();
+        var board = await BoardAsync();
 
         transport.Write("G0X1\n");
         transport.WriteRealtime(0x85);
@@ -130,13 +130,14 @@ public sealed class WebSocketTransportTests : IDisposable
     [InlineData(WebSocketCommandRoute.WebSocket)]
     public async Task Board_closing_the_socket_is_reported(WebSocketCommandRoute route)
     {
-        using var transport = Connect(route);
+        using var transport = await ConnectAsync(route);
         var failure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         transport.Failed += error => failure.TrySetResult(error);
         transport.Start();
 
         using var timeout = new CancellationTokenSource(FailureWait);
-        await Board().CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", timeout.Token);
+        var board = await BoardAsync();
+        await board.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", timeout.Token);
 
         // Do not block a test-host worker while waiting for network I/O completions. In Debug on
         // .NET 8 the busy Windows runner can otherwise time out before the close is dispatched.
@@ -149,7 +150,7 @@ public sealed class WebSocketTransportTests : IDisposable
     public async Task Login_required_by_the_board_is_reported()
     {
         HttpStatus = HttpStatusCode.Unauthorized;
-        using var transport = Connect(WebSocketCommandRoute.Http);
+        using var transport = await ConnectAsync(WebSocketCommandRoute.Http);
         var failure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         transport.Failed += error => failure.TrySetResult(error);
         transport.Start();
@@ -166,13 +167,14 @@ public sealed class WebSocketTransportTests : IDisposable
         Assert.ThrowsAny<IOException>(() => new WebSocketTransport("127.0.0.1", FreePort()));
     }
 
-    private WebSocketTransport Connect(WebSocketCommandRoute route) => new("127.0.0.1", _wsPort, route, _httpPort);
+    // The public constructor is synchronous. Run it outside xUnit's bounded worker context,
+    // so the local HTTP/WebSocket server can finish the handshake while the test awaits it.
+    // CI scheduling is not a board-connect-timeout test: allow a separate setup budget without
+    // changing the application's four-second default or retrying a failed test.
+    private Task<WebSocketTransport> ConnectAsync(WebSocketCommandRoute route) => Task.Run(() =>
+        new WebSocketTransport("127.0.0.1", _wsPort, route, _httpPort, connectTimeout: FailureWait));
 
-    private WebSocket Board()
-    {
-        Assert.True(_board.Task.Wait(Wait), "the transport did not open the WebSocket");
-        return _board.Task.Result;
-    }
+    private Task<WebSocket> BoardAsync() => _board.Task.WaitAsync(FailureWait);
 
     private async Task ServeAsync()
     {
@@ -212,11 +214,17 @@ public sealed class WebSocketTransportTests : IDisposable
         }
     }
 
-    private static void SendText(WebSocket socket, string text) =>
-        socket.SendAsync(Encoding.ASCII.GetBytes(text), WebSocketMessageType.Text, true, CancellationToken.None).GetAwaiter().GetResult();
+    private static async Task SendTextAsync(WebSocket socket, string text)
+    {
+        using var timeout = new CancellationTokenSource(Wait);
+        await socket.SendAsync(Encoding.ASCII.GetBytes(text), WebSocketMessageType.Text, true, timeout.Token);
+    }
 
-    private static void SendBinary(WebSocket socket, string text) =>
-        socket.SendAsync(Encoding.ASCII.GetBytes(text), WebSocketMessageType.Binary, true, CancellationToken.None).GetAwaiter().GetResult();
+    private static async Task SendBinaryAsync(WebSocket socket, string text)
+    {
+        using var timeout = new CancellationTokenSource(Wait);
+        await socket.SendAsync(Encoding.ASCII.GetBytes(text), WebSocketMessageType.Binary, true, timeout.Token);
+    }
 
     private static string Take(BlockingCollection<string> lines)
     {
