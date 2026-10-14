@@ -1533,6 +1533,25 @@
                                 <Button Content="{l:Tr 'Отключить', En='Disconnect'}" ToolTip="{l:Tr 'Закрыть соединение со станком или отменить автоматическое восстановление связи. Если программа выполняется, станок доработает уже принятые команды.', En='Close the connection to the machine or cancel automatic reconnection. If a program is running, the machine finishes the commands it has already received.'}" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}" />
                             </WrapPanel>
                             <TextBlock Text="{Binding VersionText}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                            <StackPanel Margin="0,4,0,0" Visibility="{Binding IsFlashPanelVisible, Converter={StaticResource BoolToVisibility}}">
+                                <WrapPanel>
+                                    <Button Content="{l:Tr 'Считать прошивку', En='Read firmware'}" Command="{Binding ReadFirmwareCommand}"
+                                            ToolTip="{l:Tr 'Считать всю флеш-память платы (у MKS DLC32 — 8 МБ) в файл .bin: полная копия прошивки и настроек GRBL, по которой плату можно восстановить кнопкой «Прошить…». Работает через esptool: на время операции PathForge закрывает COM-порт, затем плата перезапускается. Считывание 8 МБ занимает несколько минут.', En='Save the whole flash of the board (8 MB in the MKS DLC32) into a .bin file: a full copy of the firmware and the GRBL settings, from which the board can be restored with the Flash button. It runs through esptool: PathForge closes the COM port for the time of the operation, then the board restarts. Reading 8 MB takes a few minutes.'}" />
+                                    <Button Content="{l:Tr 'Прошить…', En='Flash…'}" Command="{Binding WriteFirmwareCommand}"
+                                            ToolTip="{l:Tr 'Записать в плату файл прошивки .bin с адреса 0x0. Нужен полный образ флеш-памяти: файл прошивки MKS DLC32 или дамп, снятый кнопкой «Считать прошивку»; отдельные части (загрузчик, приложение) PathForge не записывает. Запись проверяется контрольной суммой. Сначала снимите дамп текущей прошивки, во время записи не отключайте плату.', En='Write a .bin firmware file to the board from address 0x0. It must be a whole flash image: a firmware file of the MKS DLC32 or a dump made with the Read firmware button; PathForge does not write single parts (a bootloader or an application). The writing is checked with a checksum. Read the current firmware first and do not disconnect the board during the writing.'}" />
+                                    <Button Content="{l:Tr 'Отмена', En='Cancel'}" Command="{Binding CancelFlashCommand}"
+                                            Visibility="{Binding IsFlashBusy, Converter={StaticResource BoolToVisibility}}"
+                                            ToolTip="{l:Tr 'Прервать считывание или запись. Прерванная запись может оставить во флеш-памяти неполную прошивку: тогда запишите её заново.', En='Stop the reading or the writing. A writing that is stopped can leave an incomplete firmware in the flash: write it again then.'}" />
+                                </WrapPanel>
+                                <DockPanel Margin="0,0,0,3" IsEnabled="{Binding IsFlashIdle}">
+                                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,6,0" Text="{l:Tr 'Скорость', En='Speed'}" />
+                                    <ComboBox ItemsSource="{Binding FlashBaudRates}" SelectedItem="{Binding FlashBaud}"
+                                              ToolTip="{l:Tr 'Скорость COM-порта при считывании и записи флеш-памяти (для обычной работы с GRBL используется 115200). 460800 подходит большинству плат; при сбоях связи снизьте скорость.', En='Speed of the COM port while the flash is read or written (normal work with GRBL uses 115200). 460800 suits most boards; lower it if the link fails.'}" />
+                                </DockPanel>
+                                <ProgressBar Height="12" Margin="0,2" Maximum="100" Value="{Binding FlashProgress}"
+                                             Visibility="{Binding IsFlashBusy, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding FlashStatus}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
 
                             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:Tr 'Состояние', En='State'}" />
                             <TextBlock Text="{Binding StateText}" FontWeight="SemiBold" FontSize="14">

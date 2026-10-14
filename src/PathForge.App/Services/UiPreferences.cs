@@ -82,6 +82,15 @@ public sealed class UiPreferences
 
     public int MachineNetworkPort { get; set; } = TelnetTransport.DefaultPort;
 
+    /// <summary>
+    /// Where esptool is, when the operator named the file (it reads and writes the flash of the MKS DLC32); empty to look for
+    /// it in the usual places.
+    /// </summary>
+    public string EsptoolPath { get; set; } = "";
+
+    /// <summary>Speed of the port while the flash of the MKS DLC32 is read or written.</summary>
+    public int FlashBaud { get; set; } = Esp32FlashSession.DefaultBaud;
+
     /// <summary>Size and position of the main window and its panels at the last close (null before the first close).</summary>
     public WindowLayout? Window { get; set; }
 

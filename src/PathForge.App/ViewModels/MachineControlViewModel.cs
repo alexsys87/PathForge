@@ -115,6 +115,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         };
         _jogTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(ContinuousJog.TickMs) };
         _jogTimer.Tick += (_, _) => JogTick();
+        FlashBaud = FlashBaudRates.Contains(preferences.FlashBaud) ? preferences.FlashBaud : Esp32FlashSession.DefaultBaud;
         RefreshPorts();
     }
 
@@ -124,6 +125,14 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     public ObservableCollection<string> Ports { get; } = new();
 
     public IReadOnlyList<int> BaudRates { get; } = new[] { 115200, 250000, 57600, 38400, 19200, 9600 };
+
+    /// <summary>Speeds of the port for the flash of the board; the default of esptool is the first.</summary>
+    public IReadOnlyList<int> FlashBaudRates { get; } = new[] { 460800, 921600, 230400, 115200 };
+
+    /// <summary>The buttons that read and write the flash are shown in the firmware mode, and while esptool works.</summary>
+    public bool IsFlashPanelVisible => IsFirmwareConnected || IsFlashBusy;
+
+    public bool IsFlashIdle => !IsFlashBusy;
 
     public IReadOnlyList<double> JogSteps { get; } = new[] { 0.01, 0.1, 0.5, 1, 5, 10, 50 };
 
@@ -150,6 +159,30 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// </summary>
     [ObservableProperty]
     private bool firmwareMode;
+
+    /// <summary>The board is in the firmware mode and the connection to it is open: the buttons for its flash are shown.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFlashPanelVisible))]
+    [NotifyCanExecuteChangedFor(nameof(ReadFirmwareCommand), nameof(WriteFirmwareCommand))]
+    private bool isFirmwareConnected;
+
+    /// <summary>esptool is reading or writing the flash. The connection is closed meanwhile: esptool needs the port.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFlashPanelVisible), nameof(IsFlashIdle))]
+    [NotifyCanExecuteChangedFor(nameof(ReadFirmwareCommand), nameof(WriteFirmwareCommand), nameof(ConnectCommand))]
+    private bool isFlashBusy;
+
+    /// <summary>Progress of the reading or writing of the flash, 0 to 100.</summary>
+    [ObservableProperty]
+    private double flashProgress;
+
+    /// <summary>What the reading or writing of the flash is doing, and then how it ended.</summary>
+    [ObservableProperty]
+    private string flashStatus = "";
+
+    /// <summary>Speed of the port while the flash is read or written.</summary>
+    [ObservableProperty]
+    private int flashBaud = Esp32FlashSession.DefaultBaud;
 
     /// <summary>Connection kinds for the list, named in the interface language.</summary>
     [ObservableProperty]
@@ -522,7 +555,8 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         SelectedPort = current is not null && Ports.Contains(current) ? current : Ports.LastOrDefault();
     }
 
-    private bool CanConnect() => IsNetwork ? !string.IsNullOrWhiteSpace(Host) : !string.IsNullOrEmpty(SelectedPort);
+    private bool CanConnect() =>
+        !IsFlashBusy && (IsNetwork ? !string.IsNullOrWhiteSpace(Host) : !string.IsNullOrEmpty(SelectedPort));
 
     /// <summary>The port field follows the connection kind unless the user typed a port of their own.</summary>
     partial void OnConnectionKindChanged(MachineConnectionKind oldValue, MachineConnectionKind newValue)
@@ -614,6 +648,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         _target = target;
         _controller = CreateController(transport);
         IsConnected = true;
+        IsFirmwareConnected = target.FirmwareMode;
         AddLog(new GrblLogEntry(GrblLogKind.Info, target.FirmwareMode
             ? Loc.T($"Подключено: {target.Describe()}.", $"Connected: {target.Describe()}.")
             : Loc.T(
@@ -796,6 +831,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         _target = null;
         _jobStarted = null;
         IsConnected = false;
+        IsFirmwareConnected = false;
         Refresh();
     }
 
@@ -1502,6 +1538,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
     public void Dispose()
     {
+        _flashCts?.Cancel();
         _jogTimer.Stop();
         CloseConnection();
     }
@@ -1573,6 +1610,221 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         JobMessage = "";
         ToolPosition = null;
     }
+
+    // ---- Reading and writing the flash of the MKS DLC32 (firmware mode) -----------------------
+
+    private CancellationTokenSource? _flashCts;
+    private Esp32FlashSession? _flashSession;
+
+    private bool CanStartFlash() => IsFirmwareConnected && !IsFlashBusy;
+
+    /// <summary>Saves the whole flash of the board into a file: a copy of the firmware and of the GRBL settings.</summary>
+    [RelayCommand(CanExecute = nameof(CanStartFlash))]
+    private Task ReadFirmwareAsync() => RunFlashAsync(write: false);
+
+    /// <summary>Writes a whole flash image to the board from address 0.</summary>
+    [RelayCommand(CanExecute = nameof(CanStartFlash))]
+    private Task WriteFirmwareAsync() => RunFlashAsync(write: true);
+
+    [RelayCommand]
+    private void CancelFlash() => _flashCts?.Cancel();
+
+    private async Task RunFlashAsync(bool write)
+    {
+        if (IsFlashBusy || _target is not { FirmwareMode: true } target)
+        {
+            return;
+        }
+
+        // The file comes first, while the panel still holds the board: a cancelled dialog changes nothing.
+        var file = write ? ChooseImageToWrite() : ChooseFileForDump();
+        if (file is null)
+        {
+            return;
+        }
+
+        // From here to the end the operation can be cancelled, whatever it is doing at the moment.
+        using var cts = new CancellationTokenSource();
+        _flashCts = cts;
+        IsFlashBusy = true;
+        FlashProgress = 0;
+        FlashStatus = Loc.T("Поиск esptool…", "Looking for esptool…");
+        try
+        {
+            var session = FlashSession();
+            if (!await EnsureEsptoolAsync(session, cts.Token))
+            {
+                FlashStatus = "";
+                return;
+            }
+
+            // esptool needs the port for itself: the connection is closed (the board stays in the bootloader).
+            var port = target.Address;
+            CloseConnection();
+            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
+                $"Порт {port} освобождён для esptool.",
+                $"Port {port} is released for esptool.")));
+            await Task.Delay(400, cts.Token); // Windows needs a moment to let go of a COM port
+
+            _preferences.FlashBaud = FlashBaud;
+            _preferences.Save();
+
+            var baud = FlashBaud;
+            FlashOutcome outcome;
+            try
+            {
+                outcome = await Task.Run(() => write
+                    ? session.WriteAsync(port, baud, file, cts.Token)
+                    : session.ReadAsync(port, baud, file, cts.Token));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                outcome = new FlashOutcome(FlashResult.Failed, Loc.T($"Ошибка работы с файлом: {ex.Message}", $"File error: {ex.Message}"));
+            }
+
+            ShowFlashOutcome(outcome);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Cancelled before esptool was started: nothing has been touched.
+            FlashStatus = Loc.T("Отменено.", "Cancelled.");
+            AddLog(new GrblLogEntry(GrblLogKind.Info, FlashStatus));
+        }
+        finally
+        {
+            _flashCts = null;
+            IsFlashBusy = false;
+        }
+    }
+
+    private void ShowFlashOutcome(FlashOutcome outcome)
+    {
+        FlashStatus = outcome.Message;
+        FlashProgress = outcome.Success ? 100 : FlashProgress;
+        AddLog(new GrblLogEntry(outcome.Success ? GrblLogKind.Info : GrblLogKind.Error, outcome.Message));
+
+        var next = Loc.T(
+            "Соединение с платой закрыто. Чтобы управлять станком, снимите флажок «Режим прошивки» и нажмите «Подключить».",
+            "The connection to the board is closed. To control the machine, clear the Firmware mode box and press Connect.");
+        if (outcome.Success)
+        {
+            _dialogs.ShowInfo($"{outcome.Message}\n\n{next}");
+        }
+        else if (outcome.Result != FlashResult.Cancelled || outcome.WriteStarted)
+        {
+            // A write that was cut short may have left the board without a firmware: that is not a thing to miss in a log.
+            _dialogs.ShowError($"{outcome.Message}\n\n{next}");
+        }
+    }
+
+    private Esp32FlashSession FlashSession() => _flashSession ??= new Esp32FlashSession(
+        new EsptoolProcess(),
+        AppContext.BaseDirectory,
+        text => _dispatcher.BeginInvoke(() => AddLog(new GrblLogEntry(GrblLogKind.Info, text))),
+        (percent, text) => _dispatcher.BeginInvoke(() =>
+        {
+            FlashProgress = percent;
+            FlashStatus = text;
+        }))
+    {
+        ExplicitToolPath = string.IsNullOrWhiteSpace(_preferences.EsptoolPath) ? null : _preferences.EsptoolPath,
+    };
+
+    /// <summary>Finds esptool; when it is nowhere to be found, offers to name its file.</summary>
+    private async Task<bool> EnsureEsptoolAsync(Esp32FlashSession session, CancellationToken token)
+    {
+        while (true)
+        {
+            var tool = await Task.Run(() => session.FindToolAsync(token), token);
+            if (tool is not null)
+            {
+                AddLog(new GrblLogEntry(GrblLogKind.Info, $"esptool {tool.Version}: {tool.Describe()}"));
+                return true;
+            }
+
+            if (!_dialogs.Confirm(Loc.T(
+                    "esptool не найден. Он нужен для чтения и записи флеш-памяти. Установите его командой pip install esptool или скачайте готовую сборку для Windows на github.com/espressif/esptool/releases (esptool-…-windows-amd64.zip) и распакуйте рядом с PathForge.exe. Если esptool уже есть на компьютере, можно указать файл esptool.exe сейчас. Указать файл?",
+                    "esptool was not found. It is needed to read and write the flash. Install it with pip install esptool, or download the ready build for Windows from github.com/espressif/esptool/releases (esptool-...-windows-amd64.zip) and unpack it next to PathForge.exe. If esptool is on this computer already, you can name its esptool.exe now. Name the file?")))
+            {
+                return false;
+            }
+
+            var path = _dialogs.OpenFile(
+                Loc.T("Где находится esptool", "Where is esptool"),
+                Loc.T("esptool (esptool.exe)|esptool.exe|Все файлы (*.*)|*.*", "esptool (esptool.exe)|esptool.exe|All files (*.*)|*.*"));
+            if (path is null)
+            {
+                return false;
+            }
+
+            _preferences.EsptoolPath = path;
+            _preferences.Save();
+            session.ExplicitToolPath = path;
+        }
+    }
+
+    private string? ChooseFileForDump() => _dialogs.SaveFile(
+        Loc.T("Сохранить прошивку платы", "Save the firmware of the board"),
+        FirmwareFileFilter(),
+        $"dlc32-flash-{DateTime.Now:yyyyMMdd-HHmm}.bin");
+
+    /// <summary>
+    /// Asks for the image to write and judges it before anything else happens: only a whole flash image may go to address 0
+    /// (a bootloader or an application written there would ruin the flash).
+    /// </summary>
+    private string? ChooseImageToWrite()
+    {
+        var file = _dialogs.OpenFile(Loc.T("Прошивка для записи в плату", "Firmware to write to the board"), FirmwareFileFilter());
+        if (file is null)
+        {
+            return null;
+        }
+
+        Esp32ImageInfo image;
+        try
+        {
+            image = Esp32ImageInfo.InspectFile(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _dialogs.ShowError(Loc.T($"Не удалось прочитать файл: {ex.Message}", $"Cannot read the file: {ex.Message}"));
+            return null;
+        }
+
+        if (image.Kind == Esp32ImageKind.SingleImage)
+        {
+            _dialogs.ShowError(Loc.T(
+                "Файл начинается с заголовка образа ESP32: это отдельная часть прошивки (загрузчик или приложение), которую записывают по своему смещению, а не с адреса 0x0. PathForge записывает только полный образ флеш-памяти: файл прошивки MKS DLC32 или дамп, снятый кнопкой «Считать прошивку». Выберите такой файл.",
+                "The file starts with the header of an ESP32 image: it is a part of a firmware (a bootloader or an application) that goes to an offset of its own, not to address 0x0. PathForge writes only a whole flash image: a firmware file of the MKS DLC32 or a dump made with the Read firmware button. Choose such a file."));
+            return null;
+        }
+
+        if (image.Kind == Esp32ImageKind.Unrecognized)
+        {
+            _dialogs.ShowError(Loc.T(
+                "Файл не похож на полный образ флеш-памяти платы: в нём нет загрузчика ESP32 по смещению 0x1000 и таблицы разделов по смещению 0x8000. Выберите файл прошивки MKS DLC32 или дамп, снятый кнопкой «Считать прошивку».",
+                "The file does not look like a whole flash image of the board: it has no ESP32 bootloader at offset 0x1000 and no partition table at offset 0x8000. Choose a firmware file of the MKS DLC32 or a dump made with the Read firmware button."));
+            return null;
+        }
+
+        if (image.Length > Esp32FlashSession.DefaultFlashBytes)
+        {
+            _dialogs.ShowError(Loc.T(
+                $"Файл ({image.Length} байт) больше флеш-памяти платы MKS DLC32 (8 МБ).",
+                $"The file ({image.Length} bytes) is larger than the flash of the MKS DLC32 (8 MB)."));
+            return null;
+        }
+
+        return _dialogs.Confirm(Loc.T(
+            $"Записать «{Path.GetFileName(file)}» ({image.Length} байт) во флеш-память платы с адреса 0x0?\n\nПрошивка и настройки GRBL, которые хранятся во флеш-памяти, будут заменены. Сначала снимите дамп текущей прошивки (кнопка «Считать прошивку»): по нему плату можно вернуть к прежнему состоянию. Во время записи не отключайте плату и кабель USB.",
+            $"Write \"{Path.GetFileName(file)}\" ({image.Length} bytes) to the flash of the board from address 0x0?\n\nThe firmware and the GRBL settings kept in the flash will be replaced. Read the current firmware first (the Read firmware button): it lets you bring the board back to its present state. Do not disconnect the board or the USB cable during the writing."))
+            ? file
+            : null;
+    }
+
+    private static string FirmwareFileFilter() => Loc.T(
+        "Образ прошивки (*.bin)|*.bin|Все файлы (*.*)|*.*",
+        "Firmware image (*.bin)|*.bin|All files (*.*)|*.*");
 
     private void Refresh()
     {
