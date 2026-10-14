@@ -131,9 +131,13 @@ public sealed class Esp32FlashSession
         return null;
     }
 
-    /// <summary>Reads the whole flash of the board into <paramref name="outputPath"/>.</summary>
+    /// <summary>
+    /// Reads the whole flash of the board into <paramref name="outputPath"/>. esptool writes into a temporary file next to it,
+    /// which replaces the file only when the reading succeeded: a failed or cancelled reading leaves an older file alone.
+    /// </summary>
     public async Task<FlashOutcome> ReadAsync(string port, int baud, string outputPath, CancellationToken token)
     {
+        var partPath = outputPath + ".part";
         try
         {
             var tool = await FindToolAsync(token);
@@ -151,18 +155,18 @@ public sealed class Esp32FlashSession
 
             var flashBytes = FlashBytesOf(info.Lines);
             var read = await RunStepAsync(
-                tool, noReset => commands.ReadFlash(noReset, flashBytes, outputPath), InfoShare, 100, ReadingText, info.NoReset, token);
+                tool, noReset => commands.ReadFlash(noReset, flashBytes, partPath), InfoShare, 100, ReadingText, info.NoReset, token);
             if (!read.Success)
             {
-                TryDelete(outputPath);
+                TryDelete(partPath);
                 return Failed(read);
             }
 
             // esptool compares the data with the checksum of the chip itself; the size of the file is checked here.
-            var length = File.Exists(outputPath) ? new FileInfo(outputPath).Length : -1;
+            var length = File.Exists(partPath) ? new FileInfo(partPath).Length : -1;
             if (length != flashBytes)
             {
-                TryDelete(outputPath);
+                TryDelete(partPath);
                 return new FlashOutcome(
                     FlashResult.Failed,
                     Loc.T(
@@ -170,6 +174,7 @@ public sealed class Esp32FlashSession
                         $"The file is incomplete ({Math.Max(length, 0)} bytes instead of {flashBytes}). Read the flash again."));
             }
 
+            File.Move(partPath, outputPath, overwrite: true);
             var image = Esp32ImageInfo.InspectFile(outputPath);
             var note = image.Kind == Esp32ImageKind.FullFlash
                 ? Loc.T("Загрузчик и таблица разделов в образе на месте.", "The bootloader and the partition table are in the image.")
@@ -186,12 +191,12 @@ public sealed class Esp32FlashSession
         {
             // Found a moment ago and gone now (deleted, blocked by an antivirus).
             _tool = null;
-            TryDelete(outputPath);
+            TryDelete(partPath);
             return ToolNotFound();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            TryDelete(outputPath);
+            TryDelete(partPath);
             return new FlashOutcome(FlashResult.Cancelled, Loc.T("Считывание отменено.", "Reading cancelled."));
         }
     }
@@ -238,7 +243,8 @@ public sealed class Esp32FlashSession
                 // A board that was never reached has not been touched; anything else may have been erased already.
                 return Failed(write) with
                 {
-                    WriteStarted = write.Failure is not (EsptoolFailure.NoConnection or EsptoolFailure.PortUnavailable or EsptoolFailure.WrongChip),
+                    WriteStarted = write.Failure is not (EsptoolFailure.NoConnection or EsptoolFailure.PortUnavailable
+                        or EsptoolFailure.WrongChip or EsptoolFailure.DoesNotFit),
                 };
             }
 
@@ -250,8 +256,9 @@ public sealed class Esp32FlashSession
         }
         catch (EsptoolNotStartedException)
         {
+            // The tool did not start at all: it cannot have touched the flash.
             _tool = null;
-            return ToolNotFound() with { WriteStarted = writing };
+            return ToolNotFound();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {

@@ -5,7 +5,9 @@
            Version="$(var.ProductVersion)"
            UpgradeCode="6D57E85A-5036-4EE0-BDA5-C73AC7C1F5F2"
            Scope="perMachine" InstallerVersion="500" Compressed="yes">
-    <MajorUpgrade Schedule="afterInstallInitialize"
+    <!-- AllowSameVersionUpgrades: the .NET 8 and .NET 10 packages of one build share the version; installing one over the
+         other must replace it, not add a second product into the same folder (ICE61 warns about it, by design). -->
+    <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes"
                   DowngradeErrorMessage="A newer version of PathForge is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <Launch Condition="VersionNT64" Message="PathForge requires 64-bit Windows." />

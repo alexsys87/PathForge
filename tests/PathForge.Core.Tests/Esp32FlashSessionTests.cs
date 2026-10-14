@@ -324,8 +324,9 @@ public sealed class Esp32FlashSessionTests
         // The command line of esptool 5, with the size that the chip reported (8 MB) and the file the operator chose.
         var read = rig.Tool.Calls[2];
         Assert.Equal(
-            new[] { "--chip", "esp32", "--port", "COM5", "--baud", "460800", "read-flash", "0x0", "0x800000", output },
+            new[] { "--chip", "esp32", "--port", "COM5", "--baud", "460800", "read-flash", "0x0", "0x800000", output + ".part" },
             read);
+        Assert.False(File.Exists(output + ".part"));
         Assert.Equal(8 * Megabyte, new FileInfo(output).Length);
         Assert.Contains("dlc32.bin", outcome.Message);
         Assert.Contains("8", outcome.Message);
@@ -691,6 +692,40 @@ public sealed class Esp32FlashSessionTests
 
         Assert.Equal(FlashResult.Cancelled, outcome.Result);
         Assert.True(outcome.WriteStarted);
+    }
+
+    [Fact]
+    public async Task Failed_or_cancelled_read_leaves_an_older_file_of_the_same_name_alone()
+    {
+        using var rig = new Rig(tool => tool.OnFlashId = (_, onLine, _) =>
+        {
+            onLine("A fatal error occurred: Failed to connect to ESP32: No serial data received.");
+            return 2;
+        });
+        var output = rig.File("backup.bin");
+        File.WriteAllBytes(output, new byte[] { 1, 2, 3 });
+
+        var outcome = await rig.Session.ReadAsync("COM5", 460800, output, CancellationToken.None);
+
+        Assert.False(outcome.Success);
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(output));
+    }
+
+    [Fact]
+    public async Task Write_refused_by_esptool_as_too_large_has_not_touched_the_board()
+    {
+        using var rig = new Rig(tool => tool.OnWrite = (_, onLine, _) =>
+        {
+            onLine("A fatal error occurred: File fw.bin (length 9000000) at offset 0 will not fit in 8388608 bytes of flash.");
+            return 2;
+        });
+        var image = rig.File("fw.bin");
+        File.WriteAllBytes(image, new byte[1000]);
+
+        var outcome = await rig.Session.WriteAsync("COM5", 460800, image, CancellationToken.None);
+
+        Assert.Equal(EsptoolFailure.DoesNotFit, outcome.Failure);
+        Assert.False(outcome.WriteStarted);
     }
 
     /// <summary>A session on the fake esptool, with a folder of its own for the files.</summary>

@@ -4,8 +4,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using Dlc32Flasher;
+using Dlc32Flasher.Wpf;
 using PathForge.App.Services;
 using PathForge.App.ViewModels;
+using PathForge.Core.Localization;
 
 namespace PathForge.App.Views;
 
@@ -206,6 +209,22 @@ public partial class MainWindow : Window
     }
 
     private void OnExitClick(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>The flasher window of the MKS DLC32 (Dlc32Flasher.Wpf), on the port and speed of the Control tab.</summary>
+    private void OnOpenDlc32FlasherClick(object sender, RoutedEventArgs e)
+    {
+        FlasherText.Russian = !Loc.IsEnglish;
+        var control = _viewModel.Control;
+        var window = new Dlc32FlasherWindow { Owner = this };
+        if (!string.IsNullOrEmpty(control.SelectedPort))
+        {
+            window.Flasher.PortName = control.SelectedPort;
+        }
+
+        window.Flasher.Baud = control.FlashBaud;
+        window.Flasher.BeforePortUse = control.ReleasePortForFlasher;
+        window.ShowDialog();
+    }
 
     /// <summary>A DXF or SVG file dropped onto the window is imported.</summary>
     private void OnFileDrop(object sender, DragEventArgs e)

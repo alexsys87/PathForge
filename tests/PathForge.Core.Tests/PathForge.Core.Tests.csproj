@@ -27,5 +27,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\PathForge.Core\PathForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\Dlc32Flasher\Dlc32Flasher.csproj" />
   </ItemGroup>
 </Project>
