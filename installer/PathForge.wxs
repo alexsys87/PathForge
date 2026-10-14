@@ -18,13 +18,12 @@
     <Property Id="ARPPRODUCTICON" Value="PathForge.exe" />
     <Property Id="ARPHELPLINK" Value="https://github.com/alexsys87/PathForge" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="PathForge is available in the Start menu." />
-    <!-- Preserve a custom installation directory during a major upgrade, unless INSTALLFOLDER is given on the command line. -->
-    <Property Id="PREVIOUSINSTALLFOLDER">
+    <!-- Preserve a custom installation directory during a major upgrade. -->
+    <Property Id="INSTALLFOLDER">
       <RegistrySearch Id="PreviousInstallFolder" Root="HKLM"
                       Key="Software\alexsys87\PathForge"
                       Name="InstallDir" Type="raw" Bitness="always64" />
     </Property>
-    <SetDirectory Id="INSTALLFOLDER" Value="[PREVIOUSINSTALLFOLDER]" Condition="PREVIOUSINSTALLFOLDER AND NOT INSTALLFOLDER" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="PathForge">
