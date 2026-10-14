@@ -31,10 +31,10 @@ jobs:
       REQUESTED_VERSION: ${{ inputs.version }}
       MSI_RUN_NUMBER: ${{ github.run_number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install .NET SDKs
         id: dotnet
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -88,7 +88,7 @@ jobs:
         run: |
           ./installer/test-msi.ps1 -Msi "artifacts/msi/PathForge-$env:PRODUCT_VERSION-${{ matrix.framework }}-win-x64.msi" -BaselineMsi 'artifacts/upgrade-baseline/PathForge-0.0.0-${{ matrix.framework }}-win-x64.msi' -Framework '${{ matrix.framework }}-windows' -AllowMachineChanges
       - name: Upload installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: PathForge-${{ steps.version.outputs.value }}-${{ matrix.framework }}-win-x64-msi
           path: |
@@ -97,7 +97,7 @@ jobs:
           if-no-files-found: error
       - name: Upload diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: PathForge-msi-diagnostics-${{ matrix.framework }}
           path: |

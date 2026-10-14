@@ -26,12 +26,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # The .NET 10 SDK builds both targets; install .NET 8 as well for its test host.
       - name: Install .NET SDKs
         id: dotnet
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-${{ matrix.configuration }}
           path: TestResults/*.trx
@@ -79,7 +79,7 @@ jobs:
 
       # Ordinary WPF build output; no MSIX packaging project or signing secrets required.
       - name: Upload application build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: PathForge-${{ matrix.configuration }}
           path: |
