@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Firmware flasher of the MKS DLC32 (ESP32) over its USB serial port: the ROM bootloader protocol in plain C#,
+       no esptool needed. No dependency on PathForge: the project can be copied into another solution as it is. -->
+  <PropertyGroup>
+    <!-- Inside PathForge the target frameworks come from Directory.Build.props; elsewhere it builds for .NET 8. -->
+    <TargetFrameworks Condition="'$(PathForgeTfms)' != ''">$(PathForgeTfms)</TargetFrameworks>
+    <TargetFramework Condition="'$(PathForgeTfms)' == ''">net8.0</TargetFramework>
+    <RootNamespace>Dlc32Flasher</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Serial port, MIT license -->
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PathForge.Core.Tests" />
+  </ItemGroup>
+</Project>

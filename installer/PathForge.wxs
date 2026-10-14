@@ -5,7 +5,9 @@
            Version="$(var.ProductVersion)"
            UpgradeCode="6D57E85A-5036-4EE0-BDA5-C73AC7C1F5F2"
            Scope="perMachine" InstallerVersion="500" Compressed="yes">
-    <MajorUpgrade Schedule="afterInstallInitialize"
+    <!-- AllowSameVersionUpgrades: the .NET 8 and .NET 10 packages of one build share the version; installing one over the
+         other must replace it, not add a second product into the same folder (ICE61 warns about it, by design). -->
+    <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes"
                   DowngradeErrorMessage="A newer version of PathForge is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <Launch Condition="VersionNT64" Message="PathForge requires 64-bit Windows." />
@@ -16,12 +18,13 @@
     <Property Id="ARPPRODUCTICON" Value="PathForge.exe" />
     <Property Id="ARPHELPLINK" Value="https://github.com/alexsys87/PathForge" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="PathForge is available in the Start menu." />
-    <!-- Preserve a custom installation directory during a major upgrade. -->
-    <Property Id="INSTALLFOLDER">
+    <!-- Preserve a custom installation directory during a major upgrade, unless INSTALLFOLDER is given on the command line. -->
+    <Property Id="PREVIOUSINSTALLFOLDER">
       <RegistrySearch Id="PreviousInstallFolder" Root="HKLM"
                       Key="Software\alexsys87\PathForge"
                       Name="InstallDir" Type="raw" Bitness="always64" />
     </Property>
+    <SetDirectory Id="INSTALLFOLDER" Value="[PREVIOUSINSTALLFOLDER]" Condition="PREVIOUSINSTALLFOLDER AND NOT INSTALLFOLDER" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="PathForge">

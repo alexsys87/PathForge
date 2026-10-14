@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- WPF front end of the MKS DLC32 flasher: a control (Dlc32FlasherControl) and a ready window (Dlc32FlasherWindow).
+       Depends only on the Dlc32Flasher library: both projects can be copied into another WPF program. -->
+  <PropertyGroup>
+    <TargetFrameworks Condition="'$(PathForgeWindowsTfms)' != ''">$(PathForgeWindowsTfms)</TargetFrameworks>
+    <TargetFramework Condition="'$(PathForgeWindowsTfms)' == ''">net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>Dlc32Flasher.Wpf</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Dlc32Flasher\Dlc32Flasher.csproj" />
+  </ItemGroup>
+</Project>

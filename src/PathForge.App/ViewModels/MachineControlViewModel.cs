@@ -6,12 +6,14 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dlc32Flasher;
 using PathForge.App.Services;
 using PathForge.Core.Geometry;
 using PathForge.Core.Grbl;
 using PathForge.Core.Leveling;
 using PathForge.Core.Localization;
 using PathForge.Core.Machining;
+using FlasherProgress = Dlc32Flasher.FlashProgress;
 
 namespace PathForge.App.ViewModels;
 
@@ -116,6 +118,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         _jogTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(ContinuousJog.TickMs) };
         _jogTimer.Tick += (_, _) => JogTick();
         FlashBaud = FlashBaudRates.Contains(preferences.FlashBaud) ? preferences.FlashBaud : Esp32FlashSession.DefaultBaud;
+        UseEsptool = preferences.UseEsptool;
         RefreshPorts();
     }
 
@@ -166,7 +169,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [NotifyCanExecuteChangedFor(nameof(ReadFirmwareCommand), nameof(WriteFirmwareCommand))]
     private bool isFirmwareConnected;
 
-    /// <summary>esptool is reading or writing the flash. The connection is closed meanwhile: esptool needs the port.</summary>
+    /// <summary>The flash is being read or written. The connection is closed meanwhile: the flasher needs the port.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFlashPanelVisible), nameof(IsFlashIdle))]
     [NotifyCanExecuteChangedFor(nameof(ReadFirmwareCommand), nameof(WriteFirmwareCommand), nameof(ConnectCommand))]
@@ -183,6 +186,13 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// <summary>Speed of the port while the flash is read or written.</summary>
     [ObservableProperty]
     private int flashBaud = Esp32FlashSession.DefaultBaud;
+
+    /// <summary>
+    /// Read and write the flash with the external esptool program instead of the built-in flasher (<see cref="Dlc32FirmwareFlasher"/>):
+    /// for a board the built-in one cannot handle.
+    /// </summary>
+    [ObservableProperty]
+    private bool useEsptool;
 
     /// <summary>Connection kinds for the list, named in the interface language.</summary>
     [ObservableProperty]
@@ -960,16 +970,31 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// (<c>M3 S…</c> / <c>M5</c>).
     /// </summary>
     [RelayCommand]
-    private void ToggleManualOutput()
+    private async Task ToggleManualOutputAsync()
     {
         var on = !IsManualOutputOn;
         var machine = _machine();
         var laser = machine.LaserMode;
+        if (!on && _controller is { Status.State: GrblState.Jog } jogging)
+        {
+            // GRBL refuses any G-code line while it jogs (error:9): the jog (a Z move while focusing) is cancelled first,
+            // and the output is switched off as soon as the machine has stopped.
+            jogging.JogCancel();
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+            while (_controller == jogging && jogging.Status.State == GrblState.Jog && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(50);
+            }
+        }
+
+        // The state before the command: an error that arrives while the command is on its way counts as its answer.
+        var status = _controller?.Status;
+        var failed = _controller?.FailedCommands ?? 0;
         if (Run(c => c.SendCommand(on ? ManualOutput.On(laser, laser ? ManualPowerPercent : ManualRpm, machine) : ManualOutput.Off(laser)))
-            && _controller is { } controller)
+            && status is not null)
         {
             // GRBL reports the output only every few seconds: show the new state now, GRBL confirms it later.
-            _outputTracker.Commanded(on, controller.Status, controller.FailedCommands);
+            _outputTracker.Commanded(on, status, failed);
             Refresh();
         }
     }
@@ -1515,6 +1540,24 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// <summary>Asks before closing the window while the machine is working. Returns false to keep the window open.</summary>
     public bool ConfirmClose()
     {
+        if (IsFlashBusy)
+        {
+            if (_flashWriting)
+            {
+                _dialogs.ShowError(Loc.T(
+                    "Идёт запись прошивки в плату. Если закрыть PathForge сейчас, запись прервётся и плата не запустится. Дождитесь окончания записи.",
+                    "The firmware is being written to the board. Closing PathForge now would cut the writing short and leave the board unable to start. Wait for the writing to end."));
+                return false;
+            }
+
+            if (!_dialogs.Confirm(Loc.T(
+                    "Идёт считывание прошивки. Прервать его и закрыть PathForge?",
+                    "The firmware is being read. Stop the reading and close PathForge?")))
+            {
+                return false;
+            }
+        }
+
         if (IsManualOutputOn && !IsJobActive)
         {
             _dialogs.ShowError(Loc.T(
@@ -1599,8 +1642,8 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         IsJogInputEnabled = false;
         StateText = Loc.T("Режим прошивки (загрузчик ESP32)", "Firmware mode (ESP32 bootloader)");
         VersionText = Loc.T(
-            "GRBL не работает. Для дампа или прошивки нажмите «Отключить» и запустите esptool или Flash Download Tool.",
-            "GRBL is not running. To dump or flash the board, press Disconnect and run esptool or the Flash Download Tool.");
+            "GRBL не работает. Считайте или запишите прошивку кнопками ниже либо нажмите «Отключить» и запустите другую программу (esptool, Flash Download Tool).",
+            "GRBL is not running. Read or write the firmware with the buttons below, or press Disconnect and run another program (esptool, the Flash Download Tool).");
         WorkX = WorkY = WorkZ = "—";
         MachineText = FeedText = OverridesText = "";
         IsAlarm = CanControl = IsJobActive = CanStartJob = CanPause = CanResume = false;
@@ -1615,6 +1658,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
 
     private CancellationTokenSource? _flashCts;
     private Esp32FlashSession? _flashSession;
+    private bool _flashWriting;
 
     private bool CanStartFlash() => IsFirmwareConnected && !IsFlashBusy;
 
@@ -1646,36 +1690,46 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         // From here to the end the operation can be cancelled, whatever it is doing at the moment.
         using var cts = new CancellationTokenSource();
         _flashCts = cts;
+        _flashWriting = write;
         IsFlashBusy = true;
         FlashProgress = 0;
-        FlashStatus = Loc.T("Поиск esptool…", "Looking for esptool…");
+        var connectionClosed = false;
         try
         {
-            var session = FlashSession();
-            if (!await EnsureEsptoolAsync(session, cts.Token))
+            Esp32FlashSession? session = null;
+            if (UseEsptool)
             {
-                FlashStatus = "";
-                return;
+                FlashStatus = Loc.T("Поиск esptool…", "Looking for esptool…");
+                session = FlashSession();
+                if (!await EnsureEsptoolAsync(session, cts.Token))
+                {
+                    FlashStatus = "";
+                    return;
+                }
             }
 
-            // esptool needs the port for itself: the connection is closed (the board stays in the bootloader).
+            // The flasher needs the port for itself: the connection is closed (the board stays in the bootloader).
             var port = target.Address;
             CloseConnection();
-            AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T(
-                $"Порт {port} освобождён для esptool.",
-                $"Port {port} is released for esptool.")));
+            connectionClosed = true;
+            AddLog(new GrblLogEntry(GrblLogKind.Info, session is not null
+                ? Loc.T($"Порт {port} освобождён для esptool.", $"Port {port} is released for esptool.")
+                : Loc.T($"Порт {port} освобождён для прошивки.", $"Port {port} is released for flashing.")));
             await Task.Delay(400, cts.Token); // Windows needs a moment to let go of a COM port
 
             _preferences.FlashBaud = FlashBaud;
+            _preferences.UseEsptool = UseEsptool;
             _preferences.Save();
 
             var baud = FlashBaud;
             FlashOutcome outcome;
             try
             {
-                outcome = await Task.Run(() => write
-                    ? session.WriteAsync(port, baud, file, cts.Token)
-                    : session.ReadAsync(port, baud, file, cts.Token));
+                outcome = session is not null
+                    ? await Task.Run(() => write
+                        ? session.WriteAsync(port, baud, file, cts.Token)
+                        : session.ReadAsync(port, baud, file, cts.Token))
+                    : await RunBuiltInFlasherAsync(write, port, baud, file, cts.Token);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -1686,15 +1740,90 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
-            // Cancelled before esptool was started: nothing has been touched.
-            FlashStatus = Loc.T("Отменено.", "Cancelled.");
+            // Cancelled before the flasher started: the board has not been touched.
+            FlashStatus = connectionClosed
+                ? Loc.T(
+                    "Отменено, плата не изменена. Соединение с платой закрыто: чтобы управлять станком, снимите флажок «Режим прошивки» и нажмите «Подключить».",
+                    "Cancelled, the board is unchanged. The connection to the board is closed: to control the machine, clear the Firmware mode box and press Connect.")
+                : Loc.T("Отменено.", "Cancelled.");
             AddLog(new GrblLogEntry(GrblLogKind.Info, FlashStatus));
         }
         finally
         {
             _flashCts = null;
+            _flashWriting = false;
             IsFlashBusy = false;
         }
+    }
+
+    /// <summary>The built-in flasher: the ESP32 ROM bootloader protocol in PathForge itself, no esptool needed.</summary>
+    private async Task<FlashOutcome> RunBuiltInFlasherAsync(bool write, string port, int baud, string file, CancellationToken token)
+    {
+        FlasherText.Russian = !Loc.IsEnglish;
+        var flasher = new Dlc32FirmwareFlasher(line => _dispatcher.BeginInvoke(() => AddLog(new GrblLogEntry(GrblLogKind.Info, line))));
+        var progress = new Progress<FlasherProgress>(p =>
+        {
+            if (p.Total > 0 && p.Stage is FlashStage.Writing or FlashStage.Reading)
+            {
+                FlashProgress = p.Percent;
+            }
+
+            FlashStatus = p.Text;
+        });
+        var options = new Dlc32FlasherOptions { Baud = baud };
+        var report = write
+            ? await flasher.WriteFileAsync(port, file, options, progress, token)
+            : await flasher.ReadFileAsync(port, file, options, progress, token);
+
+        // Progress reports may still be queued: they must not overwrite the verdict shown next.
+        await _dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
+        var result = report.Result switch
+        {
+            FlasherResult.Done => FlashResult.Done,
+            FlasherResult.Cancelled => FlashResult.Cancelled,
+            _ => FlashResult.Failed,
+        };
+        return new FlashOutcome(result, report.Message, WriteStarted: report.FlashChanged);
+    }
+
+    /// <summary>
+    /// Frees a COM port for the flasher window: PathForge's own connection to it (or its reconnection) is closed after a
+    /// question. False calls the flashing off.
+    /// </summary>
+    public bool ReleasePortForFlasher(string port)
+    {
+        if (IsFlashBusy)
+        {
+            _dialogs.ShowError(Loc.T(
+                "Плата уже прошивается на вкладке «Пульт». Дождитесь окончания.",
+                "The board is being flashed on the Control tab already. Wait for the end."));
+            return false;
+        }
+
+        if (_target is not { IsNetwork: false } target || !string.Equals(target.Address, port, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (IsJobActive || IsManualOutputOn)
+        {
+            _dialogs.ShowError(Loc.T(
+                $"Станок на {port} работает (программа или включённый лазер/шпиндель). Остановите его, прежде чем прошивать плату.",
+                $"The machine on {port} is working (a program, or the laser/spindle is on). Stop it before flashing the board."));
+            return false;
+        }
+
+        if (!_dialogs.Confirm(Loc.T(
+                $"PathForge подключён к {port}. Отключиться, чтобы освободить порт для прошивки?",
+                $"PathForge is connected to {port}. Disconnect to free the port for flashing?")))
+        {
+            return false;
+        }
+
+        CloseConnection();
+        AddLog(new GrblLogEntry(GrblLogKind.Info, Loc.T($"Порт {port} освобождён для прошивки.", $"Port {port} is released for flashing.")));
+        Thread.Sleep(400); // Windows needs a moment to let go of a COM port
+        return true;
     }
 
     private void ShowFlashOutcome(FlashOutcome outcome)

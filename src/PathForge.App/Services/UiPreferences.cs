@@ -88,6 +88,9 @@ public sealed class UiPreferences
     /// </summary>
     public string EsptoolPath { get; set; } = "";
 
+    /// <summary>The flash of the MKS DLC32 is read and written with esptool instead of the built-in flasher.</summary>
+    public bool UseEsptool { get; set; }
+
     /// <summary>Speed of the port while the flash of the MKS DLC32 is read or written.</summary>
     public int FlashBaud { get; set; } = Esp32FlashSession.DefaultBaud;
 
