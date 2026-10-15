@@ -95,6 +95,9 @@ public sealed class Esp32FlashSession
     /// <summary>How long a way to start esptool may take to answer <c>version</c> before the next one is tried.</summary>
     public TimeSpan ProbeTimeout { get; init; } = TimeSpan.FromSeconds(20);
 
+    /// <summary>Use only the Arduino esptool.exe next to the application, never PATH, Python or a saved custom path.</summary>
+    public bool LocalToolOnly { get; init; }
+
     /// <summary>Tries the ways to start esptool one by one (<c>esptool version</c>) and keeps the first that works.</summary>
     public async Task<EsptoolTool?> FindToolAsync(CancellationToken token)
     {
@@ -103,7 +106,7 @@ public sealed class Esp32FlashSession
             return _tool;
         }
 
-        foreach (var candidate in EsptoolLocator.Candidates(_explicitToolPath, _appDirectory, _fileExists, _windows))
+        foreach (var candidate in EsptoolLocator.Candidates(_explicitToolPath, _appDirectory, _fileExists, _windows, LocalToolOnly))
         {
             token.ThrowIfCancellationRequested();
             var lines = new List<string>();
@@ -302,7 +305,9 @@ public sealed class Esp32FlashSession
 
     private FlashOutcome ToolNotFound() => new(
         FlashResult.ToolNotFound,
-        Loc.T(
+        LocalToolOnly ? Loc.T(
+            "esptool.exe не найден или не запускается. Поместите esptool.exe из Arduino и необходимые ему файлы в папку с PathForge.exe.",
+            "esptool.exe was not found or could not start. Place the Arduino esptool.exe and its required files in the folder containing PathForge.exe.") : Loc.T(
             "esptool не найден. Установите его (pip install esptool или готовая сборка для Windows со страницы github.com/espressif/esptool/releases) и положите esptool.exe рядом с PathForge.exe, в папку tools, либо укажите путь к нему.",
             "esptool was not found. Install it (pip install esptool, or the ready build for Windows from github.com/espressif/esptool/releases) and put esptool.exe next to PathForge.exe, into the tools folder, or name its path."));
 
