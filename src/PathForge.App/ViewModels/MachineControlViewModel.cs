@@ -118,8 +118,8 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
         _jogTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(ContinuousJog.TickMs) };
         _jogTimer.Tick += (_, _) => JogTick();
         FlashBaud = FlashBaudRates.Contains(preferences.FlashBaud) ? preferences.FlashBaud : Esp32FlashSession.DefaultBaud;
-        UseEsptool = preferences.UseEsptool;
         RefreshPorts();
+        UseEsptool = preferences.UseEsptool;
     }
 
     /// <summary>A program finished or was aborted (shown in the main message list).</summary>
@@ -191,8 +191,35 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     /// Read and write the flash with the external esptool program instead of the built-in flasher (<see cref="Dlc32FirmwareFlasher"/>):
     /// for a board the built-in one cannot handle.
     /// </summary>
-    [ObservableProperty]
     private bool useEsptool;
+
+    public bool UseEsptool
+    {
+        get => useEsptool;
+        set => SetProperty(ref useEsptool, value && IsEsptoolAvailable);
+    }
+
+    /// <summary>The Arduino esptool.exe is present in the folder of PathForge.exe.</summary>
+    [ObservableProperty]
+    private bool isEsptoolAvailable;
+
+    private void RefreshEsptoolAvailability()
+    {
+        IsEsptoolAvailable = EsptoolLocator.LocalExecutable(AppContext.BaseDirectory, File.Exists) is not null;
+        if (!IsEsptoolAvailable)
+        {
+            UseEsptool = false;
+            _flashSession = null;
+        }
+    }
+
+    partial void OnIsFirmwareConnectedChanged(bool value)
+    {
+        if (value)
+        {
+            RefreshEsptoolAvailability();
+        }
+    }
 
     /// <summary>Connection kinds for the list, named in the interface language.</summary>
     [ObservableProperty]
@@ -555,6 +582,7 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void RefreshPorts()
     {
+        RefreshEsptoolAvailability();
         var current = SelectedPort;
         Ports.Clear();
         foreach (var port in SerialPortTransport.PortNames())
@@ -1680,6 +1708,17 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             return;
         }
 
+        // Do not silently switch to the built-in flasher if the selected executable was removed.
+        var requestedEsptool = UseEsptool;
+        RefreshEsptoolAvailability();
+        if (requestedEsptool && !IsEsptoolAvailable)
+        {
+            _dialogs.ShowError(Loc.T(
+                "esptool.exe не найден. Поместите esptool.exe из Arduino в папку с PathForge.exe.",
+                "esptool.exe was not found. Place the Arduino esptool.exe in the folder containing PathForge.exe."));
+            return;
+        }
+
         // The file comes first, while the panel still holds the board: a cancelled dialog changes nothing.
         var file = write ? ChooseImageToWrite() : ChooseFileForDump();
         if (file is null)
@@ -1856,40 +1895,24 @@ public sealed partial class MachineControlViewModel : ObservableObject, IDisposa
             FlashStatus = text;
         }))
     {
-        ExplicitToolPath = string.IsNullOrWhiteSpace(_preferences.EsptoolPath) ? null : _preferences.EsptoolPath,
+        LocalToolOnly = true,
     };
 
-    /// <summary>Finds esptool; when it is nowhere to be found, offers to name its file.</summary>
+    /// <summary>Checks the local Arduino executable without falling back to Python or another installation.</summary>
     private async Task<bool> EnsureEsptoolAsync(Esp32FlashSession session, CancellationToken token)
     {
-        while (true)
+        var tool = await Task.Run(() => session.FindToolAsync(token), token);
+        if (tool is not null)
         {
-            var tool = await Task.Run(() => session.FindToolAsync(token), token);
-            if (tool is not null)
-            {
-                AddLog(new GrblLogEntry(GrblLogKind.Info, $"esptool {tool.Version}: {tool.Describe()}"));
-                return true;
-            }
-
-            if (!_dialogs.Confirm(Loc.T(
-                    "esptool не найден. Он нужен для чтения и записи флеш-памяти. Установите его командой pip install esptool или скачайте готовую сборку для Windows на github.com/espressif/esptool/releases (esptool-…-windows-amd64.zip) и распакуйте рядом с PathForge.exe. Если esptool уже есть на компьютере, можно указать файл esptool.exe сейчас. Указать файл?",
-                    "esptool was not found. It is needed to read and write the flash. Install it with pip install esptool, or download the ready build for Windows from github.com/espressif/esptool/releases (esptool-...-windows-amd64.zip) and unpack it next to PathForge.exe. If esptool is on this computer already, you can name its esptool.exe now. Name the file?")))
-            {
-                return false;
-            }
-
-            var path = _dialogs.OpenFile(
-                Loc.T("Где находится esptool", "Where is esptool"),
-                Loc.T("esptool (esptool.exe)|esptool.exe|Все файлы (*.*)|*.*", "esptool (esptool.exe)|esptool.exe|All files (*.*)|*.*"));
-            if (path is null)
-            {
-                return false;
-            }
-
-            _preferences.EsptoolPath = path;
-            _preferences.Save();
-            session.ExplicitToolPath = path;
+            AddLog(new GrblLogEntry(GrblLogKind.Info, $"esptool {tool.Version}: {tool.Describe()}"));
+            return true;
         }
+
+        RefreshEsptoolAvailability();
+        _dialogs.ShowError(Loc.T(
+            "Не удалось запустить esptool.exe из папки PathForge. Поместите туда исправный esptool.exe из Arduino и необходимые ему файлы.",
+            "Could not run esptool.exe from the PathForge folder. Place a working Arduino esptool.exe and its required files there."));
+        return false;
     }
 
     private string? ChooseFileForDump() => _dialogs.SaveFile(

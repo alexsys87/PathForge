@@ -81,9 +81,28 @@ public interface IEsptoolProcess
 /// <summary>Where esptool may be: a file the operator named, the folder of the program, the search path, a Python that has it.</summary>
 public static class EsptoolLocator
 {
-    /// <summary>The ways to start esptool, the best first. Nothing is started here: each one is tried with <c>version</c>.</summary>
-    public static IReadOnlyList<EsptoolTool> Candidates(string? explicitPath, string appDirectory, Func<string, bool> fileExists, bool windows)
+    /// <summary>The Arduino executable placed next to PathForge, independent of the working directory and PATH.</summary>
+    public static string? LocalExecutable(string appDirectory, Func<string, bool> fileExists)
     {
+        if (string.IsNullOrWhiteSpace(appDirectory))
+        {
+            return null;
+        }
+
+        var path = Path.Combine(appDirectory, "esptool.exe");
+        return fileExists(path) ? path : null;
+    }
+
+    /// <summary>The ways to start esptool, the best first. Nothing is started here: each one is tried with <c>version</c>.</summary>
+    public static IReadOnlyList<EsptoolTool> Candidates(string? explicitPath, string appDirectory, Func<string, bool> fileExists, bool windows,
+        bool localOnly = false)
+    {
+        if (localOnly)
+        {
+            var local = LocalExecutable(appDirectory, fileExists);
+            return local is null ? Array.Empty<EsptoolTool>() : new[] { new EsptoolTool(local, Array.Empty<string>()) };
+        }
+
         var list = new List<EsptoolTool>();
         var exe = windows ? "esptool.exe" : "esptool";
 
